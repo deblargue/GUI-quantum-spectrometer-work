@@ -104,25 +104,24 @@ class GUI:
 
     def test_combine_config_tab(self, tab):
 
-        def default_0():  # clears everything
+        def default_clear():  # clears everything
             print("Clear all")
             self.unmark_done(btn_def_1)
             self.unmark_done(btn_def_2)
             self.unmark_done(btn_def_3)
 
             for key in self.defaults.keys():
-                #if key == 'nr_channels':
-                #   self.defaults['nr_channels']['variable'].set(8)
-                #   continue
 
                 if self.defaults[key]['type'] == 'radio':
                     self.defaults[key]['variable'].set(0)
                 elif self.defaults[key]['type'] == 'int entry':
                     self.defaults[key]['variable'].set(0)
+                elif self.defaults[key]['type'] == 'double entry':
+                    self.defaults[key]['variable'].set(0.0)
                 elif self.defaults[key]['type'] == 'str entry':
                     self.defaults[key]['variable'].set('')
 
-            fill_ch()
+            update_ch()
 
         def default_1():
             default_button_press(0)
@@ -148,17 +147,15 @@ class GUI:
                 self.defaults[key]['variable'].set(self.defaults[key]['value'][n])
                 # note there can be several saved default sets
 
-            fill_ch()
+            update_ch()
 
-        def select_grating():  # TODO
+        def select_grating():  # TODO?
             pass
             # selection = "\nChosen: " + str(self.grating.get())
             # label_choice.config(text=selection)
             # print("Updated grating to", str(self.grating.get()))
 
         def update_ch():
-            self.channels = []
-
             # removes previously shown channels (in case we want to decrease in amount)
             for j, widget in enumerate(frm_ch.winfo_children()):   # FIXME NOTE TODO: USE THIS LATER TO ACCESS BUTTONS FOR MARKING DONE
                 if j > 2:
@@ -167,10 +164,9 @@ class GUI:
             fill_ch()
 
         def fill_ch():
+            self.channels = []
             for i in range(self.nr_channels.get()):
-                #self.c1 = tk.IntVar()
                 self.channels.append(tk.IntVar())  #
-
                 tk.Label(frm_ch, text=f"Ch {i + 1}").grid(row=i + 2, column=0, sticky="ew", padx=5, pady=5)
                 tk.Entry(frm_ch, bd=2, textvariable=self.channels[i], width=6).grid(row=i + 2, column=1, sticky="ew", padx=5, pady=5)
 
@@ -196,7 +192,7 @@ class GUI:
 
         # WIDGETS
         #  -- Default:
-        btn_clear = tk.Button(frm_default, text="Clear all", command=default_0, activeforeground='red')
+        btn_clear = tk.Button(frm_default, text="Clear all", command=default_clear, activeforeground='red')
         btn_def_1 = tk.Button(frm_default, text="Default 1", command=default_1, activeforeground='blue')
         btn_def_2 = tk.Button(frm_default, text="Default 2", command=default_2, activeforeground='blue')
         btn_def_3 = tk.Button(frm_default, text="Default 3", command=default_3, activeforeground='blue')
@@ -544,7 +540,8 @@ class GUI:
 
         def suggest_filename():
             currDate, currTime = get_date()
-            temp = f"grating({self.grating.get()})_" \
+            temp = f"slit({self.slit.get()})_" \
+                   f"grating({self.grating.get()})_" \
                    f"lamda({self.center_wavelength.get()})_" \
                    f"channels({self.nr_channels.get()})_" \
                    f"date({currDate})_time({currTime}).timeres"
@@ -913,13 +910,13 @@ class GUI:
 
             'slit': {
                 'variable': self.slit,
-                'type': 'int entry',
+                'type': 'double entry',
                 'value': [0.01, 0.1, 1]},
 
             'nr_channels': {
                 'variable': self.nr_channels,
                 'type': 'int entry',
-                'value': [8, 8, 8]},
+                'value': [3, 8, 12]},
 
             'new_file_name': {
                 'variable': self.file_name,
