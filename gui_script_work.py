@@ -7,10 +7,9 @@ from datetime import date
 
 
 # ---- Implement the default Matplotlib key bindings:
-# from matplotlib.backend_bases import key_press_handler
-from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
-# from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
+# from matplotlib.backend_bases import key_press_handler
 
 
 class GUI:
@@ -30,14 +29,12 @@ class GUI:
         self.window.rowconfigure(0, minsize=30, weight=1)
         self.window.columnconfigure(0, minsize=50, weight=1)
 
-        #self.create_menubar()
-
         # create and place tabs frame on window grid
-        self.create_tabs()
+        self.fill_tabs()
 
         self.define_default_settings()  # TODO: later save to and from file
 
-    def create_tabs(self):
+    def fill_tabs(self):
         tabControl = ttk.Notebook(self.window)
 
         # ---- Settings and configurations  TAB ----
@@ -52,19 +49,19 @@ class GUI:
         # ---- Start new scan TAB ----  NOTE this should include settings and prep
         new_scan_tab = ttk.Frame(tabControl)
 
-        self.widgets['default'] = self.create_default(new_scan_tab)
+        self.widgets['default'] = self.create_default_buttons(new_scan_tab)
         self.widgets['default'].grid(row=0, column=0, sticky="ew", padx=10, pady=10)
 
-        self.widgets['grating'] = self.create_grating(new_scan_tab)
+        self.widgets['grating'] = self.create_grating_config(new_scan_tab)
         self.widgets['grating'].grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
 
-        self.widgets['entries'] = self.create_entries(new_scan_tab)
+        self.widgets['entries'] = self.create_detector_config(new_scan_tab)
         self.widgets['entries'].grid(row=0, column=2, sticky="nsew", padx=10, pady=10)
 
-        self.widgets['misc'] = self.create_misc_settings(new_scan_tab)
+        self.widgets['misc'] = self.create_file_config(new_scan_tab)
         self.widgets['misc'].grid(row=0, column=3, sticky="nsew", padx=10, pady=10)
 
-        self.widgets['channels'] = self.create_channels(new_scan_tab)
+        self.widgets['channels'] = self.create_channel_config(new_scan_tab)
         self.widgets['channels'].grid(row=0, column=4, sticky="nsew", padx=10, pady=10)
 
         # ---- Open data file (for analysis)???  TAB ----
@@ -136,7 +133,7 @@ class GUI:
         # ---- Text Editor TAB ----
         txt_tab = ttk.Frame(tabControl)
 
-        self.widgets['save_buttons'] = self.create_save_buttons(txt_tab)
+        self.widgets['save_buttons'] = self.create_text_save_buttons(txt_tab)
         self.widgets['save_buttons'].grid(rowspan=2, column=0, sticky="nsew")  # , padx=30, pady=30)
 
         self.widgets['disp_filepath'] = tk.Label(txt_tab, text=f'new file')
@@ -156,14 +153,12 @@ class GUI:
         tabControl.add(settings_tab, text='Settings')
         tabControl.pack(expand=1, fill="both")
 
-    def create_default(self, tab):
-
+    def create_default_buttons(self, tab):
         # EXAMPLE:
         # self.defaults = {'grating': {'variable': self.grating, 'type': 'radio', 'value': 1}}
         # self.defaults['grating']['variable'] = self.grating
         # self.defaults['grating']['type'] = 'radio'
         # self.defaults['grating']['value'] = 1
-
         def default_0():   # clears everything
             for key in self.defaults.keys():
                 if self.defaults[key]['type'] == 'radio':
@@ -172,7 +167,6 @@ class GUI:
                     self.defaults[key]['variable'].set(0)
                 elif self.defaults[key]['type'] == 'str entry':
                     self.defaults[key]['variable'].set('')
-
 
         def default_1():
             default_button_press(0)
@@ -204,34 +198,32 @@ class GUI:
 
         return def_buttons
 
-    def create_grating(self, tab):
+    def create_grating_config(self, tab):
 
-        def sel():  # TODO
+        def select():  # TODO
             selection = "\nChosen: " + str(self.grating.get())
             label_choice.config(text=selection)
             #print("Updated grating to", str(self.grating.get()))
 
-        frm_grating = tk.Frame(tab, relief=tk.RAISED, bd=2)
         self.grating = tk.IntVar()  # for choice of grating
 
-        # TODO: USE FOR GRATING, CHANGE VALUES AND NAMES
-
+        frm_grating = tk.Frame(tab, relief=tk.RAISED, bd=2)
         tk.Label(frm_grating, text='Grating Level').grid(row=0, column=0, sticky="ew", padx=5, pady=5)
-        tk.Radiobutton(frm_grating, text="1", variable=self.grating, value=1, command=sel).grid(row=1, column=0, sticky="ew", padx=5, pady=5)
-        tk.Radiobutton(frm_grating, text="2", variable=self.grating, value=2, command=sel).grid(row=2, column=0, sticky="ew", padx=5, pady=5)
-        tk.Radiobutton(frm_grating, text="3", variable=self.grating, value=3, command=sel).grid(row=3, column=0, sticky="ew", padx=5, pady=5)
+        tk.Radiobutton(frm_grating, text="1", variable=self.grating, value=1, command=select).grid(row=1, column=0, sticky="ew", padx=5, pady=5)
+        tk.Radiobutton(frm_grating, text="2", variable=self.grating, value=2, command=select).grid(row=2, column=0, sticky="ew", padx=5, pady=5)
+        tk.Radiobutton(frm_grating, text="3", variable=self.grating, value=3, command=select).grid(row=3, column=0, sticky="ew", padx=5, pady=5)
         label_choice = tk.Label(frm_grating, text='\n')
         label_choice.grid(row=4, column=0, sticky="ew", padx=5, pady=5)
 
         return frm_grating
 
-    def create_entries(self, tab):
-
-        frm_entry = tk.Frame(tab, relief=tk.RAISED, bd=2)
+    def create_detector_config(self, tab):
 
         self.max_wavelength = tk.IntVar()
         self.min_wavelength = tk.IntVar()
         self.nr_channels = tk.IntVar()
+
+        frm_entry = tk.Frame(tab, relief=tk.RAISED, bd=2)
 
         tk.Label(frm_entry, text="Detector").grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
@@ -245,15 +237,17 @@ class GUI:
 
         return frm_entry
 
-    def create_channels(self, tab):
-
-        frm_ch = tk.Frame(tab, relief=tk.RAISED, bd=2)
+    # NOTE: maybe remove
+    def create_channel_config(self, tab):
 
         self.c1 = tk.IntVar()
         self.c2 = tk.IntVar()
         self.c3 = tk.IntVar()
         self.c4 = tk.IntVar()
         self.c5 = tk.IntVar()
+
+        frm_ch = tk.Frame(tab, relief=tk.RAISED, bd=2)
+
         channels = [self.c1, self.c2, self.c3, self.c4, self.c5]
 
         tk.Label(frm_ch, text='Channel Config').grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
@@ -262,7 +256,12 @@ class GUI:
             tk.Entry(frm_ch, bd=2, textvariable=channels[i], width=6).grid(row=i+1, column=1, sticky="ew", padx=5, pady=5)
         return frm_ch
 
-    def create_misc_settings(self, tab):
+    def create_file_config(self, tab):
+
+        def get_date():
+            currDate = date.today().strftime("%y%m%d")
+            currTime = time.strftime("%Hh%Mm%Ss", time.localtime())
+            return currDate, currTime
 
         def get_recipe():
             self.eta_recipe = askopenfilename(filetypes=[("ETA recipe", "*.eta")])
@@ -275,7 +274,7 @@ class GUI:
             folder_entry.insert(0, self.file_folder)
 
         def suggest_filename():
-            currDate, currTime = self.get_date()
+            currDate, currTime = get_date()
             temp = f"grating({self.grating.get()})_" \
                    f"lamda({self.min_wavelength.get()}-{self.max_wavelength.get()})_" \
                    f"channels({self.nr_channels.get()})_" \
@@ -283,12 +282,12 @@ class GUI:
             name_entry.delete(0, tk.END)
             name_entry.insert(0, temp)
 
-        frm_misc = tk.Frame(tab, relief=tk.RAISED, bd=2)
-
         self.file_name = tk.StringVar()
         self.file_folder = tk.StringVar()
         self.eta_recipe = tk.StringVar()
         self.misc4 = tk.IntVar()
+
+        frm_misc = tk.Frame(tab, relief=tk.RAISED, bd=2)
 
         tk.Label(frm_misc, text="Analysis Configs").grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
         tk.Label(frm_misc, text="(optional)").grid(row=0, column=2, sticky="ew", padx=5, pady=5)
@@ -315,36 +314,6 @@ class GUI:
         #tk.Entry(frm_misc, bd=2, textvariable=self.misc4, width=40).grid(row=4, column=1, sticky="ew", padx=5, pady=5)
 
         return frm_misc
-
-    def create_menubar(self):
-        def donothing():
-            filewin = self.window  # tk.Toplevel(self.window)
-            button = tk.Button(filewin, text="Do nothing button")
-            button.pack()
-
-        menubar = tk.Menu(self.window)
-
-        filemenu = tk.Menu(menubar, tearoff=0)
-        filemenu.add_command(label="New", command=donothing)
-        filemenu.add_command(label="Open", command=donothing)
-        filemenu.add_command(label="Save", command=donothing)
-        filemenu.add_command(label="Save as...", command=donothing)
-        filemenu.add_command(label="Close", command=donothing)
-        filemenu.add_separator()
-        filemenu.add_command(label="Exit", command=self.window.quit)
-        menubar.add_cascade(label="File", menu=filemenu)
-
-        """editmenu = tk.Menu(menubar, tearoff=0)
-        editmenu.add_command(label="Undo", command=donothing)
-        editmenu.add_separator()
-        editmenu.add_command(label="Cut", command=donothing)
-        editmenu.add_command(label="Copy", command=donothing)
-        editmenu.add_command(label="Paste", command=donothing)
-        editmenu.add_command(label="Delete", command=donothing)
-        editmenu.add_command(label="Select All", command=donothing)
-        menubar.add_cascade(label="Edit", menu=editmenu)"""
-
-        self.window.config(menu=menubar)
 
     def create_plot(self, tab):
         # TODO: incorporate real plot
@@ -446,7 +415,7 @@ class GUI:
         t = tk.Text(tab)  # , xscrollcommand=h.set, yscrollcommand=v.set)
         return t
 
-    def create_save_buttons(self, tab):
+    def create_text_save_buttons(self, tab):
 
         def show_msg(msg, timeout=1000):
             lbl = tk.Label(text=msg, font=('', 14), bg='grey', relief=tk.RAISED, bd=2)
@@ -558,11 +527,6 @@ class GUI:
         btn_save_as.grid(row=3, column=0, sticky="ew", padx=5, pady=5)
 
         return frm_buttons
-
-    def get_date(self):
-        currDate = date.today().strftime("%y%m%d")
-        currTime = time.strftime("%Hh%Mm%Ss", time.localtime())
-        return currDate, currTime
 
     def define_default_settings(self):
         # TODO: Create config file where defaults can be saved and read from
