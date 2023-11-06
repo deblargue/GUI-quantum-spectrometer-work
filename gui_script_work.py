@@ -1,9 +1,9 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter.filedialog import askopenfilename, asksaveasfilename, askdirectory
-import numpy as np
 import time
 from datetime import date
+import numpy as np
 
 
 # ---- Implement the default Matplotlib key bindings:
@@ -11,6 +11,14 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 # from matplotlib.backend_bases import key_press_handler
 
+# TODO:
+#  - plots
+#  - ETA data saving and reading
+#  - Display counts
+#  - Add buttons for "setting" configurations (and indication/display of what is set)
+#  - Add scrollbar for counts display (for when we have many)
+#  - Add buttons to change spectrum plot x-label
+#  - Add integration time
 
 class GUI:
 
@@ -50,22 +58,22 @@ class GUI:
         new_scan_tab = ttk.Frame(tabControl)
 
         self.widgets['default'] = self.create_default_buttons(new_scan_tab)
-        self.widgets['default'].grid(row=0, column=0, sticky="ew", padx=10, pady=10)
+        self.widgets['default'].grid(row=0, column=0, sticky="", padx=5, pady=5)
 
         self.widgets['grating'] = self.create_grating_config(new_scan_tab)
-        self.widgets['grating'].grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+        self.widgets['grating'].grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
 
         self.widgets['entries'] = self.create_detector_config(new_scan_tab)
-        self.widgets['entries'].grid(row=0, column=2, sticky="nsew", padx=10, pady=10)
+        self.widgets['entries'].grid(row=0, column=2, sticky="nsew", padx=5, pady=5)
 
         self.widgets['misc'] = self.create_file_config(new_scan_tab)
-        self.widgets['misc'].grid(row=0, column=3, sticky="nsew", padx=10, pady=10)
+        self.widgets['misc'].grid(row=4, column=0, columnspan=3, sticky="nsew", padx=5, pady=5)
 
         self.widgets['channels'] = self.create_channel_config(new_scan_tab)
-        self.widgets['channels'].grid(row=0, column=4, sticky="nsew", padx=10, pady=10)
+        self.widgets['channels'].grid(row=0, column=4, rowspan=100,  sticky="new", padx=5, pady=5)
 
         # ---- Open data file (for analysis)???  TAB ----
-        old_scan_tab = ttk.Frame(tabControl)
+        #old_scan_tab = ttk.Frame(tabControl)
 
         # self.widgets[''] =
         # self.widgets[''].grid()
@@ -74,83 +82,76 @@ class GUI:
         # self.widgets[''].grid()
 
         # ---- 1 Plots  TAB ----
-        plots_1_tab = ttk.Frame(tabControl)
+        plots_spectrum = ttk.Frame(tabControl)
 
-        self.widgets['plot_thing_1_1'] = self.create_plot(plots_1_tab)
-        self.widgets['plot_thing_1_1'].grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        plt_frame, butt_frame = self.create_spectrum_plot(plots_spectrum)
+        self.widgets['plot_spectrum_1'] = plt_frame
+        self.widgets['plot_spectrum_1'].grid(row=0, rowspan=4, column=0, sticky="nsew", padx=5, pady=5)
 
-        self.widgets['plot_thing_1_2'] = self.create_plot(plots_1_tab)
-        self.widgets['plot_thing_1_2'].grid(row=1, column=0, sticky="nsew" , padx=10, pady=10)
+        self.widgets['info_spectrum'] = self.create_plot_info(plots_spectrum, "Spectrum plot info")
+        self.widgets['info_spectrum'].grid(row=0, rowspan=3, column=1, sticky="nsew" , padx=5, pady=5)
 
-        self.widgets['plot_thing_1_3'] = self.create_plot(plots_1_tab)
-        self.widgets['plot_thing_1_3'].grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        self.widgets['butt_spectrum_1'] = butt_frame
+        self.widgets['butt_spectrum_1'].grid(row=3, column=1, sticky="nsew", padx=5, pady=5)
 
-        self.widgets['info_1'] = self.create_plot_info(plots_1_tab, "tab 1 plots")
-        self.widgets['info_1'].grid(row=0, rowspan=2, column=2, sticky="nsew" , padx=10, pady=10)
 
         # ---- 2 Plots  TAB ----
-        plots_2_tab = ttk.Frame(tabControl)
+        plots_correlation = ttk.Frame(tabControl)
 
-        self.widgets['plot_thing_2_1'] = self.create_plot(plots_2_tab)
-        self.widgets['plot_thing_2_1'].grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        self.widgets['plot_correlation_1'] = self.create_correlation_plot(plots_correlation)
+        self.widgets['plot_correlation_1'].grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
-        self.widgets['plot_thing_2_2'] = self.create_plot(plots_2_tab)
-        self.widgets['plot_thing_2_2'].grid(row=1, column=0, sticky="nsew" , padx=10, pady=10)
+        #self.widgets['plot_correlation'] = self.create_correlation_plot(plots_correlation)
+        #self.widgets['plot_correlation'].grid(row=1, column=0, sticky="nsew" , padx=5, pady=5)
 
-        self.widgets['info_2'] = self.create_plot_info(plots_2_tab, "tab 2 plots")
-        self.widgets['info_2'].grid(row=0, rowspan=2, column=2, sticky="nsew" , padx=10, pady=10)
+        self.widgets['info_correlation'] = self.create_plot_info(plots_correlation, "Correlation plot info")
+        self.widgets['info_correlation'].grid(row=0, rowspan=2, column=2, sticky="nsew" , padx=5, pady=5)
 
         # ---- 3 Plots  TAB ----
-        plots_3_tab = ttk.Frame(tabControl)
+        plots_lifetime = ttk.Frame(tabControl)
 
-        self.widgets['plot_thing_3_1'] = self.create_plot(plots_3_tab)
-        self.widgets['plot_thing_3_1'].grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        self.widgets['plot_lifetime_1'] = self.create_choose_lifetime_plot(plots_lifetime)
+        self.widgets['plot_lifetime_1'].grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
-        self.widgets['plot_thing_3_2'] = self.create_plot(plots_3_tab)
-        self.widgets['plot_thing_3_2'].grid(row=1, column=0, sticky="nsew" , padx=10, pady=10)
+        #self.widgets['plot_lifetime_2'] = self.create_choose_lifetime_plot(plots_lifetime)
+        #self.widgets['plot_lifetime_2'].grid(row=1, column=0, sticky="nsew" , padx=5, pady=5)
 
-        self.widgets['info_3'] = self.create_plot_info(plots_3_tab, "tab 3 plots")
-        self.widgets['info_3'].grid(row=0, rowspan=2, column=2, sticky="nsew" , padx=10, pady=10)
+        self.widgets['info_lifetime'] = self.create_plot_info(plots_lifetime, "Lifetime plot info")
+        self.widgets['info_lifetime'].grid(row=0, rowspan=2, column=2, sticky="nsew" , padx=5, pady=5)
 
         # ---- All Plots  TAB ----
-        plots_all_tab = ttk.Frame(tabControl)
+        plots_3d_lifetime = ttk.Frame(tabControl)
 
-        self.widgets['plot_thing_4_1'] = self.create_plots_all(plots_all_tab)
-        self.widgets['plot_thing_4_1'].grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        self.widgets['plot_3D_lifetime_1'] = self.create_3D_lifetime_plot(plots_3d_lifetime)
+        self.widgets['plot_3D_lifetime_1'].grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
-        self.widgets['plot_thing_4_2'] = self.create_plots_all(plots_all_tab)
-        self.widgets['plot_thing_4_2'].grid(row=0, column=1, sticky="nsew" , padx=10, pady=10)
+        #self.widgets['plot_thing_4_2'] = self.create_3D_lifetime_plot(plots_3d_lifetime)
+        #self.widgets['plot_thing_4_2'].grid(row=0, column=1, sticky="nsew" , padx=5, pady=5)
 
-        self.widgets['plot_thing_4_3'] = self.create_plots_all(plots_all_tab)
-        self.widgets['plot_thing_4_3'].grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
-
-        self.widgets['plot_thing_4_4'] = self.create_plots_all(plots_all_tab)
-        self.widgets['plot_thing_4_4'].grid(row=1, column=1, sticky="nsew" , padx=10, pady=10)
-
-        self.widgets['info_4'] = self.create_plot_info(plots_all_tab, "tab all plots")
-        self.widgets['info_4'].grid(row=0, rowspan=2, column=2, sticky="nsew" , padx=10, pady=10)
+        self.widgets['info_3D_lifetime'] = self.create_plot_info(plots_3d_lifetime, "3D Lifetime plot info")
+        self.widgets['info_3D_lifetime'].grid(row=0, rowspan=2, column=2, sticky="nsew" , padx=5, pady=5)
 
         # ---- Text Editor TAB ----
         txt_tab = ttk.Frame(tabControl)
 
         self.widgets['save_buttons'] = self.create_text_save_buttons(txt_tab)
-        self.widgets['save_buttons'].grid(rowspan=2, column=0, sticky="nsew")  # , padx=30, pady=30)
+        self.widgets['save_buttons'].grid(rowspan=2, column=0, sticky="nsew")  # , padx=5, pady=5)
 
         self.widgets['disp_filepath'] = tk.Label(txt_tab, text=f'new file')
-        self.widgets['disp_filepath'].grid(row=0, column=1, sticky="nsew")  # , padx=30, pady=30)
+        self.widgets['disp_filepath'].grid(row=0, column=1, sticky="nsew")  # , padx=5, pady=5)
 
         self.widgets['txt_editor'] = self.create_text_editor(txt_tab)
-        self.widgets['txt_editor'].grid(row=1, column=1, sticky="nsew")  # , padx=30, pady=30)
+        self.widgets['txt_editor'].grid(row=1, column=1, sticky="nsew")  # , padx=5, pady=5)
 
         # ---- Add all tabs to window: ----
         tabControl.add(new_scan_tab, text='Start New Scan')
         #tabControl.add(old_scan_tab, text='Open Old Scan')
-        tabControl.add(plots_1_tab, text='More Plots')
-        tabControl.add(plots_2_tab, text='More Plots')
-        tabControl.add(plots_3_tab, text='More Plots')
-        tabControl.add(plots_all_tab, text='All Plots')
-        tabControl.add(txt_tab, text='Text editor')
+        tabControl.add(plots_spectrum, text='Spectrum Plot')
+        tabControl.add(plots_correlation, text='Correlation Plot')
+        tabControl.add(plots_lifetime, text='Lifetime Plot')
+        tabControl.add(plots_3d_lifetime, text='3D Lifetime Plot')
         tabControl.add(settings_tab, text='Settings')
+        tabControl.add(txt_tab, text='Text editor')
         tabControl.pack(expand=1, fill="both")
 
     def create_default_buttons(self, tab):
@@ -201,59 +202,97 @@ class GUI:
     def create_grating_config(self, tab):
 
         def select():  # TODO
-            selection = "\nChosen: " + str(self.grating.get())
-            label_choice.config(text=selection)
+            pass
+            #selection = "\nChosen: " + str(self.grating.get())
+            #label_choice.config(text=selection)
             #print("Updated grating to", str(self.grating.get()))
 
+        self.slit = tk.IntVar()
         self.grating = tk.IntVar()  # for choice of grating
-
+        self.grating_levels = [1, 2, 3]
         frm_grating = tk.Frame(tab, relief=tk.RAISED, bd=2)
-        tk.Label(frm_grating, text='Grating Level').grid(row=0, column=0, sticky="ew", padx=5, pady=5)
-        tk.Radiobutton(frm_grating, text="1", variable=self.grating, value=1, command=select).grid(row=1, column=0, sticky="ew", padx=5, pady=5)
-        tk.Radiobutton(frm_grating, text="2", variable=self.grating, value=2, command=select).grid(row=2, column=0, sticky="ew", padx=5, pady=5)
-        tk.Radiobutton(frm_grating, text="3", variable=self.grating, value=3, command=select).grid(row=3, column=0, sticky="ew", padx=5, pady=5)
-        label_choice = tk.Label(frm_grating, text='\n')
-        label_choice.grid(row=4, column=0, sticky="ew", padx=5, pady=5)
+
+        tk.Label(frm_grating, text='Slit').grid(row=0, column=0, sticky="", padx=2, pady=3)
+        tk.Entry(frm_grating, bd=2, textvariable=self.slit, width=5).grid(row=0, column=1, sticky="", padx=2, pady=3)
+        tk.Label(frm_grating, text='[..m?]').grid(row=0, column=2, sticky="", padx=2, pady=3)
+
+        """tk.Label(frm_grating, text='Grating').grid(row=1, column=0, sticky="ew", padx=5, pady=5)
+        tk.Radiobutton(frm_grating, text="1", variable=self.grating, value=1, command=select).grid(row=1, column=1, sticky="ew", padx=2, pady=3)
+        tk.Radiobutton(frm_grating, text="2", variable=self.grating, value=2, command=select).grid(row=2, column=1, sticky="ew", padx=2, pady=3)
+        tk.Radiobutton(frm_grating, text="3", variable=self.grating, value=3, command=select).grid(row=3, column=1, sticky="ew", padx=2, pady=3)"""
+
+        tk.Label(frm_grating, text='Grating').grid(row=2, column=0, sticky="", padx=5, pady=3)
+        tk.Radiobutton(frm_grating, text="", variable=self.grating, value=self.grating_levels[0], command=select).grid(row=2, column=1, sticky="s", padx=0, pady=3)
+        tk.Radiobutton(frm_grating, text="", variable=self.grating, value=self.grating_levels[1], command=select).grid(row=2, column=2, sticky="s", padx=0, pady=3)
+        tk.Radiobutton(frm_grating, text="", variable=self.grating, value=self.grating_levels[2], command=select).grid(row=2, column=3, sticky="s", padx=0, pady=3)
+
+        tk.Label(frm_grating, text=str(self.grating_levels[0])+"  ").grid(row=3, column=1, sticky="n", padx=0, pady=3)
+        tk.Label(frm_grating, text=str(self.grating_levels[1])+"  ").grid(row=3, column=2, sticky="n", padx=0, pady=3)
+        tk.Label(frm_grating, text=str(self.grating_levels[2])+"  ").grid(row=3, column=3, sticky="n", padx=0, pady=3)
+
+
+        #label_choice = tk.Label(frm_grating, text='\n')
+        #label_choice.grid(row=4, column=0, sticky="ew", padx=5, pady=5)
 
         return frm_grating
 
     def create_detector_config(self, tab):
 
-        self.max_wavelength = tk.IntVar()
-        self.min_wavelength = tk.IntVar()
+        self.center_wavelength = tk.IntVar()
+        self.width_wavelength = tk.IntVar()
         self.nr_channels = tk.IntVar()
 
         frm_entry = tk.Frame(tab, relief=tk.RAISED, bd=2)
 
         tk.Label(frm_entry, text="Detector").grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
-        tk.Label(frm_entry, text="Min wavelength").grid(row=1, column=0, sticky="ew", padx=5, pady=5)
-        tk.Label(frm_entry, text="Max wavelength").grid(row=2, column=0, sticky="ew", padx=5, pady=5)
-        tk.Label(frm_entry, text="Nr. of channels").grid(row=3, column=0, sticky="ew", padx=5, pady=5)
+        config_dict = {
+            "Center wavelength"            : {'var' : self.center_wavelength, 'unit' : '[nm]'},
+            "Wavelength width per pixel"   : {'var' : self.width_wavelength, 'unit' : '[nm]'},
+            "Nr. of channels (pixles)"     : {'var' : self.nr_channels, 'unit' : ''},
+            }
 
-        tk.Entry(frm_entry, bd=2, textvariable=self.min_wavelength, width=6).grid(row=1, column=1, sticky="ew", padx=5, pady=5)
-        tk.Entry(frm_entry, bd=2, textvariable=self.max_wavelength, width=6).grid(row=2, column=1, sticky="ew", padx=5, pady=5)
-        tk.Entry(frm_entry, bd=2, textvariable=self.nr_channels, width=6).grid(row=3, column=1, sticky="ew", padx=5, pady=5)
+        for i, key in enumerate(config_dict.keys()):
+            tk.Label(frm_entry, text=key).grid(row=i+1, column=0, sticky="ew", padx=5, pady=5)
+            tk.Entry(frm_entry, bd=2, textvariable=config_dict[key]['var'], width=6).grid(row=i+1, column=1, sticky="ew", padx=5, pady=5)
+            tk.Label(frm_entry, text=config_dict[key]['unit']).grid(row=i+1, column=2, sticky="ew", padx=5, pady=5)
 
         return frm_entry
 
     # NOTE: maybe remove
     def create_channel_config(self, tab):
 
-        self.c1 = tk.IntVar()
-        self.c2 = tk.IntVar()
-        self.c3 = tk.IntVar()
-        self.c4 = tk.IntVar()
-        self.c5 = tk.IntVar()
+        def update_ch():
+            self.channels = []
+
+            # removes previously shown channels (in case we want to decrease in amount)
+            for j, widget in enumerate(frm_ch.winfo_children()):
+                if j > 4:
+                    widget.destroy()
+
+            for i in range(self.nr_channels.get()):
+                #self.c1 = tk.IntVar()
+                self.channels.append(tk.IntVar())  #
+
+                tk.Label(frm_ch, text=f"Ch {i + 1}").grid(row=i + 2, column=0, sticky="ew", padx=5, pady=5)
+                tk.Entry(frm_ch, bd=2, textvariable=self.channels[i], width=6).grid(row=i + 2, column=1, sticky="ew", padx=5, pady=5)
 
         frm_ch = tk.Frame(tab, relief=tk.RAISED, bd=2)
 
-        channels = [self.c1, self.c2, self.c3, self.c4, self.c5]
+        # Prompts to update number of channels displayed
+        butt0 = tk.Button(frm_ch, text="Update", command=update_ch)
+        butt0.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
 
-        tk.Label(frm_ch, text='Channel Config').grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
-        for i in range(len(channels)):
-            tk.Label(frm_ch, text=f"Ch {i+1}").grid(row=i+1, column=0, sticky="ew", padx=5, pady=5)
-            tk.Entry(frm_ch, bd=2, textvariable=channels[i], width=6).grid(row=i+1, column=1, sticky="ew", padx=5, pady=5)
+        tk.Label(frm_ch, text='Channel').grid(row=1, column=0, sticky="ew", padx=5, pady=5)
+        tk.Label(frm_ch, text='Bias').grid(row=1, column=1, sticky="ew", padx=5, pady=5)
+        tk.Label(frm_ch, text='Counts').grid(row=1, column=2, sticky="ew", padx=5, pady=5)
+        tk.Label(frm_ch, text='Counts??').grid(row=1, column=3, sticky="ew", padx=5, pady=5)
+        """        
+        for i in range(self.nr_channels.get()):
+            tk.Label(frm_ch, text=f"Ch {i+1}").grid(row=i+2, column=0, sticky="ew", padx=5, pady=5)
+            tk.Entry(frm_ch, bd=2, textvariable=channels[i], width=6).grid(row=i+2, column=1, sticky="ew", padx=5, pady=5)
+        return frm_ch"""
+
         return frm_ch
 
     def create_file_config(self, tab):
@@ -276,7 +315,7 @@ class GUI:
         def suggest_filename():
             currDate, currTime = get_date()
             temp = f"grating({self.grating.get()})_" \
-                   f"lamda({self.min_wavelength.get()}-{self.max_wavelength.get()})_" \
+                   f"lamda({self.center_wavelength.get()})_" \
                    f"channels({self.nr_channels.get()})_" \
                    f"date({currDate})_time({currTime}).timeres"
             name_entry.delete(0, tk.END)
@@ -285,7 +324,7 @@ class GUI:
         self.file_name = tk.StringVar()
         self.file_folder = tk.StringVar()
         self.eta_recipe = tk.StringVar()
-        self.misc4 = tk.IntVar()
+        #self.misc4 = tk.IntVar()
 
         frm_misc = tk.Frame(tab, relief=tk.RAISED, bd=2)
 
@@ -315,7 +354,134 @@ class GUI:
 
         return frm_misc
 
-    def create_plot(self, tab):
+     # ---- PLOTTING ----
+    def create_spectrum_plot(self, tab):
+
+        # TODO: create live graph???
+
+        def pressed_xlabel():
+            # TODO: add data conversion for respective unit
+            # x = ...
+            fig.clear()
+            plot1 = fig.add_subplot(111)
+            plot1.plot(y)  # plot1.(plot(x,y))
+            plot1.set_xlabel(x_label.get())
+            plot1.set_ylabel("counts")
+            plot1.set_title("Spectrum")
+            canvas.draw()
+
+        x_label = tk.StringVar()
+        x_label.set('lamda [nm]')
+
+        # the figure that will contain the plot
+        fig = plt.Figure(figsize=(10, 6), dpi=100)
+
+        #x =
+        # temp data
+        y = [i ** 2 for i in range(101)]
+
+        # adding the subplot
+        plot1 = fig.add_subplot(111)
+        plot1.plot(y)
+        plot1.set_xlabel(x_label.get())
+        plot1.set_ylabel("counts")
+        plot1.set_title("Spectrum")
+
+        # creating the Tkinter canvas containing the Matplotlib figure
+        plt_frame = tk.Frame(tab, relief=tk.RAISED, bd=2)
+
+        # TODO: Grid canvas as well???
+        canvas = FigureCanvasTkAgg(fig, master=plt_frame)  # self.window)
+        canvas.draw()
+
+        # placing the canvas on the Tkinter window
+        canvas.get_tk_widget().pack()
+        toolbar = NavigationToolbar2Tk(canvas, plt_frame)  # self.window)  # creating the Matplotlib toolbar
+        toolbar.update()
+        canvas.get_tk_widget().pack()  # placing the toolbar on the Tkinter window
+
+        # BUTTONS:
+        butt_frame = tk.Frame(tab, relief=tk.RAISED, bd=2)
+
+        #tk.Button(butt_frame, text="lamda [nm]", command=press_lamda).grid(row=1, column=1, sticky="ew", padx=5, pady=5)
+        #tk.Button(butt_frame, text="E [eV]", command=press_e).grid(row=1, column=2, sticky="ew", padx=5, pady=5)
+        #tk.Button(butt_frame, text="v [Hz]", command=press_v).grid(row=1, column=3, sticky="ew", padx=5, pady=5)
+        #tk.Button(butt_frame, text="c [m^-1]", command=press_c).grid(row=1, column=4, sticky="ew", padx=5, pady=5)
+
+        tk.Label(butt_frame, text=f'Change X-axis to:').grid(row=0, column=0, sticky="nsew")
+
+        tk.Radiobutton(butt_frame, text="wavelength", value='wavelength    λ [nm]', variable=x_label, command=pressed_xlabel).grid(row=1, column=0, sticky="ew", padx=2, pady=3)
+        tk.Radiobutton(butt_frame, text="frequency", value='frequency    f [Hz]', variable=x_label, command=pressed_xlabel).grid(row=2, column=0, sticky="ew", padx=2, pady=3)
+        tk.Radiobutton(butt_frame, text="photon energy", value='photon energy    E [eV]', variable=x_label, command=pressed_xlabel).grid(row=3, column=0, sticky="ew", padx=2, pady=3)
+        tk.Radiobutton(butt_frame, text="wave number", value='wave number    v [1/cm]', variable=x_label, command=pressed_xlabel).grid(row=4, column=0, sticky="ew", padx=2, pady=3)
+
+        return plt_frame, butt_frame
+
+    def create_correlation_plot(self, tab):
+        # TODO: incorporate real plot
+
+        # the figure that will contain the plot
+        fig = plt.Figure(figsize=(10, 3), dpi=100)
+
+        # list of squares
+        y = [i ** 2 for i in range(101)]
+
+        # adding the subplot
+        plot1 = fig.add_subplot(111)
+
+        # plotting the graph
+        plot1.plot(y)
+
+        # creating the Tkinter canvas containing the Matplotlib figure
+        plt_frame = tk.Frame(tab, relief=tk.RAISED, bd=2)
+        canvas = FigureCanvasTkAgg(fig, master=plt_frame)  # self.window)
+        canvas.draw()
+
+        # placing the canvas on the Tkinter window
+        canvas.get_tk_widget().pack()
+
+        # creating the Matplotlib toolbar
+        toolbar = NavigationToolbar2Tk(canvas, plt_frame)  # self.window)
+        toolbar.update()
+
+        # placing the toolbar on the Tkinter window
+        canvas.get_tk_widget().pack()
+
+        return plt_frame
+
+    def create_3D_lifetime_plot(self, tab):
+        # TODO: incorporate real plot
+
+        # the figure that will contain the plot
+        fig = plt.Figure(figsize=(10, 3), dpi=100)
+
+        # list of squares
+        y = [i ** 2 for i in range(101)]
+
+        # adding the subplot
+        plot1 = fig.add_subplot(111)
+
+        # plotting the graph
+        plot1.plot(y)
+
+        # creating the Tkinter canvas containing the Matplotlib figure
+        plt_frame = tk.Frame(tab, relief=tk.RAISED, bd=2)
+        canvas = FigureCanvasTkAgg(fig, master=plt_frame)  # self.window)
+        canvas.draw()
+
+        # placing the canvas on the Tkinter window
+        canvas.get_tk_widget().pack()
+
+        # creating the Matplotlib toolbar
+        toolbar = NavigationToolbar2Tk(canvas, plt_frame)  # self.window)
+        toolbar.update()
+
+        # placing the toolbar on the Tkinter window
+        canvas.get_tk_widget().pack()
+
+        return plt_frame
+
+    def create_choose_lifetime_plot(self, tab):
         # TODO: incorporate real plot
 
         # the figure that will contain the plot
@@ -363,8 +529,8 @@ class GUI:
         elif tab_str == "tab all plots":
             pass
 
-        tk.Label(frm_info, text=f'                   ').grid(row=0, column=0, sticky="nsew")
-        tk.Label(frm_info, text=f'                   ').grid(row=0, column=1, sticky="nsew")
+        tk.Label(frm_info, text=f'{tab_str}').grid(row=0, column=0, sticky="nsew")
+        tk.Label(frm_info, text=f'                    ').grid(row=0, column=1, sticky="nsew")
 
         tk.Label(frm_info, text=f'info').grid(row=1, column=0, sticky="nsew")
         tk.Label(frm_info, text=f'info').grid(row=2, column=0, sticky="nsew")
@@ -377,38 +543,6 @@ class GUI:
         tk.Label(frm_info, text=f'.......').grid(row=4, column=1, sticky="nsew")
 
         return frm_info
-
-    def create_plots_all(self, tab):
-        # TODO: incorporate real plot
-
-        # the figure that will contain the plot
-        fig = plt.Figure(figsize=(5, 3), dpi=100)
-
-        # list of squares
-        y = [i ** 2 for i in range(101)]
-
-        # adding the subplot
-        plot1 = fig.add_subplot(111)
-
-        # plotting the graph
-        plot1.plot(y)
-
-        # creating the Tkinter canvas containing the Matplotlib figure
-        plt_frame = tk.Frame(tab, relief=tk.RAISED, bd=2)
-        canvas = FigureCanvasTkAgg(fig, master=plt_frame)  # self.window)
-        canvas.draw()
-
-        # placing the canvas on the Tkinter window
-        canvas.get_tk_widget().pack()
-
-        # creating the Matplotlib toolbar
-        toolbar = NavigationToolbar2Tk(canvas, plt_frame)  # self.window)
-        toolbar.update()
-
-        # placing the toolbar on the Tkinter window
-        canvas.get_tk_widget().pack()
-
-        return plt_frame
 
     def create_text_editor(self, tab):
         # TODO: ADD SCROLLBAR
@@ -536,21 +670,28 @@ class GUI:
         # self.defaults['grating']['variable'] = self.grating
         # self.defaults['grating']['type'] = 'radio'
         # self.defaults['grating']['value'] = 1
+
+
         self.defaults = {
             'grating': {
                 'variable': self.grating,
                 'type': 'radio',
                 'value': [1, 2, 3] },
 
-            'min_wavelength': {
-                'variable': self.min_wavelength,
+            'center_wavelength': {
+                'variable': self.center_wavelength,
                 'type': 'int entry',
                 'value': [350, 650, 750]},
 
-            'max_wavelength': {
-                'variable': self.max_wavelength,
+            'width_wavelength': {
+                'variable': self.width_wavelength,
                 'type': 'int entry',
-                'value': [500, 700, 900]},
+                'value': [5, 15, 30]},
+
+            'slit': {
+                'variable': self.slit,
+                'type': 'int entry',
+                'value': [0.01, 0.1, 1]},
 
             'nr_channels': {
                 'variable': self.nr_channels,
