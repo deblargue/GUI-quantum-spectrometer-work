@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter.filedialog import askopenfilename, asksaveasfilename, askdirectory
 import time
+import serial
 from datetime import date
 import numpy as np
 
@@ -10,6 +11,7 @@ import matplotlib.animation as animation
 from matplotlib import style
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.backend_bases import key_press_handler
+
 
 # TODO:
 #  - maybe add a thing (when pressing start scan button) that checks (reads) current device configs and compares to desired. if not a match then abort scan
@@ -33,18 +35,188 @@ from matplotlib.backend_bases import key_press_handler
 # pixel width  (about 10-20 microns)
 # spectral width (total wavelength range/width ) -->
 
+class SP2750:
+
+    def __init__(self):
+        # Serial connection settings:
+        self.handle = None
+        self.port = "COM4"        # usb port
+        self.demo = True            # NOTE: use this for testing program without connecting to spectrometer
+
+        # TODO fill out list!!
+        self.dict = {
+            'gratings list': {
+                'value type': None,
+                'cmd': 'GRATINGS\r',
+                'info': '',
+                'access': ['read']
+            },
+            'grating' : {
+                'value type': 'discrete',
+                'values' : [1, 2, 3],
+                'cmd' : 'GRATING\r',
+                'info' : '',
+                'access': ['read', 'write']
+            },
+            'nm': {
+                'value type': 'range',
+                'min': 0,
+                'max': 2000,   # FIXME
+                'cmd': 'NM\r',
+                'info': '',
+                'access': ['read', 'write']
+
+            },
+            'nm/min': {
+                'value type': 'range',
+                'min': 000,
+                'max': 000,
+                'cmd': 'NM/MIN\r',   # FIXME
+                'info': '',
+                'access': ['read', '']   # NOTE: not fully implemented yet
+            },
+            'slit': {    # TODO CHECK FIXME; UNSURE IF IT'S EVEN AUTOMATED BY THE SPECTROMETER
+                'value type': None,
+                'min': 000,
+                'max': 000,
+                'cmd': None,  # FIXME
+                'info': '',
+                'access': ['', '']   # NOTE: not fully implemented yet
+
+            }
+        }
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass   # TODO!!! FIXME
+
+    def connect(self):
+        if self.demo:
+            return
+
+        try:
+            print("Establishing connection...")
+            self.handle = serial.Serial(port=self.port, baudrate=9600, parity=serial.PARITY_NONE,
+                                        stopbits=serial.STOPBITS_ONE, bytesize=serial.EIGHTBITS)  # , timeout=self.serial_timeout)
+            if self.handle:
+                print(f"Successfully connected to PORT: {self.port}\nSerial handle:", self.handle)
+            else:
+                print("ERROR: handle still None")
+
+        except serial.SerialException:
+            print(f"ERROR: could not connect to PORT: {self.port}")
+            if self.handle:
+                self.disconnect()
+            raise
+
+    def disconnect(self):
+        if self.demo:
+            return
+
+        time.sleep(1)
+        self.handle.close()
+        self.handle = None
+        print("Connection Closed!")
+
+    def wait_for_read(self):
+        if self.demo:
+            return
+
+        # reads response every second and waits until request is complete.
+        for i in range(30):
+
+            res_r = self.handle.readall()
+            res = res_r.decode("ASCII")   # TODO: strip line termination etc.
+
+            if len(res) > 2:   # todo maybe increase idk?
+                return res
+
+            print("waiting", i)
+            time.sleep(1)
+
+    def read_cmd(self, param):
+        if self.demo:
+            return False # FIXME??
+
+        if param not in self.dict.keys():
+            print("ERROR: UNKNOWN READ param")
+            return False
+
+        if 'read' not in self.dict[param]['access']:
+            print(f"ERROR: MISSING READ PRIVILEGES for {param}")
+            return False
+
+        if self.demo:
+            print(f"DEMO: SUCCESS READ FOR {param} ")
+            return True
+
+        print(f"\nReading {param}...")
+        cmd = f"?{self.dict[param]['cmd']}"
+        self.handle.write(cmd.encode("ASCII"))
+        print("Read Response =", self.wait_for_read())
+        return True
+
+    def write_cmd(self, param, value):
+
+        # Check if parameter is correctly defined
+        if param not in self.dict.keys():
+            print(f"ERROR: BAD WRITE param ({param})")
+            return False
+
+        if 'write' not in self.dict[param]['access']:
+            print(f"ERROR: MISSING WRITE PRIVILEGES for {param}")
+            return False
+
+        # Checks if desired value is ok
+        if self.dict[param]['value type'] == 'discrete':
+            value = int(value)
+            if value not in self.dict[param]['values']:
+                print(f"ERROR: VALUE {value} NOT ALLOWED")
+                return False
+
+        elif self.dict[param]['value type'] == 'range':
+            value = float(value)
+            if not (self.dict[param]['min'] <= value <= self.dict[param]['max']):
+                print(f"ERROR: VALUE {value} NOT IN ALLOWED RANGE")
+                return False
+
+        else:
+            print(f"ERROR: UNKNOWN VALUE TYPE FOR {param} ")
+            return False
+
+        if self.demo:
+            print(f"DEMO: SUCCESS WRITE FOR {param} ")
+            return True
+
+        print(f"\nWriting {param}... to: {value}")
+        cmd = f"{value} {self.dict[param]['cmd']}"
+        self.handle.write(cmd.encode("ASCII"))
+        res = self.wait_for_read()
+        print("Write Response =", res)
+
+        if res == "":   # FIXME: check for actual confirmation
+            return False
+        return True
+
 
 class GUI:
 
     def __init__(self):
 
+        self.sp = SP2750()  # initial communication class with spectrometer
+        self.sp.connect()
+
         # --- MAIN ----
         self.current_file_name = None
         self.current_file_type = None
         self.current_file_path = None
+
         self.widgets = {}
+
+        self.buttons = {}
+
         self.defaults = {}
-        self.button_color = 'grey' # default button colors TODO DECIDE!
+
+        self.button_color = 'grey'  # default button colors TODO DECIDE!
 
         # INIT WINDOW
         self.window = tk.Tk()
@@ -61,113 +233,108 @@ class GUI:
         self.define_default_settings()  # TODO: later save to and from file
 
     def fill_tabs(self):
+
+        def scan_tab():
+            new_scan_tab = ttk.Frame(tabControl)
+
+            # ---- Start new scan TAB ----  NOTE this should include settings and prep
+            start_tab = tk.Frame(new_scan_tab, relief=tk.RAISED, bd=2)   # frame to gather things to communicate with devices
+
+            self.widgets['param_config'] = self.create_param_configs(new_scan_tab)
+            self.widgets['live_spectrum'] = self.create_live_spectrum_plot(new_scan_tab)
+
+            # sub frame:
+            self.widgets['file_config'] = self.create_file_config(start_tab)
+            self.widgets['send_conf_button'] = self.create_send_configs(start_tab)  # button to send cofigs
+            self.widgets['start_scan_button'] = self.create_start_scan(start_tab)  # button to send cofigs
+
+            self.widgets['param_config'].grid(row=0, column=0, rowspan=100, sticky="news", padx=0, pady=0)
+            start_tab.grid(row=0, column=1, columnspan=1, sticky="news", padx=0, pady=0)
+            self.widgets['live_spectrum'].grid(row=2, column=1, columnspan=1, sticky="news", padx=0, pady=0)
+
+            tk.Label(start_tab, text='Device Communication', font=('', 15)).grid(row=0, column=0, columnspan=4, sticky="news", padx=0, pady=0)
+            self.widgets['file_config'].grid(row=1, column=0, sticky="news", padx=0, pady=0)  # in sub frame
+            self.widgets['send_conf_button'].grid(row=1, column=1, sticky="news", padx=0, pady=0)  # in sub frame
+            self.widgets['start_scan_button'].grid(row=1, column=2, sticky="news", padx=0, pady=0)  # in sub frame
+
+            tabControl.add(new_scan_tab, text='New Scan')
+
+        def plot_spectrum_tab():
+            plots_spectrum = ttk.Frame(tabControl)
+
+            # ---- 1 Plots  TAB ----
+
+            plt_frame, butt_frame = self.create_spectrum_plot(plots_spectrum)
+            self.widgets['plot_spectrum_1'] = plt_frame
+            self.widgets['plot_spectrum_1'].grid(row=0, rowspan=4, column=0, sticky="nsew", padx=0, pady=0)
+
+            #self.widgets['info_spectrum'] = self.create_plot_info(plots_spectrum, "Spectrum plot info")
+            #self.widgets['info_spectrum'].grid(row=0, rowspan=3, column=1, sticky="nsew" , padx=0, pady=0)
+
+            self.widgets['butt_spectrum_1'] = butt_frame
+            self.widgets['butt_spectrum_1'].grid(row=3, column=1, sticky="nsew", padx=0, pady=0)
+
+            tabControl.add(plots_spectrum, text='Spectrum Plot')
+
+        def plot_correlation_tab():
+            plots_correlation = ttk.Frame(tabControl)
+
+            # ---- 2 Plots  TAB ----
+
+            self.widgets['plot_correlation_1'] = self.create_correlation_plot(plots_correlation)
+            self.widgets['plot_correlation_1'].grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+
+            #self.widgets['info_correlation'] = self.create_plot_info(plots_correlation, "Correlation plot info")
+            #self.widgets['info_correlation'].grid(row=0, rowspan=2, column=2, sticky="nsew" , padx=0, pady=0)
+
+            tabControl.add(plots_correlation, text='Correlation Plot')
+
+        def plot_lifetime_tab():
+            plots_lifetime = ttk.Frame(tabControl)
+
+            # ---- 3 Plots  TAB ----
+
+            self.widgets['plot_lifetime_1'] = self.create_lifetime_plot(plots_lifetime)
+            self.widgets['plot_lifetime_1'].grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+
+            #self.widgets['info_lifetime'] = self.create_plot_info(plots_lifetime, "Lifetime plot info")
+            #self.widgets['info_lifetime'].grid(row=0, rowspan=2, column=2, sticky="nsew" , padx=0, pady=0)
+
+            tabControl.add(plots_lifetime, text='Lifetime Plot')
+
+        def plot_3d_lifetime_tab():
+            plots_3d_lifetime = ttk.Frame(tabControl)
+
+            # ---- All Plots  TAB ----
+
+            self.widgets['plot_3D_lifetime_1'] = self.create_3D_lifetime_plot(plots_3d_lifetime)
+            self.widgets['plot_3D_lifetime_1'].grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+
+            self.widgets['info_3D_lifetime'] = self.create_plot_info(plots_3d_lifetime, "3D Lifetime plot info")
+            self.widgets['info_3D_lifetime'].grid(row=0, rowspan=2, column=2, sticky="nsew" , padx=0, pady=0)
+
+            tabControl.add(plots_3d_lifetime, text='3D Lifetime Plot')
+
+        def settings_tab():
+            settings_tab = ttk.Frame(tabControl)
+
+            # ---- Settings and configurations  TAB ----
+            # ... TODO
+
+            tabControl.add(settings_tab, text='Settings')
+
+        # Create notebook for multi tab window:
         tabControl = ttk.Notebook(self.window)
 
-        # ---- Settings and configurations  TAB ----
-        settings_tab = ttk.Frame(tabControl)
+        # Create and add tabs to notebook:
+        scan_tab()
+        plot_spectrum_tab()
+        plot_correlation_tab()
+        plot_lifetime_tab()
+        plot_3d_lifetime_tab()
+        settings_tab()
 
-        # ---- TEST Start new scan TAB ----  NOTE this should include settings and prep
-        test_new_scan_tab = ttk.Frame(tabControl)
-        test_start_tab = tk.Frame(test_new_scan_tab, relief=tk.RAISED, bd=2)   # frame to gather things to communicate with devices
-
-        self.widgets['param_config'] = self.test_combine_config_tab(test_new_scan_tab)
-        self.widgets['live_spectrum'] = self.create_live_spectrum_plot(test_new_scan_tab)
-
-        # sub frame:
-        self.widgets['file_config'] = self.create_file_config(test_start_tab)
-        self.widgets['send_conf_button'] = self.create_send_configs(test_start_tab)  # button to send cofigs
-        self.widgets['start_scan_button'] = self.create_start_scan(test_start_tab)  # button to send cofigs
-
-        self.widgets['param_config'].grid(row=0, column=0, rowspan=100, sticky="news", padx=0, pady=0)
-        test_start_tab.grid(row=0, column=1, columnspan=1, sticky="news", padx=0, pady=0)
-        self.widgets['live_spectrum'].grid(row=2, column=1, columnspan=1, sticky="news", padx=0, pady=0)
-
-        tk.Label(test_start_tab, text='Device Communication', font=('', 15)).grid(row=0, column=0, columnspan=4, sticky="news", padx=0, pady=0)
-        self.widgets['file_config'].grid(row=1, column=0, sticky="news", padx=0, pady=0)  # in sub frame
-        self.widgets['send_conf_button'].grid(row=1, column=1, sticky="news", padx=0, pady=0)  # in sub frame
-        self.widgets['start_scan_button'].grid(row=1, column=2, sticky="news", padx=0, pady=0)  # in sub frame
-
-
-        # ---- Start new scan TAB ----  NOTE this should include settings and prep
-        """new_scan_tab = ttk.Frame(tabControl)
-
-        self.widgets['default'] = self.create_default_buttons(new_scan_tab)
-        self.widgets['default'].grid(row=0, column=0, sticky="", padx=0, pady=0)
-
-        self.widgets['grating'] = self.create_grating_config(new_scan_tab)
-        self.widgets['grating'].grid(row=0, column=1, sticky="nsew", padx=0, pady=0)
-
-        self.widgets['entries'] = self.create_detector_config(new_scan_tab)
-        self.widgets['entries'].grid(row=0, column=2, sticky="nsew", padx=0, pady=0)
-
-        self.widgets['misc'] = self.create_file_config(new_scan_tab)
-        self.widgets['misc'].grid(row=4, column=0, columnspan=3, sticky="nsew", padx=0, pady=0)
-
-        self.widgets['channels'] = self.create_channel_config(new_scan_tab)
-        self.widgets['channels'].grid(row=0, column=4, rowspan=100,  sticky="new", padx=0, pady=0)"""
-
-        # ---- 1 Plots  TAB ----
-        plots_spectrum = ttk.Frame(tabControl)
-
-        plt_frame, butt_frame = self.create_spectrum_plot(plots_spectrum)
-        self.widgets['plot_spectrum_1'] = plt_frame
-        self.widgets['plot_spectrum_1'].grid(row=0, rowspan=4, column=0, sticky="nsew", padx=0, pady=0)
-
-        self.widgets['info_spectrum'] = self.create_plot_info(plots_spectrum, "Spectrum plot info")
-        self.widgets['info_spectrum'].grid(row=0, rowspan=3, column=1, sticky="nsew" , padx=0, pady=0)
-
-        self.widgets['butt_spectrum_1'] = butt_frame
-        self.widgets['butt_spectrum_1'].grid(row=3, column=1, sticky="nsew", padx=0, pady=0)
-
-        # ---- 2 Plots  TAB ----
-        plots_correlation = ttk.Frame(tabControl)
-
-        self.widgets['plot_correlation_1'] = self.create_correlation_plot(plots_correlation)
-        self.widgets['plot_correlation_1'].grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
-
-        self.widgets['info_correlation'] = self.create_plot_info(plots_correlation, "Correlation plot info")
-        self.widgets['info_correlation'].grid(row=0, rowspan=2, column=2, sticky="nsew" , padx=0, pady=0)
-
-        # ---- 3 Plots  TAB ----
-        plots_lifetime = ttk.Frame(tabControl)
-
-        self.widgets['plot_lifetime_1'] = self.create_choose_lifetime_plot(plots_lifetime)
-        self.widgets['plot_lifetime_1'].grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
-
-        self.widgets['info_lifetime'] = self.create_plot_info(plots_lifetime, "Lifetime plot info")
-        self.widgets['info_lifetime'].grid(row=0, rowspan=2, column=2, sticky="nsew" , padx=0, pady=0)
-
-        # ---- All Plots  TAB ----
-        plots_3d_lifetime = ttk.Frame(tabControl)
-
-        self.widgets['plot_3D_lifetime_1'] = self.create_3D_lifetime_plot(plots_3d_lifetime)
-        self.widgets['plot_3D_lifetime_1'].grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
-
-        self.widgets['info_3D_lifetime'] = self.create_plot_info(plots_3d_lifetime, "3D Lifetime plot info")
-        self.widgets['info_3D_lifetime'].grid(row=0, rowspan=2, column=2, sticky="nsew" , padx=0, pady=0)
-
-        # ---- Text Editor TAB ----
-        txt_tab = ttk.Frame(tabControl)
-
-        self.widgets['save_buttons'] = self.create_text_save_buttons(txt_tab)
-        self.widgets['save_buttons'].grid(rowspan=2, column=0, sticky="nsew")  # , padx=0, pady=0)
-
-        self.widgets['disp_filepath'] = tk.Label(txt_tab, text=f'new file')
-        self.widgets['disp_filepath'].grid(row=0, column=1, sticky="nsew")  # , padx=0, pady=0)
-
-        self.widgets['txt_editor'] = self.create_text_editor(txt_tab)
-        self.widgets['txt_editor'].grid(row=1, column=1, sticky="nsew")  # , padx=0, pady=0)
-
-        # ---- Add all tabs to window: ----
-
-        tabControl.add(test_new_scan_tab, text='New Scan')
-        #tabControl.add(new_scan_tab, text='Start New Scan')
-        tabControl.add(plots_spectrum, text='Spectrum Plot')
-        tabControl.add(plots_correlation, text='Correlation Plot')
-        tabControl.add(plots_lifetime, text='Lifetime Plot')
-        tabControl.add(plots_3d_lifetime, text='3D Lifetime Plot')
-        tabControl.add(settings_tab, text='Settings')
-        #tabControl.add(txt_tab, text='Text editor')
+        # Pack all tabs in notebook to window:
         tabControl.pack(expand=1, fill="both")
 
     def mark_done(self, widget, highlight="white", text_color='black', type='button'):   # light green = #82CC6C
@@ -185,9 +352,8 @@ class GUI:
 
         def get_str():
             temp1 = f"slit width = {self.slit.get()} [um]"
-            temp2 = f"grating = {self.grating.get()} [gr/mm]"
+            temp2 = f"grating = {self.grating_levels[self.grating.get()]['grating']} [gr/mm]"
             temp3 = f"center λ = {self.center_wavelength.get()} [nm]"
-            #temp4 = f"width = {self.width_wavelength.get()} [nm]"
             return [temp1, temp2, temp3]  # , temp4]
 
         def check():
@@ -210,14 +376,24 @@ class GUI:
                 self.mark_done(btn_send_conf, highlight=self.button_color, type='button')
 
                 #try:   # woking parts will be marked green
-                #print(self.widgets['param_config'])
                 self.config_success = True
+
+                self.ok_to_send_list = [
+                    ['slit', self.slit.get(), send_txt_1],   # todo: implement later
+                    ['grating', self.grating.get(), send_txt_2],
+                    ['nm', self.center_wavelength.get(), send_txt_3],
+                ]
+
                 for thing in self.ok_to_send_list:
-                    if thing[1]:  # true or false
+
+                    success = self.sp.write_cmd(param=thing[0], value=thing[1])   # returns true if correctly configured
+
+                    if success:   # true or false
                         #print(thing[0])
-                        self.mark_done(thing[0], text_color='green', type='text')  # passed test (temp)
+                        self.mark_done(thing[2], text_color='green', type='text')  # passed test (temp)
+
                     else:
-                        self.mark_done(thing[0], text_color='red', type='text')   # failed test (temp)
+                        self.mark_done(thing[2], text_color='red', type='text')   # failed test (temp)
                         self.config_success = False
 
                 if self.config_success:  # if all succeed to be configured
@@ -226,6 +402,11 @@ class GUI:
                     self.mark_done(btn_send_conf, highlight='red', type='button')
             else:
                 self.mark_done(btn_send_conf, highlight='red', type='button')
+
+        def read_val():
+            self.sp.read_cmd('grating')
+            self.sp.read_cmd('nm')
+            self.sp.read_cmd('gratings list')  # all gratings
 
         self.config_success = None   # None if not tried to configure yet
         self.checked_configs = False
@@ -240,8 +421,8 @@ class GUI:
         #send_txt_4 = tk.Label(frm_send_values, text=temp[3], foreground='white', justify="right")
 
         # NOTE: below is temp for testing success of failure
-        #self.ok_to_send_list = [[send_txt_1, True], [send_txt_2, True], [send_txt_3, True], [send_txt_4, False]]
-        self.ok_to_send_list = [[send_txt_1, True], [send_txt_2, True], [send_txt_3, True]]  # , [send_txt_3, True]]
+        #self.ok_to_send_list = [[send_txt_1, True], [send_txt_2, True], [send_txt_3, True]]  # , [send_txt_3, True]]
+        #self.ok_to_send_list = [[send_txt_1, True], [send_txt_2, True], [send_txt_3, True]]  # , [send_txt_3, True]]
 
         btn_check_conf = tk.Button(frm_send, text="Check values..", command=check, activeforeground='blue', highlightbackground=self.button_color)
         btn_send_conf = tk.Button(frm_send,  text="Send to Device", command=nothing, foreground='white', activeforeground='white') #, highlightbackground=self.button_color)
@@ -308,7 +489,7 @@ class GUI:
 
         return frm_send
 
-    def test_combine_config_tab(self, tab):
+    def create_param_configs(self, tab):
 
         def default_clear():  # clears everything
             print("Clear all")
@@ -376,9 +557,21 @@ class GUI:
 
         # GLOBALS -----
         self.slit = tk.IntVar()
+
         self.grating = tk.IntVar()  # for choice of grating
-        self.grating_levels = [150, 300, 600]
-        self.grating_blaze = [1.6, 1.7, 1.6]
+
+        """self.grating_levels = {    # FIXME
+            'index': [1, 2, 3]  # fix me
+            'grating' : [150, 300, 600],
+            'blz' : [1.6, 1.7, 1.6],
+        }"""
+
+        self.grating_levels = {    # FIXME
+            0: {'grating': '', 'blz': ''},
+            1: {'grating': 150, 'blz': 1.6},
+            2: {'grating': 300, 'blz': 1.7},
+            3: {'grating': 600, 'blz': 1.6},
+        }
 
         self.center_wavelength = tk.IntVar()
         self.width_wavelength = tk.IntVar()
@@ -411,13 +604,13 @@ class GUI:
         grt_txt = tk.Label(frm_grating, text='Grating')
         grt_txt_blz = tk.Label(frm_grating, text='Blaze')
 
-        grt_rad_1 = tk.Radiobutton(frm_grating, text=str(self.grating_levels[0])+"  [gr/mm]", variable=self.grating, value=self.grating_levels[0], command=select_grating)
-        grt_rad_2 = tk.Radiobutton(frm_grating, text=str(self.grating_levels[1])+"  [gr/mm]", variable=self.grating, value=self.grating_levels[1], command=select_grating)
-        grt_rad_3 = tk.Radiobutton(frm_grating, text=str(self.grating_levels[2])+"  [gr/mm]", variable=self.grating, value=self.grating_levels[2], command=select_grating)
+        grt_rad_1 = tk.Radiobutton(frm_grating, text=str(self.grating_levels[1]['grating'])+"  [gr/mm]", variable=self.grating, value=1, command=select_grating)
+        grt_rad_2 = tk.Radiobutton(frm_grating, text=str(self.grating_levels[2]['grating'])+"  [gr/mm]", variable=self.grating, value=2, command=select_grating)
+        grt_rad_3 = tk.Radiobutton(frm_grating, text=str(self.grating_levels[3]['grating'])+"  [gr/mm]", variable=self.grating, value=3, command=select_grating)
 
-        grt_txt_1_blz = tk.Label(frm_grating, text="   "+str(self.grating_blaze[0])+"  [um]")
-        grt_txt_2_blz = tk.Label(frm_grating, text="   "+str(self.grating_blaze[1])+"  [um]")
-        grt_txt_3_blz = tk.Label(frm_grating, text="   "+str(self.grating_blaze[2])+"  [um]")
+        grt_txt_1_blz = tk.Label(frm_grating, text="   "+str(self.grating_levels[1]['blz'])+"  [um]")
+        grt_txt_2_blz = tk.Label(frm_grating, text="   "+str(self.grating_levels[2]['blz'])+"  [um]")
+        grt_txt_3_blz = tk.Label(frm_grating, text="   "+str(self.grating_levels[3]['blz'])+"  [um]")
 
 
         #  -- Detector:
@@ -496,146 +689,6 @@ class GUI:
 
         return frm_test
 
-    """
-    def create_default_buttons(self, tab):
-        # EXAMPLE:
-        # self.defaults = {'grating': {'variable': self.grating, 'type': 'radio', 'value': 1}}
-        # self.defaults['grating']['variable'] = self.grating
-        # self.defaults['grating']['type'] = 'radio'
-        # self.defaults['grating']['value'] = 1
-        def default_0():   # clears everything
-            for key in self.defaults.keys():
-                if self.defaults[key]['type'] == 'radio':
-                    self.defaults[key]['variable'].set(0)
-                elif self.defaults[key]['type'] == 'int entry':
-                    self.defaults[key]['variable'].set(0)
-                elif self.defaults[key]['type'] == 'str entry':
-                    self.defaults[key]['variable'].set('')
-
-        def default_1():
-            default_button_press(0)
-
-        def default_2():
-            default_button_press(1)
-
-        def default_3():
-            default_button_press(2)
-
-        def default_button_press(n=0):
-            for key in self.defaults.keys():
-                #print("setting default:", key)
-                self.defaults[key]['variable'].set(self.defaults[key]['value'][n])
-                # note there can be several saved default sets
-
-        def_buttons = tk.Frame(tab, relief=tk.RAISED, bd=2)
-        btn_new_0 = tk.Button(def_buttons, text="Clear all", command=default_0)
-        btn_new_0.grid(row=0, column=0, sticky="ew", padx=0, pady=0)
-
-        btn_new_1 = tk.Button(def_buttons, text="Default 1", command=default_1)
-        btn_new_1.grid(row=1, column=0, sticky="ew", padx=0, pady=0)
-
-        btn_new_2 = tk.Button(def_buttons, text="Default 2", command=default_2)
-        btn_new_2.grid(row=2, column=0, sticky="ew", padx=0, pady=0)
-
-        btn_new_3 = tk.Button(def_buttons, text="Default 3", command=default_3)
-        btn_new_3.grid(row=3, column=0, sticky="ew", padx=0, pady=0)
-
-        return def_buttons
-
-    def create_grating_config(self, tab):
-
-        def select():  # TODO
-            pass
-            #selection = "\nChosen: " + str(self.grating.get())
-            #label_choice.config(text=selection)
-            #print("Updated grating to", str(self.grating.get()))
-
-        self.slit = tk.IntVar()
-        self.grating = tk.IntVar()  # for choice of grating
-        self.grating_levels = [1, 2, 3]
-        frm_grating = tk.Frame(tab, relief=tk.RAISED, bd=2)
-
-        tk.Label(frm_grating, text='Slit').grid(row=0, column=0, sticky="", padx=0, pady=0)
-        tk.Entry(frm_grating, bd=2, textvariable=self.slit, width=5).grid(row=0, column=1, sticky="", padx=0, pady=0)
-        tk.Label(frm_grating, text='[..m?]').grid(row=0, column=2, sticky="", padx=0, pady=0)
-
-        '''tk.Label(frm_grating, text='Grating').grid(row=1, column=0, sticky="ew", padx=0, pady=0)
-        tk.Radiobutton(frm_grating, text="1", variable=self.grating, value=1, command=select).grid(row=1, column=1, sticky="ew", padx=0, pady=0)
-        tk.Radiobutton(frm_grating, text="2", variable=self.grating, value=2, command=select).grid(row=2, column=1, sticky="ew", padx=0, pady=0)
-        tk.Radiobutton(frm_grating, text="3", variable=self.grating, value=3, command=select).grid(row=3, column=1, sticky="ew", padx=0, pady=0)'''
-
-        tk.Label(frm_grating, text='Grating').grid(row=2, column=0, sticky="", padx=0, pady=0)
-        tk.Radiobutton(frm_grating, text="", variable=self.grating, value=self.grating_levels[0], command=select).grid(row=2, column=1, sticky="s", padx=0, pady=0)
-        tk.Radiobutton(frm_grating, text="", variable=self.grating, value=self.grating_levels[1], command=select).grid(row=2, column=2, sticky="s", padx=0, pady=0)
-        tk.Radiobutton(frm_grating, text="", variable=self.grating, value=self.grating_levels[2], command=select).grid(row=2, column=3, sticky="s", padx=0, pady=0)
-
-        tk.Label(frm_grating, text=str(self.grating_levels[0])+"  ").grid(row=3, column=1, sticky="n", padx=0, pady=0)
-        tk.Label(frm_grating, text=str(self.grating_levels[1])+"  ").grid(row=3, column=2, sticky="n", padx=0, pady=0)
-        tk.Label(frm_grating, text=str(self.grating_levels[2])+"  ").grid(row=3, column=3, sticky="n", padx=0, pady=0)
-
-
-        return frm_grating
-
-    def create_detector_config(self, tab):
-
-        self.center_wavelength = tk.IntVar()
-        self.width_wavelength = tk.IntVar()
-        self.nr_pixels = tk.IntVar()
-
-        frm_entry = tk.Frame(tab, relief=tk.RAISED, bd=2)
-
-        tk.Label(frm_entry, text="Detector").grid(row=0, column=0, columnspan=2, sticky="ew", padx=0, pady=0)
-
-        config_dict = {
-            "Center wavelength"            : {'var' : self.center_wavelength, 'unit' : '[nm]'},
-            "Wavelength width per pixel"   : {'var' : self.width_wavelength, 'unit' : '[nm]'},
-            "Nr. of channels (pixles)"     : {'var' : self.nr_pixels, 'unit' : ''},
-            }
-
-        for i, key in enumerate(config_dict.keys()):
-            tk.Label(frm_entry, text=key).grid(row=i+1, column=0, sticky="ew", padx=0, pady=0)
-            tk.Entry(frm_entry, bd=2, textvariable=config_dict[key]['var'], width=6).grid(row=i+1, column=1, sticky="ew", padx=0, pady=0)
-            tk.Label(frm_entry, text=config_dict[key]['unit']).grid(row=i+1, column=2, sticky="ew", padx=0, pady=0)
-
-        return frm_entry
-
-    # NOTE: maybe remove
-    def create_channel_config(self, tab):
-
-        def update_ch():
-            self.channels = []
-
-            # removes previously shown channels (in case we want to decrease in amount)
-            for j, widget in enumerate(frm_ch.winfo_children()):
-                if j > 4:
-                    widget.destroy()
-
-            for i in range(self.nr_pixels.get()):
-                #self.c1 = tk.IntVar()
-                self.channels.append(tk.IntVar())  #
-
-                tk.Label(frm_ch, text=f"Ch {i + 1}").grid(row=i + 2, column=0, sticky="ew", padx=0, pady=0)
-                tk.Entry(frm_ch, bd=2, textvariable=self.channels[i], width=6).grid(row=i + 2, column=1, sticky="ew", padx=0, pady=0)
-
-        frm_ch = tk.Frame(tab, relief=tk.RAISED, bd=2)
-
-        # Prompts to update number of channels displayed
-        butt0 = tk.Button(frm_ch, text="Update", command=update_ch)
-        butt0.grid(row=0, column=0, sticky="ew", padx=0, pady=0)
-
-        tk.Label(frm_ch, text='Channel').grid(row=1, column=0, sticky="ew", padx=0, pady=0)
-        tk.Label(frm_ch, text='Bias').grid(row=1, column=1, sticky="ew", padx=0, pady=0)
-        tk.Label(frm_ch, text='Counts').grid(row=1, column=2, sticky="ew", padx=0, pady=0)
-        tk.Label(frm_ch, text='Counts??').grid(row=1, column=3, sticky="ew", padx=0, pady=0)
-        
-        '''for i in range(self.nr_pixels.get()):
-            tk.Label(frm_ch, text=f"Ch {i+1}").grid(row=i+2, column=0, sticky="ew", padx=0, pady=0)
-            tk.Entry(frm_ch, bd=2, textvariable=channels[i], width=6).grid(row=i+2, column=1, sticky="ew", padx=0, pady=0)
-        return frm_ch'''
-
-        return frm_ch
-    """
-
     def create_file_config(self, tab):
 
         def get_date():
@@ -696,8 +749,6 @@ class GUI:
 
         return frm_misc
 
-     # ---- PLOTTING ----
-    # NOTE: below plot can change what is displayed as x-axis data/label
     def create_spectrum_plot(self, tab):
 
         # TODO: create live graph???
@@ -908,7 +959,7 @@ class GUI:
 
         return plt_frame
 
-    def create_choose_lifetime_plot(self, tab):
+    def create_lifetime_plot(self, tab):
         # TODO: incorporate real plot
 
         # the figure that will contain the plot
@@ -971,124 +1022,6 @@ class GUI:
 
         return frm_info
 
-    def create_text_editor(self, tab):
-        # TODO: ADD SCROLLBAR
-        t = tk.Text(tab)  # , xscrollcommand=h.set, yscrollcommand=v.set)
-        return t
-
-    def create_text_save_buttons(self, tab):
-
-        def show_msg(msg, timeout=1000):
-            lbl = tk.Label(text=msg, font=('', 14), bg='grey', relief=tk.RAISED, bd=2)
-            lbl.place(relx=0.5, rely=0.2, anchor=tk.CENTER)
-            self.window.after(timeout, lbl.destroy)  # timeout in ms
-
-        def open_file():
-
-            filepath = askopenfilename(
-                filetypes=[("Text Files", "*.txt"), ("TimeRes", "*.timeres"), ("All Files", "*.*")])
-            if not filepath:
-                return
-
-            self.widgets['txt_editor'].delete("1.0", tk.END)
-
-            update_curr_file_var(filepath)  # updating global value of curr path
-
-            if self.current_file_type == 'timeres':
-                print("opening timeres file")
-                with open(filepath, mode="rb") as input_file:
-                    text = input_file.read()
-                    text = str(text)
-                    self.widgets['txt_editor'].insert(tk.END, text)
-
-            elif self.current_file_type == 'txt':
-                with open(filepath, mode="r", encoding="utf-8") as input_file:  # NOTE THIS ENCODING MIGHT NOT BE ENOUGH
-                    text = input_file.read()
-                    self.widgets['txt_editor'].insert(tk.END, text)
-            else:
-                print("NOT TXT OR TIMERES YET! RESETTING")
-                self.current_file_type = None
-                self.current_file_name = None
-                self.current_file_path = None
-                return
-
-            self.widgets['disp_filepath'].config(text=f"{self.current_file_path}")
-
-        def save_file():
-            # If this is a new file (not opened or saved before) --> call save as function
-
-            if self.current_file_path is None:  # --> need to get name!!
-                # while current_file_path is None:
-                print("Cannot save new file, instead saving as new file!")
-                save_as_file()  # needs to ask for file name and type and path  # WARNING POTENTIAL RECURSION
-                return
-
-            # SAVE FILE!
-            self.current_file_path = str(
-                self.current_file_path)  # note: not actually needed but python complains about possibility of it being None type
-            if self.current_file_type == 'txt':
-                with open(self.current_file_path, mode="w", encoding="utf-8") as output_file:
-                    text = self.widgets['txt_editor'].get("1.0", tk.END)
-                    output_file.write(text)
-            elif self.current_file_type == 'timeres':
-                with open(self.current_file_path, mode="wb") as output_file:
-                    text = self.widgets['txt_editor'].get("1.0", tk.END)  # FIXME bytes???
-                    output_file.write(text)  # FIXME
-            else:
-                print("Could not save unknown filetype")
-                show_msg(msg=" ~* ERROR: UNKNOWN FILETYPE *~ ", timeout=2000)
-                # save_as_file()
-                return
-
-            show_msg(msg=" ~* FILE SAVED *~ ", timeout=1000)
-
-            self.widgets['disp_filepath'].config(text=f"{self.current_file_path}")
-
-        def save_as_file():
-
-            """Save the current file as a new file."""
-            filepath = asksaveasfilename(
-                defaultextension=".txt",
-                filetypes=[("Text Files", "*.txt"), ("TimeRes", "*.timeres"), ("All Files", "*.*")],
-            )
-            if not filepath:  # if filepath is none? does this happen if we cancel?
-                return
-
-            update_curr_file_var(filepath)  # updating global value of curr path
-
-            save_file()
-
-        def new_file():
-            self.widgets['txt_editor'].delete("1.0", tk.END)
-            self.widgets['disp_filepath'].config(text=f"new file")
-            self.current_file_path = None
-            self.current_file_name = None
-            self.current_file_type = None
-
-        def update_curr_file_var(filepath):
-
-            start_idx = filepath.rfind("/")
-            stop_idx = filepath.rfind(".")
-            self.current_file_path = filepath
-            self.current_file_name = filepath[start_idx + 1: stop_idx]
-            self.current_file_type = filepath[stop_idx + 1:]
-
-        frm_buttons = tk.Frame(tab, relief=tk.RAISED, bd=2)
-
-        btn_new = tk.Button(frm_buttons, text="New", command=new_file)
-        btn_new.grid(row=0, column=0, sticky="ew", padx=0, pady=0)
-
-        btn_open = tk.Button(frm_buttons, text="Open", command=open_file)
-        btn_open.grid(row=1, column=0, sticky="ew", padx=0, pady=0)
-
-        btn_save = tk.Button(frm_buttons, text="Save", command=save_file)
-        btn_save.grid(row=2, column=0, sticky="ew", padx=0, pady=0)
-
-        btn_save_as = tk.Button(frm_buttons, text="Save As...", command=save_as_file)
-        btn_save_as.grid(row=3, column=0, sticky="ew", padx=0, pady=0)
-
-        return frm_buttons
-
     def define_default_settings(self):
         # TODO: Create config file where defaults can be saved and read from
 
@@ -1102,7 +1035,8 @@ class GUI:
             'grating': {
                 'variable': self.grating,
                 'type': 'radio',
-                'value': [150, 300, 600]},
+                'value': [1, 2, 3]  # [150, 300, 600]
+            },
 
             #'blaze': {   # connected to grating
             #    150: 1.6,
@@ -2735,4 +2669,7 @@ example_data_red = [
 
 gui = GUI()  # starts GUI
 gui.window.mainloop()
+gui.sp.disconnect()   # closes connection with spectrometer
+
+print("Closing program!")
 
