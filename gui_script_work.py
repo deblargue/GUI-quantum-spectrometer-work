@@ -14,18 +14,20 @@ from matplotlib.backend_bases import key_press_handler
 
 
 # TODO:
+#  - add port as option ---> or make a "connection tab" to connect device first... --> and find out how to list available/active ports as options (dropdown list)
+#  - strip and extract values from real read response  (and write confirmation with 'ok'??)
+#  - fix "check device" layout
+#  - add a tab with one button per co mand to read to device one by one, and display response
+#  -
 #  - maybe add a thing (when pressing start scan button) that checks (reads) current device configs and compares to desired. if not a match then abort scan
-#  - check what variables need to be int vs floats!!! -->  tk.IntVar  or  tk.DoubleVar
-#  - make a print tab to the right where "progress is being shown :)"
-#  - when devices are set, button turns green
+#  - make a print tab to the right where "progress" is being shown :)"
 #  - plots
 #  - ETA data saving and reading
 #  - Display counts
 #  - Add buttons for "setting" configurations (and indication/display of what is set)
 #  - Add scrollbar for counts display (for when we have many)
-#  - Add buttons to change spectrum plot x-label
 #  - Add integration time
-#  - Add value limits, and some check that ensures only allowed range in used
+#
 
 # grating levels: 150, 300, 600   gr/mm
 # blaze: 1.6, 1.7, 1.6 microns
@@ -42,6 +44,10 @@ class SP2750:
         self.handle = None
         self.port = "COM4"        # usb port
         self.demo = True            # NOTE: use this for testing program without connecting to spectrometer
+
+        if self.demo:
+            self.device_grating = 2
+            self.device_wavelength = 749.997
 
         # TODO fill out list!!
         self.dict = {
@@ -87,6 +93,7 @@ class SP2750:
         }
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        print("__EXIT__  method called")
         pass   # TODO!!! FIXME
 
     def connect(self):
@@ -134,26 +141,30 @@ class SP2750:
             time.sleep(1)
 
     def read_cmd(self, param):
-        if self.demo:
-            return False # FIXME??
 
         if param not in self.dict.keys():
             print("ERROR: UNKNOWN READ param")
-            return False
+            return None
 
         if 'read' not in self.dict[param]['access']:
             print(f"ERROR: MISSING READ PRIVILEGES for {param}")
-            return False
+            return None
 
         if self.demo:
             print(f"DEMO: SUCCESS READ FOR {param} ")
-            return True
+            if param == 'nm':
+                return self.device_wavelength
+            elif param == 'grating':
+                return self.device_grating
+            else:
+                return None
 
         print(f"\nReading {param}...")
         cmd = f"?{self.dict[param]['cmd']}"
         self.handle.write(cmd.encode("ASCII"))
-        print("Read Response =", self.wait_for_read())
-        return True
+        res = self.wait_for_read()
+        print("Read Response =", res)
+        return res
 
     def write_cmd(self, param, value):
 
@@ -185,6 +196,12 @@ class SP2750:
 
         if self.demo:
             print(f"DEMO: SUCCESS WRITE FOR {param} ")
+
+            if param == 'nm':
+                self.device_wavelength = value - 0.003
+            elif param == 'grating':
+                self.device_grating = value
+
             return True
 
         print(f"\nWriting {param}... to: {value}")
@@ -212,7 +229,7 @@ class GUI:
 
         self.widgets = {}
 
-        self.buttons = {}
+        self.buttons = {}  # todo ????
 
         self.defaults = {}
 
@@ -232,6 +249,64 @@ class GUI:
 
         self.define_default_settings()  # TODO: later save to and from file
 
+    def define_default_settings(self):
+        # TODO: Create config file where defaults can be saved and read from
+
+        # EXAMPLE:
+        # self.defaults = {'grating': {'variable': self.grating, 'type': 'radio', 'value': 1}}
+        # self.defaults['grating']['variable'] = self.grating
+        # self.defaults['grating']['type'] = 'radio'
+        # self.defaults['grating']['value'] = 1
+
+        self.defaults = {
+            'grating': {
+                'variable': self.grating,
+                'type': 'radio',
+                'value': [1, 2, 3]  # [150, 300, 600]
+            },
+
+            #'blaze': {   # connected to grating
+            #    150: 1.6,
+            #    300: 1.7,
+            #    600: 1.6,
+            #    'type': 'hardware'},
+
+            'center_wavelength': {
+                'variable': self.center_wavelength,
+                'type': 'int entry',
+                'value': [350, 650, 750]},
+
+            'width_wavelength': {
+                'variable': self.width_wavelength,
+                'type': 'int entry',
+                'value': [5, 15, 30]},
+
+            'slit': {
+                'variable': self.slit,
+                'type': 'int entry',
+                'value': [10, 20, 30]},
+
+            'nr_pixels': {
+                'variable': self.nr_pixels,
+                'type': 'int entry',
+                'value': [3, 8, 12]},
+
+            'new_file_name': {
+                'variable': self.file_name,
+                'type': 'str entry',
+                'value': ['butterfly.timeres', 'frog.timeres', 'sheep.timeres']},
+
+            'new_folder_name': {
+                'variable': self.file_folder,
+                'type': 'str entry',
+                'value': ['~/Desktop/GUI/Data1', '~/Desktop/GUI/Data2', '~/Desktop/GUI/Data3']},
+
+            'eta_recipe': {
+                'variable': self.eta_recipe,
+                'type': 'str entry',
+                'value': ['~/Desktop/GUI/Recipe/gui_recipe_1.eta', '~/Desktop/GUI/Recipe/gui_recipe_2.eta', '~/Desktop/GUI/Recipe/gui_recipe_3.eta']},
+        }
+
     def fill_tabs(self):
 
         def scan_tab():
@@ -240,13 +315,13 @@ class GUI:
             # ---- Start new scan TAB ----  NOTE this should include settings and prep
             start_tab = tk.Frame(new_scan_tab, relief=tk.RAISED, bd=2)   # frame to gather things to communicate with devices
 
-            self.widgets['param_config'] = self.create_param_configs(new_scan_tab)
-            self.widgets['live_spectrum'] = self.create_live_spectrum_plot(new_scan_tab)
+            self.widgets['param_config'] = self.choose_param_configs_widget(new_scan_tab)
+            self.widgets['live_spectrum'] = self.plot_live_spectrum_widget(new_scan_tab)
 
             # sub frame:
-            self.widgets['file_config'] = self.create_file_config(start_tab)
-            self.widgets['send_conf_button'] = self.create_send_configs(start_tab)  # button to send cofigs
-            self.widgets['start_scan_button'] = self.create_start_scan(start_tab)  # button to send cofigs
+            self.widgets['file_config'] = self.choose_file_configs_widget(start_tab)
+            self.widgets['send_conf_button'] = self.send_param_configs_widget(start_tab)  # button to send cofigs
+            self.widgets['start_scan_button'] = self.start_scan_widget(start_tab)  # button to send cofigs
 
             self.widgets['param_config'].grid(row=0, column=0, rowspan=100, sticky="news", padx=0, pady=0)
             start_tab.grid(row=0, column=1, columnspan=1, sticky="news", padx=0, pady=0)
@@ -264,12 +339,12 @@ class GUI:
 
             # ---- 1 Plots  TAB ----
 
-            plt_frame, butt_frame = self.create_spectrum_plot(plots_spectrum)
+            plt_frame, butt_frame = self.plot_spectrum_widget(plots_spectrum)
             self.widgets['plot_spectrum_1'] = plt_frame
             self.widgets['plot_spectrum_1'].grid(row=0, rowspan=4, column=0, sticky="nsew", padx=0, pady=0)
 
-            #self.widgets['info_spectrum'] = self.create_plot_info(plots_spectrum, "Spectrum plot info")
-            #self.widgets['info_spectrum'].grid(row=0, rowspan=3, column=1, sticky="nsew" , padx=0, pady=0)
+            self.widgets['info_spectrum'] = self.plot_display_info_widget(plots_spectrum, "Spectrum plot info")
+            self.widgets['info_spectrum'].grid(row=0, rowspan=3, column=1, sticky="nsew" , padx=0, pady=0)
 
             self.widgets['butt_spectrum_1'] = butt_frame
             self.widgets['butt_spectrum_1'].grid(row=3, column=1, sticky="nsew", padx=0, pady=0)
@@ -281,10 +356,10 @@ class GUI:
 
             # ---- 2 Plots  TAB ----
 
-            self.widgets['plot_correlation_1'] = self.create_correlation_plot(plots_correlation)
-            self.widgets['plot_correlation_1'].grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+            #self.widgets['plot_correlation_1'] = self.plot_correlation_widget(plots_correlation)
+            #self.widgets['plot_correlation_1'].grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
 
-            #self.widgets['info_correlation'] = self.create_plot_info(plots_correlation, "Correlation plot info")
+            #self.widgets['info_correlation'] = self.plot_display_info_widget(plots_correlation, "Correlation plot info")
             #self.widgets['info_correlation'].grid(row=0, rowspan=2, column=2, sticky="nsew" , padx=0, pady=0)
 
             tabControl.add(plots_correlation, text='Correlation Plot')
@@ -294,10 +369,10 @@ class GUI:
 
             # ---- 3 Plots  TAB ----
 
-            self.widgets['plot_lifetime_1'] = self.create_lifetime_plot(plots_lifetime)
-            self.widgets['plot_lifetime_1'].grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+            #self.widgets['plot_lifetime_1'] = self.plot_lifetime_widget(plots_lifetime)
+            #self.widgets['plot_lifetime_1'].grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
 
-            #self.widgets['info_lifetime'] = self.create_plot_info(plots_lifetime, "Lifetime plot info")
+            #self.widgets['info_lifetime'] = self.plot_display_info_widget(plots_lifetime, "Lifetime plot info")
             #self.widgets['info_lifetime'].grid(row=0, rowspan=2, column=2, sticky="nsew" , padx=0, pady=0)
 
             tabControl.add(plots_lifetime, text='Lifetime Plot')
@@ -307,11 +382,11 @@ class GUI:
 
             # ---- All Plots  TAB ----
 
-            self.widgets['plot_3D_lifetime_1'] = self.create_3D_lifetime_plot(plots_3d_lifetime)
-            self.widgets['plot_3D_lifetime_1'].grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+            #self.widgets['plot_3D_lifetime_1'] = self.plot_3D_lifetime_widget(plots_3d_lifetime)
+            #self.widgets['plot_3D_lifetime_1'].grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
 
-            self.widgets['info_3D_lifetime'] = self.create_plot_info(plots_3d_lifetime, "3D Lifetime plot info")
-            self.widgets['info_3D_lifetime'].grid(row=0, rowspan=2, column=2, sticky="nsew" , padx=0, pady=0)
+            #self.widgets['info_3D_lifetime'] = self.plot_display_info_widget(plots_3d_lifetime, "3D Lifetime plot info")
+            #self.widgets['info_3D_lifetime'].grid(row=0, rowspan=2, column=2, sticky="nsew" , padx=0, pady=0)
 
             tabControl.add(plots_3d_lifetime, text='3D Lifetime Plot')
 
@@ -345,192 +420,29 @@ class GUI:
             widget.config(foreground=text_color)  # green
             widget.config(activeforeground='blue')   #maybe only reset for send btn ???
 
-    def create_send_configs(self, tab):
+    def choose_param_configs_widget(self, tab):
 
-        def nothing():
-            print("WARNING: CHECK YOUR VALUES BEFORE SENDING TO DEVICE")
+        def reset_button_col():
+            self.mark_done(btn_def_1, highlight=self.button_color, type='button')
+            self.mark_done(btn_def_2, highlight=self.button_color, type='button')
+            self.mark_done(btn_def_3, highlight=self.button_color, type='button')
 
-        def get_str():
-            temp1 = f"slit width = {self.slit.get()} [um]"
-            temp2 = f"grating = {self.grating_levels[self.grating.get()]['grating']} [gr/mm]"
-            temp3 = f"center λ = {self.center_wavelength.get()} [nm]"
-            return [temp1, temp2, temp3]  # , temp4]
+        def default_press(n=0):
+            reset_button_col()
+            if n == 0:
+                print("Clear all")
 
-        def check():
-            # todo: chould also check connection and values on device (if active/correct)
-            temp = get_str()
-
-            send_txt_1.config(text=temp[0], foreground='black')   # make green for passed tests!
-            send_txt_2.config(text=temp[1], foreground='black')   # make green for passed tests!
-            send_txt_3.config(text=temp[2], foreground='black')   # make green for passed tests!
-            #send_txt_4.config(text=temp[3], foreground='black')   # make green for passed tests!
-
-            self.checked_configs = True
-            self.mark_done(btn_send_conf, text_color='black', highlight='yellow', type='button')
-
-            btn_send_conf.config(command=send)   # ACTIVATES SEND OPTION
-
-        def send():
-            print("Attempting to send configs to device...")
-            if self.checked_configs:  # if we've double-checked currently set values
-                self.mark_done(btn_send_conf, highlight=self.button_color, type='button')
-
-                #try:   # woking parts will be marked green
-                self.config_success = True
-
-                self.ok_to_send_list = [
-                    ['slit', self.slit.get(), send_txt_1],   # todo: implement later
-                    ['grating', self.grating.get(), send_txt_2],
-                    ['nm', self.center_wavelength.get(), send_txt_3],
-                ]
-
-                for thing in self.ok_to_send_list:
-
-                    success = self.sp.write_cmd(param=thing[0], value=thing[1])   # returns true if correctly configured
-
-                    if success:   # true or false
-                        #print(thing[0])
-                        self.mark_done(thing[2], text_color='green', type='text')  # passed test (temp)
-
-                    else:
-                        self.mark_done(thing[2], text_color='red', type='text')   # failed test (temp)
-                        self.config_success = False
-
-                if self.config_success:  # if all succeed to be configured
-                    self.mark_done(btn_send_conf, highlight='green', type='button')
-                else:
-                    self.mark_done(btn_send_conf, highlight='red', type='button')
+                for key in self.defaults.keys():
+                    if self.defaults[key]['type'] == 'radio':
+                        self.defaults[key]['variable'].set(0)
+                    elif self.defaults[key]['type'] == 'int entry':
+                        self.defaults[key]['variable'].set(0)
+                    elif self.defaults[key]['type'] == 'str entry':
+                        self.defaults[key]['variable'].set('')
             else:
-                self.mark_done(btn_send_conf, highlight='red', type='button')
-
-        def read_val():
-            self.sp.read_cmd('grating')
-            self.sp.read_cmd('nm')
-            self.sp.read_cmd('gratings list')  # all gratings
-
-        self.config_success = None   # None if not tried to configure yet
-        self.checked_configs = False
-        temp = get_str()
-
-        frm_send = tk.Frame(tab, relief=tk.RAISED, bd=2)
-        frm_send_values = tk.Frame(frm_send, relief=tk.RAISED, bd=2)
-
-        send_txt_1 = tk.Label(frm_send_values, text=temp[0], foreground='white', justify="left")
-        send_txt_2 = tk.Label(frm_send_values, text=temp[1], foreground='white', justify="left")
-        send_txt_3 = tk.Label(frm_send_values, text=temp[2], foreground='white', justify="right")
-        #send_txt_4 = tk.Label(frm_send_values, text=temp[3], foreground='white', justify="right")
-
-        # NOTE: below is temp for testing success of failure
-        #self.ok_to_send_list = [[send_txt_1, True], [send_txt_2, True], [send_txt_3, True]]  # , [send_txt_3, True]]
-        #self.ok_to_send_list = [[send_txt_1, True], [send_txt_2, True], [send_txt_3, True]]  # , [send_txt_3, True]]
-
-        btn_check_conf = tk.Button(frm_send, text="Check values..", command=check, activeforeground='blue', highlightbackground=self.button_color)
-        btn_send_conf = tk.Button(frm_send,  text="Send to Device", command=nothing, foreground='white', activeforeground='white') #, highlightbackground=self.button_color)
-
-        btn_check_conf.grid(row=0, column=0, sticky="new", padx=0, pady=0)
-        frm_send_values.grid(row=1, column=0, sticky="new", padx=0, pady=0)
-        btn_send_conf.grid(row=2, column=0, sticky="new", padx=0, pady=0)
-
-        send_txt_1.grid(row=0, column=0, sticky="new", padx=0, pady=0)
-        send_txt_2.grid(row=1, column=0, sticky="new", padx=0, pady=0)
-        send_txt_3.grid(row=2, column=0, sticky="new", padx=0, pady=0)
-        #send_txt_4.grid(row=3, column=0, sticky="new", padx=0, pady=0)
-
-        return frm_send
-
-    def create_start_scan(self, tab):
-
-        def get_str():
-            temp1 = f"slit = {self.slit.get()} [um]"
-            temp2 = f"grating = {self.grating.get()} "
-            temp3 = f"center = {self.center_wavelength.get()} [nm]"
-            temp4 = f"width = {self.width_wavelength.get()} [nm]"
-            return [temp1, temp2, temp3, temp4]
-
-        def start():
-            self.mark_done(btn_stop, highlight=self.button_color, type='button')
-
-            if self.config_success is True:
-                self.mark_done(btn_start, highlight='green', type='button')           # if we have successfully configured the device
-
-            elif self.config_success is False:
-                self.mark_done(btn_start, highlight='red', type='button')    # failed to do all configs to device, should not start scan
-
-            elif self.config_success is None:
-                self.mark_done(btn_start, highlight='grey', type='button')  # did not send new configs, will check but can start scan anyway (maybe??)
-
-            else:
-                self.mark_done(btn_start, highlight='black', type='button')   # UNKNOWN ERROR
-
-        def stop():
-            self.mark_done(btn_stop, highlight='red', type='button')
-            self.mark_done(btn_start, highlight=self.button_color, type='button')
-
-        temp = get_str()   # TODO: need to check if string has ok values!!! should nto send bad values!
-
-        frm_send = tk.Frame(tab, relief=tk.RAISED, bd=2)
-
-        #send_txt_1 = tk.Label(frm_send, text=temp[0], foreground='white', justify="right")
-        #send_txt_2 = tk.Label(frm_send, text=temp[1], foreground='white', justify="right")
-        #send_txt_3 = tk.Label(frm_send, text=temp[2], foreground='white', justify="right")
-        #send_txt_4 = tk.Label(frm_send, text=temp[3], foreground='white', justify="right")
-
-        # TODO: make bigger!!
-        btn_start = tk.Button(frm_send, text="Start\nScan", command=start, activeforeground='blue', highlightbackground=self.button_color, height=5, width=12)
-        btn_stop = tk.Button(frm_send, text="Stop", command=stop, activeforeground='blue', highlightbackground=self.button_color, height=7, width=8)
-
-        #send_txt_1.grid(row=0, column=0, sticky="new", padx=0, pady=0)
-        #send_txt_2.grid(row=1, column=0, sticky="new", padx=0, pady=0)
-        #send_txt_3.grid(row=2, column=0, sticky="new", padx=0, pady=0)
-        #send_txt_4.grid(row=3, column=0, sticky="new", padx=0, pady=0)
-
-        btn_start.grid(row=0, rowspan=4, column=0, sticky="nsew", padx=0, pady=1.5)
-        btn_stop.grid(row=0, rowspan=4, column=1, sticky="nsew", padx=0, pady=1.5)
-
-        return frm_send
-
-    def create_param_configs(self, tab):
-
-        def default_clear():  # clears everything
-            print("Clear all")
-            self.mark_done(btn_def_1, highlight=self.button_color, type='button')
-            self.mark_done(btn_def_2, highlight=self.button_color, type='button')
-            self.mark_done(btn_def_3, highlight=self.button_color, type='button')
-
-            for key in self.defaults.keys():
-
-                if self.defaults[key]['type'] == 'radio':
-                    self.defaults[key]['variable'].set(0)
-                elif self.defaults[key]['type'] == 'int entry':
-                    self.defaults[key]['variable'].set(0)
-                elif self.defaults[key]['type'] == 'str entry':
-                    self.defaults[key]['variable'].set('')
-
-            update_ch()
-
-        def default_1():
-            default_button_press(0)
-            self.mark_done(btn_def_1, highlight='green', type='button')
-            self.mark_done(btn_def_2, highlight=self.button_color, type='button')
-            self.mark_done(btn_def_3, highlight=self.button_color, type='button')
-
-        def default_2():
-            default_button_press(1)
-            self.mark_done(btn_def_1, highlight=self.button_color, type='button')
-            self.mark_done(btn_def_2, highlight='green', type='button')
-            self.mark_done(btn_def_3, highlight=self.button_color, type='button')
-
-        def default_3():
-            default_button_press(2)
-            self.mark_done(btn_def_1, highlight=self.button_color, type='button')
-            self.mark_done(btn_def_2, highlight=self.button_color, type='button')
-            self.mark_done(btn_def_3, highlight='green', type='button')
-
-        def default_button_press(n=0):
-            for key in self.defaults.keys():
-                # print("setting default:", key)
-                self.defaults[key]['variable'].set(self.defaults[key]['value'][n])
-                # note there can be several saved default sets
+                self.mark_done(default_btns[n], highlight='green', type='button')
+                for key in self.defaults.keys():
+                    self.defaults[key]['variable'].set(self.defaults[key]['value'][n-1])     # note there can be several saved default sets
 
             update_ch()
 
@@ -557,15 +469,7 @@ class GUI:
 
         # GLOBALS -----
         self.slit = tk.IntVar()
-
         self.grating = tk.IntVar()  # for choice of grating
-
-        """self.grating_levels = {    # FIXME
-            'index': [1, 2, 3]  # fix me
-            'grating' : [150, 300, 600],
-            'blz' : [1.6, 1.7, 1.6],
-        }"""
-
         self.grating_levels = {    # FIXME
             0: {'grating': '', 'blz': ''},
             1: {'grating': 150, 'blz': 1.6},
@@ -590,10 +494,11 @@ class GUI:
 
         # WIDGETS
         #  -- Default:
-        btn_clear = tk.Button(frm_default, text="Clear all", command=default_clear, activeforeground='red', highlightbackground=self.button_color)
-        btn_def_1 = tk.Button(frm_default, text="Default 1", command=default_1, activeforeground='blue', highlightbackground=self.button_color)
-        btn_def_2 = tk.Button(frm_default, text="Default 2", command=default_2, activeforeground='blue', highlightbackground=self.button_color)
-        btn_def_3 = tk.Button(frm_default, text="Default 3", command=default_3, activeforeground='blue', highlightbackground=self.button_color)
+        btn_clear = tk.Button(frm_default, text="Clear all", command=lambda : default_press(0), activeforeground='red', highlightbackground=self.button_color)
+        btn_def_1 = tk.Button(frm_default, text="Default 1", command=lambda : default_press(1), activeforeground='blue', highlightbackground=self.button_color)
+        btn_def_2 = tk.Button(frm_default, text="Default 2", command=lambda : default_press(2), activeforeground='blue', highlightbackground=self.button_color)
+        btn_def_3 = tk.Button(frm_default, text="Default 3", command=lambda : default_press(3), activeforeground='blue', highlightbackground=self.button_color)
+        default_btns = [btn_clear, btn_def_1, btn_def_2, btn_def_3]
 
         #  -- Slit:
         slt_txt = tk.Label(frm_slit, text='Slit width')
@@ -689,7 +594,7 @@ class GUI:
 
         return frm_test
 
-    def create_file_config(self, tab):
+    def choose_file_configs_widget(self, tab):
 
         def get_date():
             currDate = date.today().strftime("%y%m%d")
@@ -749,7 +654,257 @@ class GUI:
 
         return frm_misc
 
-    def create_spectrum_plot(self, tab):
+    def send_param_configs_widget(self, tab):
+
+        def nothing():
+            print("WARNING: CHECK YOUR VALUES BEFORE SENDING TO DEVICE")
+
+        def get_str():
+            temp1 = f"slit width = {self.device_slit} --> {self.slit.get()} [um]"
+            temp2 = f"grating = {self.device_grating} --> {self.grating_levels[self.grating.get()]['grating']} [gr/mm]"
+            temp3 = f"center λ = {self.device_wavelength} --> {self.center_wavelength.get()} [nm]"
+            return [temp1, temp2, temp3]  # , temp4]
+
+        def show_configs():
+            temp = get_str()
+            send_txt_1.config(text=temp[0], foreground='black')   # make green for passed tests!
+            send_txt_2.config(text=temp[1], foreground='black')   # make green for passed tests!
+            send_txt_3.config(text=temp[2], foreground='black')   # make green for passed tests!
+            #send_txt_4.config(text=temp[3], foreground='black')   # make green for passed tests!
+
+        def check():
+            show_configs()
+
+            self.ok_to_send_list = [] #reset
+            print("--- check")
+
+            # todo: chould also check connection and values on device (if active/correct)
+
+            check_list = [
+                    ['slit', self.slit.get(), send_txt_1, 'slit width = '],   # todo: implement later
+                    ['grating', self.grating.get(), send_txt_2, 'grating = '],
+                    ['nm', self.center_wavelength.get(), send_txt_3, 'center λ = '],
+                ]
+
+            for check_thing in check_list:
+
+                res = self.sp.read_cmd(param=check_thing[0])  # returns true if correctly configured
+                print(res)
+                tempi = check_thing[3]+str(res)+" --> "+str(check_thing[1])
+                check_thing[2].config(text=tempi, foreground='black')  # make green for passed tests!
+
+                if res is None:
+                    self.mark_done(check_thing[2], text_color='red', type='text')  # ????
+
+                elif round(float(res)) == round(float(check_thing[1])):  # note: checks if right value is set
+                    # print(thing[0])
+                    self.mark_done(check_thing[2], text_color='green', type='text')  # passed test (temp)
+                else:
+                    # note: new value available!!
+                    #print('res:', round(float(res)), '==', round(float(check_thing[1])), ':val')
+                    self.mark_done(check_thing[2], text_color='blue', type='text')  # failed test (temp)
+                    self.ok_to_send_list.append(check_thing)
+
+            self.checked_configs = True
+            self.mark_done(btn_send_conf, text_color='black', highlight='yellow', type='button')
+
+            btn_send_conf.config(command=send)   # ACTIVATES SEND OPTION
+
+        def send():
+            print("--- send")
+
+            #show_configs()
+
+            print("Attempting to send configs to device...")
+            if self.checked_configs:  # if we've double-checked currently set values
+                self.mark_done(btn_send_conf, highlight=self.button_color, type='button')
+
+                #try:   # woking parts will be marked green
+                self.config_success = True
+
+                """self.ok_to_send_list = [
+                    ['slit', self.slit.get(), send_txt_1],   # todo: implement later
+                    ['grating', self.grating.get(), send_txt_2],
+                    ['nm', self.center_wavelength.get(), send_txt_3],
+                ]"""
+
+                for thing in self.ok_to_send_list:
+
+                    success = self.sp.write_cmd(param=thing[0], value=thing[1])   # returns true if correctly configured
+
+                    if success:   # true or false
+                        #print(thing[0])
+                        self.mark_done(thing[2], text_color='green', type='text')  # passed test (temp)
+
+                    else:
+                        self.mark_done(thing[2], text_color='red', type='text')   # failed test (temp)
+                        self.config_success = False
+
+                if self.config_success:  # if all succeed to be configured
+                    self.mark_done(btn_send_conf, highlight='green', type='button')
+                else:
+                    self.mark_done(btn_send_conf, highlight='red', type='button')
+            else:
+                self.mark_done(btn_send_conf, highlight='red', type='button')
+
+        def read_val():
+            #self.sp.read_cmd('grating')
+            #self.sp.read_cmd('nm')
+            #self.sp.read_cmd('gratings list')  # all gratings
+            pass
+
+        self.device_slit = 0
+        self.device_grating = 0
+        self.device_wavelength = 0
+
+        self.config_success = None   # None if not tried to configure yet
+        self.checked_configs = False
+        temp = get_str()
+        self.ok_to_send_list = []
+
+        frm_send = tk.Frame(tab, relief=tk.RAISED, bd=2)
+        frm_send_values = tk.Frame(frm_send, relief=tk.RAISED, bd=2)
+
+        send_txt_1 = tk.Label(frm_send_values, text=temp[0], foreground='white', justify="left")
+        send_txt_2 = tk.Label(frm_send_values, text=temp[1], foreground='white', justify="left")
+        send_txt_3 = tk.Label(frm_send_values, text=temp[2], foreground='white', justify="right")
+        #send_txt_4 = tk.Label(frm_send_values, text=temp[3], foreground='white', justify="right")
+
+        # NOTE: below is temp for testing success of failure
+        #self.ok_to_send_list = [[send_txt_1, True], [send_txt_2, True], [send_txt_3, True]]  # , [send_txt_3, True]]
+        #self.ok_to_send_list = [[send_txt_1, True], [send_txt_2, True], [send_txt_3, True]]  # , [send_txt_3, True]]
+
+        btn_check_conf = tk.Button(frm_send, text="Check values..", command=check, activeforeground='blue', highlightbackground=self.button_color)
+        btn_send_conf = tk.Button(frm_send,  text="Send to Device", command=nothing, foreground='white', activeforeground='white') #, highlightbackground=self.button_color)
+
+        btn_check_conf.grid(row=0, column=0, sticky="new", padx=0, pady=0)
+        frm_send_values.grid(row=1, column=0, sticky="new", padx=0, pady=0)
+        btn_send_conf.grid(row=2, column=0, sticky="new", padx=0, pady=0)
+
+        send_txt_1.grid(row=0, column=0, sticky="new", padx=0, pady=0)
+        send_txt_2.grid(row=1, column=0, sticky="new", padx=0, pady=0)
+        send_txt_3.grid(row=2, column=0, sticky="new", padx=0, pady=0)
+        #send_txt_4.grid(row=3, column=0, sticky="new", padx=0, pady=0)
+
+        return frm_send
+
+    def start_scan_widget(self, tab):
+
+        def get_str():
+            temp1 = f"slit = {self.slit.get()} [um]"
+            temp2 = f"grating = {self.grating.get()} "
+            temp3 = f"center = {self.center_wavelength.get()} [nm]"
+            temp4 = f"width = {self.width_wavelength.get()} [nm]"
+            return [temp1, temp2, temp3, temp4]
+
+        def start():
+            self.mark_done(btn_stop, highlight=self.button_color, type='button')
+
+            if self.config_success is True:
+                self.mark_done(btn_start, highlight='green', type='button')           # if we have successfully configured the device
+
+            elif self.config_success is False:
+                self.mark_done(btn_start, highlight='red', type='button')    # failed to do all configs to device, should not start scan
+
+            elif self.config_success is None:
+                self.mark_done(btn_start, highlight='grey', type='button')  # did not send new configs, will check but can start scan anyway (maybe??)
+
+            else:
+                self.mark_done(btn_start, highlight='black', type='button')   # UNKNOWN ERROR
+
+        def stop():
+            self.mark_done(btn_stop, highlight='red', type='button')
+            self.mark_done(btn_start, highlight=self.button_color, type='button')
+
+        temp = get_str()   # TODO: need to check if string has ok values!!! should nto send bad values!
+
+        frm_send = tk.Frame(tab, relief=tk.RAISED, bd=2)
+
+        #send_txt_1 = tk.Label(frm_send, text=temp[0], foreground='white', justify="right")
+        #send_txt_2 = tk.Label(frm_send, text=temp[1], foreground='white', justify="right")
+        #send_txt_3 = tk.Label(frm_send, text=temp[2], foreground='white', justify="right")
+        #send_txt_4 = tk.Label(frm_send, text=temp[3], foreground='white', justify="right")
+
+        # TODO: make bigger!!
+        btn_start = tk.Button(frm_send, text="Start\nScan", command=start, activeforeground='blue', highlightbackground=self.button_color, height=5, width=12)
+        btn_stop = tk.Button(frm_send, text="Stop", command=stop, activeforeground='blue', highlightbackground=self.button_color, height=7, width=8)
+
+        #send_txt_1.grid(row=0, column=0, sticky="new", padx=0, pady=0)
+        #send_txt_2.grid(row=1, column=0, sticky="new", padx=0, pady=0)
+        #send_txt_3.grid(row=2, column=0, sticky="new", padx=0, pady=0)
+        #send_txt_4.grid(row=3, column=0, sticky="new", padx=0, pady=0)
+
+        btn_start.grid(row=0, rowspan=4, column=0, sticky="nsew", padx=0, pady=1.5)
+        btn_stop.grid(row=0, rowspan=4, column=1, sticky="nsew", padx=0, pady=1.5)
+
+        return frm_send
+
+    def plot_live_spectrum_widget(self, tab):
+
+        """def animate(i):
+            if i < len_b:
+                xar_b.append(example_data_blue[i][0])
+                yar_b.append(example_data_blue[i][1])
+                line_b.set_data(xar_b, yar_b)
+            if i < len_r:
+                xar_r.append(example_data_red[i][0])
+                yar_r.append(example_data_red[i][1])
+                line_r.set_data(xar_r, yar_r)
+            if i > len_r and i > len_b:
+                print("DONE ANIMATING")"""
+
+        # ----- LIVE -----
+        xar_b = []
+        yar_b = []
+        xar_r = []
+        yar_r = []
+
+        len_b = len(example_data_blue)
+        len_r = len(example_data_red)
+        # ---temp
+
+        for i in range(len_b):
+            xar_b.append(example_data_blue[i][0])
+            yar_b.append(example_data_blue[i][1])
+        for i in range(len_r):
+            xar_r.append(example_data_red[i][0])
+            yar_r.append(example_data_red[i][1])
+        #---
+
+        #style.use('ggplot')
+
+        fig = plt.Figure(figsize=(9, 5), dpi=100)
+        plot1 = fig.add_subplot(111)
+        plot1.set_xlim(1545, 1565)
+        plot1.set_ylim(0, 5000)
+        plot1.set_xlabel('λ (nm)')
+        plot1.set_ylabel('photon count')
+        plot1.set_title("Photoluminescence Intensity")
+        line_b, = plot1.plot(xar_b, yar_b, 'b')
+        line_r, = plot1.plot(xar_r, yar_r, 'r')
+
+        #line_b, = plot1.plot(xar_b, yar_b, 'b') #, marker='o')
+        #line_r, = plot1.plot(xar_r, yar_r, 'r') #, marker='.')
+
+        # creating the Tkinter canvas containing the Matplotlib figure
+        temp_plt_frame = tk.Frame(tab, relief=tk.RAISED, bd=2)
+        plt_frame = tk.Frame(temp_plt_frame, relief=tk.RAISED, bd=2)
+
+        plotcanvas = FigureCanvasTkAgg(fig, master=plt_frame)
+        plotcanvas.draw()   # <-- for static plotting??
+        plotcanvas.get_tk_widget().grid(column=1, row=1)
+        #ani = animation.FuncAnimation(fig, animate, interval=1000, blit=False)
+
+        # TODO: fix bug when clicking
+        #toolbar = NavigationToolbar2Tk(canvas, plt_frame)  # self.window)  # creating the Matplotlib toolbar
+        #toolbar.update()
+        #canvas.get_tk_widget().pack()  # FIXME  # placing the canvas on the Tkinter window
+
+        #tk.Label(temp_plt_frame, text="Live measurement plot", font=('', 18)).grid(row=0, column=0, padx=0, pady=0)
+        plt_frame.grid(row=1, column=0, padx=0, pady=0)
+        return temp_plt_frame
+
+    def plot_spectrum_widget(self, tab):
 
         # TODO: create live graph???
 
@@ -830,72 +985,8 @@ class GUI:
 
         return plt_frame, butt_frame
 
-    def create_live_spectrum_plot(self, tab):
 
-        """def animate(i):
-            if i < len_b:
-                xar_b.append(example_data_blue[i][0])
-                yar_b.append(example_data_blue[i][1])
-                line_b.set_data(xar_b, yar_b)
-            if i < len_r:
-                xar_r.append(example_data_red[i][0])
-                yar_r.append(example_data_red[i][1])
-                line_r.set_data(xar_r, yar_r)
-            if i > len_r and i > len_b:
-                print("DONE ANIMATING")"""
-
-        # ----- LIVE -----
-        xar_b = []
-        yar_b = []
-        xar_r = []
-        yar_r = []
-
-        len_b = len(example_data_blue)
-        len_r = len(example_data_red)
-        # ---temp
-
-        for i in range(len_b):
-            xar_b.append(example_data_blue[i][0])
-            yar_b.append(example_data_blue[i][1])
-        for i in range(len_r):
-            xar_r.append(example_data_red[i][0])
-            yar_r.append(example_data_red[i][1])
-        #---
-
-        #style.use('ggplot')
-
-        fig = plt.Figure(figsize=(9, 5), dpi=100)
-        plot1 = fig.add_subplot(111)
-        plot1.set_xlim(1545, 1565)
-        plot1.set_ylim(0, 5000)
-        plot1.set_xlabel('λ (nm)')
-        plot1.set_ylabel('photon count')
-        plot1.set_title("Photoluminescence Intensity")
-        line_b, = plot1.plot(xar_b, yar_b, 'b')
-        line_r, = plot1.plot(xar_r, yar_r, 'r')
-
-        #line_b, = plot1.plot(xar_b, yar_b, 'b') #, marker='o')
-        #line_r, = plot1.plot(xar_r, yar_r, 'r') #, marker='.')
-
-        # creating the Tkinter canvas containing the Matplotlib figure
-        temp_plt_frame = tk.Frame(tab, relief=tk.RAISED, bd=2)
-        plt_frame = tk.Frame(temp_plt_frame, relief=tk.RAISED, bd=2)
-
-        plotcanvas = FigureCanvasTkAgg(fig, master=plt_frame)
-        plotcanvas.draw()   # <-- for static plotting??
-        plotcanvas.get_tk_widget().grid(column=1, row=1)
-        #ani = animation.FuncAnimation(fig, animate, interval=1000, blit=False)
-
-        # TODO: fix bug when clicking
-        #toolbar = NavigationToolbar2Tk(canvas, plt_frame)  # self.window)  # creating the Matplotlib toolbar
-        #toolbar.update()
-        #canvas.get_tk_widget().pack()  # FIXME  # placing the canvas on the Tkinter window
-
-        #tk.Label(temp_plt_frame, text="Live measurement plot", font=('', 18)).grid(row=0, column=0, padx=0, pady=0)
-        plt_frame.grid(row=1, column=0, padx=0, pady=0)
-        return temp_plt_frame
-
-    def create_correlation_plot(self, tab):
+    def plot_correlation_widget(self, tab):
         # TODO: incorporate real plot
 
         # the figure that will contain the plot
@@ -927,7 +1018,8 @@ class GUI:
 
         return plt_frame
 
-    def create_3D_lifetime_plot(self, tab):
+
+    def plot_lifetime_widget(self, tab):
         # TODO: incorporate real plot
 
         # the figure that will contain the plot
@@ -959,7 +1051,8 @@ class GUI:
 
         return plt_frame
 
-    def create_lifetime_plot(self, tab):
+
+    def plot_3D_lifetime_widget(self, tab):
         # TODO: incorporate real plot
 
         # the figure that will contain the plot
@@ -991,7 +1084,7 @@ class GUI:
 
         return plt_frame
 
-    def create_plot_info(self, tab, tab_str):
+    def plot_display_info_widget(self, tab, tab_str):
 
         frm_info = tk.Frame(tab, relief=tk.RAISED, bd=2)
 
@@ -1021,64 +1114,6 @@ class GUI:
         tk.Label(frm_info, text=f'.......').grid(row=4, column=1, sticky="nsew")
 
         return frm_info
-
-    def define_default_settings(self):
-        # TODO: Create config file where defaults can be saved and read from
-
-        # EXAMPLE:
-        # self.defaults = {'grating': {'variable': self.grating, 'type': 'radio', 'value': 1}}
-        # self.defaults['grating']['variable'] = self.grating
-        # self.defaults['grating']['type'] = 'radio'
-        # self.defaults['grating']['value'] = 1
-
-        self.defaults = {
-            'grating': {
-                'variable': self.grating,
-                'type': 'radio',
-                'value': [1, 2, 3]  # [150, 300, 600]
-            },
-
-            #'blaze': {   # connected to grating
-            #    150: 1.6,
-            #    300: 1.7,
-            #    600: 1.6,
-            #    'type': 'hardware'},
-
-            'center_wavelength': {
-                'variable': self.center_wavelength,
-                'type': 'int entry',
-                'value': [350, 650, 750]},
-
-            'width_wavelength': {
-                'variable': self.width_wavelength,
-                'type': 'int entry',
-                'value': [5, 15, 30]},
-
-            'slit': {
-                'variable': self.slit,
-                'type': 'int entry',
-                'value': [10, 20, 30]},
-
-            'nr_pixels': {
-                'variable': self.nr_pixels,
-                'type': 'int entry',
-                'value': [3, 8, 12]},
-
-            'new_file_name': {
-                'variable': self.file_name,
-                'type': 'str entry',
-                'value': ['butterfly.timeres', 'frog.timeres', 'sheep.timeres']},
-
-            'new_folder_name': {
-                'variable': self.file_folder,
-                'type': 'str entry',
-                'value': ['~/Desktop/GUI/Data1', '~/Desktop/GUI/Data2', '~/Desktop/GUI/Data3']},
-
-            'eta_recipe': {
-                'variable': self.eta_recipe,
-                'type': 'str entry',
-                'value': ['~/Desktop/GUI/Recipe/gui_recipe_1.eta', '~/Desktop/GUI/Recipe/gui_recipe_2.eta', '~/Desktop/GUI/Recipe/gui_recipe_3.eta']},
-        }
 
 
 example_data_blue = [
