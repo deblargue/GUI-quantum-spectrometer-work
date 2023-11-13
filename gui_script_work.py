@@ -119,22 +119,45 @@ class SP2750:
         if self.demo:
             return
 
+        if self.handle is None:
+            print("Not connected to device --> don't need to disconnect")
+            return
+
         time.sleep(1)
         self.handle.close()
         self.handle = None
         print("Connection Closed!")
 
-    def wait_for_read(self):
+    def strip_response(self, res=''):
         if self.demo:
+            res = b'?NM ok\r\n'
+        res = res[:-2]  # removing carriage return and line feed
+        res_s = res.decode("ASCII")
+        #print(f"({res}) ({res_s}), ({len(res_s)})")
+        return res_s
+
+    def wait_for_read(self):
+
+        if self.demo:
+            return
+
+        elif self.handle is None:
+            print("ERROR: Not connected to device!")
+            return
+
+        elif not self.handle.isOpen():
+            print("ERROR: Device not open!")
             return
 
         # reads response every second and waits until request is complete.
         for i in range(30):
 
             res_r = self.handle.readall()
-            res = res_r.decode("ASCII")   # TODO: strip line termination etc.
 
-            if len(res) > 2:   # todo maybe increase idk?
+            res = self.strip_response(res_r)   #res = res_r.decode("ASCII")
+
+            if len(res) > 0:   # todo maybe increase idk?
+                print(f"got response: '{res}'")
                 return res
 
             print("waiting", i)
@@ -158,6 +181,14 @@ class SP2750:
                 return self.device_grating
             else:
                 return None
+
+        if self.handle is None:
+            print("ERROR: Not connected to device!")
+            return None
+
+        elif not self.handle.isOpen():
+            print("ERROR: Not connected to device!")
+            return None
 
         print(f"\nReading {param}...")
         cmd = f"?{self.dict[param]['cmd']}"
@@ -191,11 +222,11 @@ class SP2750:
                 return False
 
         else:
-            print(f"ERROR: UNKNOWN VALUE TYPE FOR {param} ")
+            print(f"ERROR: UNKNOWN VALUE TYPE FOR {param}")
             return False
 
         if self.demo:
-            print(f"DEMO: SUCCESS WRITE FOR {param} ")
+            print(f"DEMO: SUCCESS WRITE FOR {param} --> {value}")
 
             if param == 'nm':
                 self.device_wavelength = value - 0.003
@@ -203,6 +234,14 @@ class SP2750:
                 self.device_grating = value
 
             return True
+
+        if self.handle is None:
+            print("ERROR: Not connected to device!")
+            return None
+
+        elif not self.handle.isOpen():
+            print("ERROR: Not connected to device!")
+            return None
 
         print(f"\nWriting {param}... to: {value}")
         cmd = f"{value} {self.dict[param]['cmd']}"
@@ -220,7 +259,7 @@ class GUI:
     def __init__(self):
 
         self.sp = SP2750()  # initial communication class with spectrometer
-        self.sp.connect()
+        #self.sp.connect()   # --> we are using a button instead to connect!
 
         # --- MAIN ----
         self.current_file_name = None
@@ -422,6 +461,24 @@ class GUI:
 
     def choose_param_configs_widget(self, tab):
 
+        def press_connect(): # TODO
+            if self.sp.demo:
+                print("Demo: can't connect")
+                self.mark_done(port_connect, highlight="green", text_color='black', type='button')
+                return
+
+            self.sp.disconnect()
+            #self.sp.port = self.port.get()
+            self.sp.connect()
+            port_entry.config(text=f'{self.sp.port}')
+
+            if self.sp.handle is None:   # TODO: check if this ever happens
+                self.mark_done(port_connect, highlight="red", text_color='black', type='button')
+            elif self.sp.handle.isOpen():
+                self.mark_done(port_connect, highlight="green", text_color='black', type='button')
+            else:
+                self.mark_done(port_connect, highlight="red", text_color='black', type='button')
+
         def reset_button_col():
             self.mark_done(btn_def_1, highlight=self.button_color, type='button')
             self.mark_done(btn_def_2, highlight=self.button_color, type='button')
@@ -476,7 +533,8 @@ class GUI:
             2: {'grating': 300, 'blz': 1.7},
             3: {'grating': 600, 'blz': 1.6},
         }
-
+        self.port = tk.StringVar()     # note maybe change later when implemented
+        self.port.set(self.sp.port)  # note maybe change later when implemented
         self.center_wavelength = tk.IntVar()
         self.width_wavelength = tk.IntVar()
         self.nr_pixels = tk.IntVar(value=8)
@@ -487,6 +545,7 @@ class GUI:
         frm_test = tk.Frame(tab, relief=tk.RAISED, bd=2)
         
         frm_default = tk.Frame(frm_test, relief=tk.RAISED, bd=2)
+        frm_port = tk.Frame(frm_test, relief=tk.RAISED, bd=2)
         frm_slit = tk.Frame(frm_test, relief=tk.RAISED, bd=2)
         frm_grating = tk.Frame(frm_test, relief=tk.RAISED, bd=2)
         frm_detect = tk.Frame(frm_test, relief=tk.RAISED, bd=2)
@@ -499,6 +558,12 @@ class GUI:
         btn_def_2 = tk.Button(frm_default, text="Default 2", command=lambda : default_press(2), activeforeground='blue', highlightbackground=self.button_color)
         btn_def_3 = tk.Button(frm_default, text="Default 3", command=lambda : default_press(3), activeforeground='blue', highlightbackground=self.button_color)
         default_btns = [btn_clear, btn_def_1, btn_def_2, btn_def_3]
+
+        #  -- Port:
+        port_txt = tk.Label(frm_port, text='USB Port')
+        #port_entry = tk.Entry(frm_port, bd=2, textvariable=self.port, width=5)   # FIXME later
+        port_entry = tk.Label(frm_port, text=f'{self.port.get()}')
+        port_connect = tk.Button(frm_port, text="Connect Device", command=press_connect, activeforeground='blue', highlightbackground=self.button_color)
 
         #  -- Slit:
         slt_txt = tk.Label(frm_slit, text='Slit width')
@@ -516,7 +581,6 @@ class GUI:
         grt_txt_1_blz = tk.Label(frm_grating, text="   "+str(self.grating_levels[1]['blz'])+"  [um]")
         grt_txt_2_blz = tk.Label(frm_grating, text="   "+str(self.grating_levels[2]['blz'])+"  [um]")
         grt_txt_3_blz = tk.Label(frm_grating, text="   "+str(self.grating_levels[3]['blz'])+"  [um]")
-
 
         #  -- Detector:
         det_txt = tk.Label(frm_detect, text="Detector")
@@ -545,6 +609,11 @@ class GUI:
         btn_def_1.grid(row=0, column=1, sticky="ew", padx=0, pady=0)
         btn_def_2.grid(row=0, column=2, sticky="ew", padx=0, pady=0)
         btn_def_3.grid(row=0, column=3, sticky="ew", padx=0, pady=0)
+
+        # -- Port
+        port_txt.grid(row=0, column=0, sticky="", padx=0, pady=0)
+        port_entry.grid(row=0, column=1, sticky="", padx=0, pady=0)
+        port_connect.grid(row=0, column=2, sticky="", padx=0, pady=0)
 
         # -- Slit
         slt_txt.grid(row=0, column=0, sticky="", padx=0, pady=0)
@@ -587,10 +656,11 @@ class GUI:
         # ------------- COMBINING INTO TEST FRAME --------------
         tk.Label(frm_test, text='Settings', font=('', 15)).grid(row=0, column=0, sticky="ew", padx=0, pady=0)
         frm_default.grid(row=1, column=0, sticky="ew", padx=0, pady=0)
-        frm_slit.grid(row=2, column=0, sticky="ew", padx=0, pady=0)
-        frm_grating.grid(row=3, column=0, sticky="ew", padx=0, pady=0)
-        frm_detect.grid(row=4, column=0, sticky="ew", padx=0, pady=0)
-        frm_ch.grid(row=5, column=0, rowspan=100, sticky="ew", padx=0, pady=0)
+        frm_port.grid(row=2, column=0, sticky="ew", padx=0, pady=0)
+        frm_slit.grid(row=3, column=0, sticky="ew", padx=0, pady=0)
+        frm_grating.grid(row=4, column=0, sticky="ew", padx=0, pady=0)
+        frm_detect.grid(row=5, column=0, sticky="ew", padx=0, pady=0)
+        frm_ch.grid(row=6, column=0, rowspan=100, sticky="ew", padx=0, pady=0)
 
         return frm_test
 
@@ -676,12 +746,12 @@ class GUI:
             show_configs()
 
             self.ok_to_send_list = [] #reset
-            print("--- check")
+            print("\n--- CHECK VALUES ---")
 
-            # todo: chould also check connection and values on device (if active/correct)
+            # todo: maybe should also check connection and values on device (if active/correct)
 
             check_list = [
-                    ['slit', self.slit.get(), send_txt_1, 'slit width = '],   # todo: implement later
+                    #['slit', self.slit.get(), send_txt_1, 'slit width = '],   # todo: implement later
                     ['grating', self.grating.get(), send_txt_2, 'grating = '],
                     ['nm', self.center_wavelength.get(), send_txt_3, 'center λ = '],
                 ]
@@ -689,7 +759,7 @@ class GUI:
             for check_thing in check_list:
 
                 res = self.sp.read_cmd(param=check_thing[0])  # returns true if correctly configured
-                print(res)
+                print("    -->", res)
                 tempi = check_thing[3]+str(res)+" --> "+str(check_thing[1])
                 check_thing[2].config(text=tempi, foreground='black')  # make green for passed tests!
 
@@ -697,7 +767,6 @@ class GUI:
                     self.mark_done(check_thing[2], text_color='red', type='text')  # ????
 
                 elif round(float(res)) == round(float(check_thing[1])):  # note: checks if right value is set
-                    # print(thing[0])
                     self.mark_done(check_thing[2], text_color='green', type='text')  # passed test (temp)
                 else:
                     # note: new value available!!
@@ -711,7 +780,7 @@ class GUI:
             btn_send_conf.config(command=send)   # ACTIVATES SEND OPTION
 
         def send():
-            print("--- send")
+            print("\n--- SEND VALUES ---")
 
             #show_configs()
 
@@ -2702,6 +2771,11 @@ example_data_red = [
     [1564.9647477424744, 330.7691990329322   ],
 ]
 
+# test
+#sp = SP2750()
+#sp.strip_response()
+
+# real
 gui = GUI()  # starts GUI
 gui.window.mainloop()
 gui.sp.disconnect()   # closes connection with spectrometer
