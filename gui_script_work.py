@@ -43,7 +43,7 @@ class SP2750:
         # Serial connection settings:
         self.handle = None
         self.port = "COM4"        # usb port
-        self.demo = True            # NOTE: use this for testing program without connecting to spectrometer
+        self.demo = False            # NOTE: use this for testing program without connecting to spectrometer
 
         if self.demo:
             self.device_grating = 2
@@ -53,33 +53,33 @@ class SP2750:
         self.dict = {
             'gratings list': {
                 'value type': None,
-                'cmd': 'GRATINGS\r',
+                'cmd': "?GRATINGS",
                 'info': '',
                 'access': ['read']
             },
             'grating' : {
                 'value type': 'discrete',
                 'values' : [1, 2, 3],
-                'cmd' : 'GRATING\r',
+                'cmd' : "?GRATING",
                 'info' : '',
                 'access': ['read', 'write']
             },
             'nm': {
                 'value type': 'range',
-                'min': 0,
-                'max': 2000,   # FIXME
-                'cmd': 'NM\r',
+                'min': 300,
+                'max': 800,   # FIXME
+                'cmd': "?NM",
                 'info': '',
                 'access': ['read', 'write']
 
             },
             'nm/min': {
                 'value type': 'range',
-                'min': 000,
-                'max': 000,
-                'cmd': 'NM/MIN\r',   # FIXME
+                'min': 90,  # FIXME
+                'max': 100, # FIXME
+                'cmd': "?NM/MIN",   # FIXME
                 'info': '',
-                'access': ['read', '']   # NOTE: not fully implemented yet
+                'access': ['read', '']   # FIXME, NOTE: not fully implemented yet
             },
             'slit': {    # TODO CHECK FIXME; UNSURE IF IT'S EVEN AUTOMATED BY THE SPECTROMETER
                 'value type': None,
@@ -128,18 +128,16 @@ class SP2750:
         self.handle = None
         print("Connection Closed!")
 
-    def strip_response(self, res=''):
+    def strip_response(self, res):
         if self.demo:
             res = b'?NM ok\r\n'
-        res = res[:-2]  # removing carriage return and line feed
         res_s = res.decode("ASCII")
-        #print(f"({res}) ({res_s}), ({len(res_s)})")
         return res_s
 
     def wait_for_read(self):
-
+        #print('wait for read')
         if self.demo:
-            return
+            return None
 
         elif self.handle is None:
             print("ERROR: Not connected to device!")
@@ -147,21 +145,21 @@ class SP2750:
 
         elif not self.handle.isOpen():
             print("ERROR: Device not open!")
-            return
+            return None
 
         # reads response every second and waits until request is complete.
-        for i in range(30):
-
-            res_r = self.handle.readall()
-
-            res = self.strip_response(res_r)   #res = res_r.decode("ASCII")
-
-            if len(res) > 0:   # todo maybe increase idk?
-                print(f"got response: '{res}'")
+        res = b''
+        for i in range(60):
+            if b'ok' in res:
+                print('done')
                 return res
-
-            print("waiting", i)
-            time.sleep(1)
+            else:
+                time.sleep(0.1)
+                res_r = self.handle.readline()
+                #res_r = self.handle.read()
+                print(res_r)
+                res += res_r
+        print('fail')
 
     def read_cmd(self, param):
 
@@ -187,18 +185,36 @@ class SP2750:
             return None
 
         elif not self.handle.isOpen():
-            print("ERROR: Not connected to device!")
+            print("ERROR: Device not open!")
             return None
 
         print(f"\nReading {param}...")
-        cmd = f"?{self.dict[param]['cmd']}"
-        self.handle.write(cmd.encode("ASCII"))
+        cmd = self.dict[param]['cmd']
+        cmd_bytes = cmd.encode("ASCII") + b'\r'
+        #print(cmd_bytes)  # b'?NM\r'
+        self.handle.write(cmd_bytes)
+        #print('done writing')
         res = self.wait_for_read()
         print("Read Response =", res)
-        return res
+
+        res_num = ''
+        res = res[1:].decode('ASCII')
+
+        for i in range(len(res)):
+            if res[i] == ' ' and len(res_num) > 0:
+                break
+            elif res[i] == 'o':
+                print('break at o in ok')
+                break
+            else:
+                res_num += res[i]
+                #print(res_num)
+        #b' 699.995 nm  ok\r\n'
+        #print("NUM=", res_num)
+        val = eval(res_num)
+        return val
 
     def write_cmd(self, param, value):
-
         # Check if parameter is correctly defined
         if param not in self.dict.keys():
             print(f"ERROR: BAD WRITE param ({param})")
@@ -214,12 +230,15 @@ class SP2750:
             if value not in self.dict[param]['values']:
                 print(f"ERROR: VALUE {value} NOT ALLOWED")
                 return False
+            #print(f"\nValue {value} is in {self.dict[param]['values']}")
+
 
         elif self.dict[param]['value type'] == 'range':
             value = float(value)
             if not (self.dict[param]['min'] <= value <= self.dict[param]['max']):
                 print(f"ERROR: VALUE {value} NOT IN ALLOWED RANGE")
                 return False
+            #print(f"\nValue {value} is in range {self.dict[param]['min']}, {self.dict[param]['max']}")
 
         else:
             print(f"ERROR: UNKNOWN VALUE TYPE FOR {param}")
@@ -240,18 +259,30 @@ class SP2750:
             return None
 
         elif not self.handle.isOpen():
-            print("ERROR: Not connected to device!")
+            print("ERROR: Device not open!")
             return None
 
-        print(f"\nWriting {param}... to: {value}")
-        cmd = f"{value} {self.dict[param]['cmd']}"
-        self.handle.write(cmd.encode("ASCII"))
-        res = self.wait_for_read()
-        print("Write Response =", res)
+        print(f"\nWriting {param} --> {value}")
 
-        if res == "":   # FIXME: check for actual confirmation
-            return False
-        return True
+        cmd = f"{value} {self.dict[param]['cmd'][1:]}"
+        cmd_bytes = cmd.encode("ASCII") + b'\r'
+        #print('cmd=', cmd_bytes)
+
+        #ask = input(f"QUESTION: Is cmd {cmd_bytes} good? __(y/n)__")
+        #if ask in ['y', 'yes', 'Y', 'YES']:
+        self.handle.write(cmd_bytes)
+        res = self.wait_for_read()
+        #print("Write Response =", res)
+        #else:
+        #    res = b""
+        #    print('rejected cmd by user')
+        #    return False
+
+        if b'ok' in res:
+            return True
+
+        print('ERROR: bad response...')
+        return False
 
 
 class GUI:
@@ -296,7 +327,6 @@ class GUI:
         # self.defaults['grating']['variable'] = self.grating
         # self.defaults['grating']['type'] = 'radio'
         # self.defaults['grating']['value'] = 1
-
         self.defaults = {
             'grating': {
                 'variable': self.grating,
@@ -470,6 +500,10 @@ class GUI:
             self.sp.disconnect()
             #self.sp.port = self.port.get()
             self.sp.connect()
+            self.sp.handle.write(b'NO-ECHO\r')
+            print('no echo')
+            res = self.sp.wait_for_read()  # b'  ok\r\n'
+            print(res)
             port_entry.config(text=f'{self.sp.port}')
 
             if self.sp.handle is None:   # TODO: check if this ever happens
@@ -529,10 +563,11 @@ class GUI:
         self.grating = tk.IntVar()  # for choice of grating
         self.grating_levels = {    # FIXME
             0: {'grating': '', 'blz': ''},
-            1: {'grating': 150, 'blz': 1.6},
-            2: {'grating': 300, 'blz': 1.7},
-            3: {'grating': 600, 'blz': 1.6},
+            1: {'grating': 600, 'blz': '750 nm'},
+            2: {'grating': 150, 'blz': '800 nm'},
+            3: {'grating': 1800, 'blz': 'H-VIS'},
         }
+
         self.port = tk.StringVar()     # note maybe change later when implemented
         self.port.set(self.sp.port)  # note maybe change later when implemented
         self.center_wavelength = tk.IntVar()
@@ -578,9 +613,9 @@ class GUI:
         grt_rad_2 = tk.Radiobutton(frm_grating, text=str(self.grating_levels[2]['grating'])+"  [gr/mm]", variable=self.grating, value=2, command=select_grating)
         grt_rad_3 = tk.Radiobutton(frm_grating, text=str(self.grating_levels[3]['grating'])+"  [gr/mm]", variable=self.grating, value=3, command=select_grating)
 
-        grt_txt_1_blz = tk.Label(frm_grating, text="   "+str(self.grating_levels[1]['blz'])+"  [um]")
-        grt_txt_2_blz = tk.Label(frm_grating, text="   "+str(self.grating_levels[2]['blz'])+"  [um]")
-        grt_txt_3_blz = tk.Label(frm_grating, text="   "+str(self.grating_levels[3]['blz'])+"  [um]")
+        grt_txt_1_blz = tk.Label(frm_grating, text="   "+self.grating_levels[1]['blz'])
+        grt_txt_2_blz = tk.Label(frm_grating, text="   "+self.grating_levels[2]['blz'])
+        grt_txt_3_blz = tk.Label(frm_grating, text="   "+self.grating_levels[3]['blz'])
 
         #  -- Detector:
         det_txt = tk.Label(frm_detect, text="Detector")
@@ -752,27 +787,34 @@ class GUI:
 
             check_list = [
                     #['slit', self.slit.get(), send_txt_1, 'slit width = '],   # todo: implement later
-                    ['grating', self.grating.get(), send_txt_2, 'grating = '],
-                    ['nm', self.center_wavelength.get(), send_txt_3, 'center λ = '],
+                    ['grating', self.grating, send_txt_2, 'grating = ', self.device_grating],
+                    ['nm', self.center_wavelength, send_txt_3, 'center λ = ', self.device_wavelength],
                 ]
 
             for check_thing in check_list:
 
                 res = self.sp.read_cmd(param=check_thing[0])  # returns true if correctly configured
-                print("    -->", res)
-                tempi = check_thing[3]+str(res)+" --> "+str(check_thing[1])
+                print(" value =", res)
+                tempi = check_thing[3]+str(res)+" --> "+str(check_thing[1].get())
                 check_thing[2].config(text=tempi, foreground='black')  # make green for passed tests!
 
                 if res is None:
                     self.mark_done(check_thing[2], text_color='red', type='text')  # ????
 
-                elif round(float(res)) == round(float(check_thing[1])):  # note: checks if right value is set
+                elif check_thing[1].get() is None:  # note: checks if right value is set
+                    self.mark_done(check_thing[2], text_color='blue', type='text')  # passed test (temp)
+                    self.ok_to_send_list.append(check_thing)
+
+                elif round(float(res)) == round(float(check_thing[1].get())):  # note: checks if right value is set
                     self.mark_done(check_thing[2], text_color='green', type='text')  # passed test (temp)
+
                 else:
                     # note: new value available!!
                     #print('res:', round(float(res)), '==', round(float(check_thing[1])), ':val')
                     self.mark_done(check_thing[2], text_color='blue', type='text')  # failed test (temp)
                     self.ok_to_send_list.append(check_thing)
+
+                check_thing[4] = res  # TODO CHECK!!
 
             self.checked_configs = True
             self.mark_done(btn_send_conf, text_color='black', highlight='yellow', type='button')
@@ -782,8 +824,6 @@ class GUI:
         def send():
             print("\n--- SEND VALUES ---")
 
-            #show_configs()
-
             print("Attempting to send configs to device...")
             if self.checked_configs:  # if we've double-checked currently set values
                 self.mark_done(btn_send_conf, highlight=self.button_color, type='button')
@@ -791,18 +831,18 @@ class GUI:
                 #try:   # woking parts will be marked green
                 self.config_success = True
 
-                """self.ok_to_send_list = [
-                    ['slit', self.slit.get(), send_txt_1],   # todo: implement later
-                    ['grating', self.grating.get(), send_txt_2],
-                    ['nm', self.center_wavelength.get(), send_txt_3],
-                ]"""
+                if len(self.ok_to_send_list) == 0:
+                    print("No values need updating!")
+                    '''self.ok_to_send_list = [
+                        #['slit', self.slit.get(), send_txt_1],   # todo: implement later
+                        ['grating', self.grating.get(), send_txt_2],
+                        ['nm', self.center_wavelength.get(), send_txt_3], ]'''
+                    return
 
                 for thing in self.ok_to_send_list:
-
-                    success = self.sp.write_cmd(param=thing[0], value=thing[1])   # returns true if correctly configured
+                    success = self.sp.write_cmd(param=thing[0], value=thing[1].get())   # returns true if correctly configured
 
                     if success:   # true or false
-                        #print(thing[0])
                         self.mark_done(thing[2], text_color='green', type='text')  # passed test (temp)
 
                     else:
@@ -816,15 +856,13 @@ class GUI:
             else:
                 self.mark_done(btn_send_conf, highlight='red', type='button')
 
-        def read_val():
-            #self.sp.read_cmd('grating')
-            #self.sp.read_cmd('nm')
-            #self.sp.read_cmd('gratings list')  # all gratings
-            pass
+            # DOUBLE CHECK AFTER
+            check()
+            print('done')
 
-        self.device_slit = 0
-        self.device_grating = 0
-        self.device_wavelength = 0
+        self.device_slit = None
+        self.device_grating = None
+        self.device_wavelength = None
 
         self.config_success = None   # None if not tried to configure yet
         self.checked_configs = False
