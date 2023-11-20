@@ -12,13 +12,12 @@ from matplotlib import style
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.backend_bases import key_press_handler
 
-
 # TODO:
-#  - add port as option ---> or make a "connection tab" to connect device first... --> and find out how to list available/active ports as options (dropdown list)
-#  - strip and extract values from real read response  (and write confirmation with 'ok'??)
+#  - search for available ports and ask to connect to correct one
+#       --> make a "connection tab" to connect device first...
+#       --> find out how to list available/active ports as options (dropdown list)
 #  - fix "check device" layout
-#  - add a tab with one button per co mand to read to device one by one, and display response
-#  -
+#  - add a tab with one button per command to read to device one by one, and display response??
 #  - maybe add a thing (when pressing start scan button) that checks (reads) current device configs and compares to desired. if not a match then abort scan
 #  - make a print tab to the right where "progress" is being shown :)"
 #  - plots
@@ -27,7 +26,7 @@ from matplotlib.backend_bases import key_press_handler
 #  - Add buttons for "setting" configurations (and indication/display of what is set)
 #  - Add scrollbar for counts display (for when we have many)
 #  - Add integration time
-#
+
 
 # grating levels: 150, 300, 600   gr/mm
 # blaze: 1.6, 1.7, 1.6 microns
