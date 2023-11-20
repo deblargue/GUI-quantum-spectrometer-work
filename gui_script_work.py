@@ -43,7 +43,7 @@ class SP2750:
         # Serial connection settings:
         self.handle = None
         self.port = "COM4"        # usb port
-        self.demo = False            # NOTE: use this for testing program without connecting to spectrometer
+        self.demo = True            # NOTE: use this for testing program without connecting to spectrometer
 
         if self.demo:
             self.device_grating = 2
@@ -288,6 +288,7 @@ class SP2750:
 class GUI:
 
     def __init__(self):
+        self.demo_connect = False  # temp for demo to check if we've actually connected to device
 
         self.sp = SP2750()  # initial communication class with spectrometer
         #self.sp.connect()   # --> we are using a button instead to connect!
@@ -331,14 +332,8 @@ class GUI:
             'grating': {
                 'variable': self.grating,
                 'type': 'radio',
-                'value': [1, 2, 3]  # [150, 300, 600]
+                'value': [1, 2, 3]
             },
-
-            #'blaze': {   # connected to grating
-            #    150: 1.6,
-            #    300: 1.7,
-            #    600: 1.6,
-            #    'type': 'hardware'},
 
             'center_wavelength': {
                 'variable': self.center_wavelength,
@@ -491,10 +486,11 @@ class GUI:
 
     def choose_param_configs_widget(self, tab):
 
-        def press_connect(): # TODO
+        def press_connect():  # TODO
             if self.sp.demo:
                 print("Demo: can't connect")
                 self.mark_done(port_connect, highlight="green", text_color='black', type='button')
+                self.demo_connect = True
                 return
 
             self.sp.disconnect()
@@ -562,7 +558,9 @@ class GUI:
         self.slit = tk.IntVar()
         self.grating = tk.IntVar()  # for choice of grating
         self.grating_levels = {    # FIXME
-            0: {'grating': '', 'blz': ''},
+
+            None: {'grating': 0, 'blz': ''},
+            0: {'grating': 0, 'blz': ''},
             1: {'grating': 600, 'blz': '750 nm'},
             2: {'grating': 150, 'blz': '800 nm'},
             3: {'grating': 1800, 'blz': 'H-VIS'},
@@ -765,8 +763,14 @@ class GUI:
             print("WARNING: CHECK YOUR VALUES BEFORE SENDING TO DEVICE")
 
         def get_str():
+            #curr_grating = self.grating_levels[self.device_grating]['grating']
+            #new_grating = self.grating_levels[self.grating.get()]['grating']
+            curr_grating = self.device_grating
+            new_grating = self.grating.get()
+            print(curr_grating, new_grating)
+
             temp1 = f"slit width = {self.device_slit} --> {self.slit.get()} [um]"
-            temp2 = f"grating = {self.device_grating} --> {self.grating_levels[self.grating.get()]['grating']} [gr/mm]"
+            temp2 = f"grating = {curr_grating} --> {new_grating} [gr/mm]"
             temp3 = f"center λ = {self.device_wavelength} --> {self.center_wavelength.get()} [nm]"
             return [temp1, temp2, temp3]  # , temp4]
 
@@ -778,6 +782,7 @@ class GUI:
             #send_txt_4.config(text=temp[3], foreground='black')   # make green for passed tests!
 
         def check():
+
             show_configs()
 
             self.ok_to_send_list = [] #reset
@@ -786,16 +791,37 @@ class GUI:
             # todo: maybe should also check connection and values on device (if active/correct)
 
             check_list = [
-                    #['slit', self.slit.get(), send_txt_1, 'slit width = '],   # todo: implement later
-                    ['grating', self.grating, send_txt_2, 'grating = ', self.device_grating],
-                    ['nm', self.center_wavelength, send_txt_3, 'center λ = ', self.device_wavelength],
+                    ['slit', self.slit, send_txt_1, 'slit width'],   # todo: implement later
+                    ['grating', self.grating, send_txt_2, 'grating', self.device_grating],
+                    ['nm', self.center_wavelength, send_txt_3, 'center λ', self.device_wavelength],
                 ]
 
             for check_thing in check_list:
 
+                if not self.demo_connect:
+                    if check_thing[0] == 'slit':
+                        #tempi = f"{check_thing[3]} = {res}  -->  {check_thing[1].get()}"
+                        tempi = "Device not connected"
+                        self.mark_done(btn_send_conf, highlight='red', type='button')
+                    else:
+                        tempi = ''
+                    check_thing[2].config(text=tempi, foreground='black')  # make green for passed tests!
+                    self.mark_done(check_thing[2], text_color='red', type='text')  # ????
+                    continue  # skip rest of loop iteration
+
+                if check_thing[0] == 'slit':
+                    continue  # not inplemented yet
+
                 res = self.sp.read_cmd(param=check_thing[0])  # returns true if correctly configured
                 print(" value =", res)
-                tempi = check_thing[3]+str(res)+" --> "+str(check_thing[1].get())
+
+                """if check_thing[0] == 'grating':
+                    res = self.grating_levels[res]['grating']
+                    new = self.grating_levels[check_thing[1].get()]['grating']
+                    tempi = f"{check_thing[3]} = {res}  -->  {new}"
+                else:"""
+                tempi = f"{check_thing[3]} = {res}  -->  {check_thing[1].get()}"
+
                 check_thing[2].config(text=tempi, foreground='black')  # make green for passed tests!
 
                 if res is None:
@@ -817,11 +843,24 @@ class GUI:
                 check_thing[4] = res  # TODO CHECK!!
 
             self.checked_configs = True
-            self.mark_done(btn_send_conf, text_color='black', highlight='yellow', type='button')
+
+            if not self.demo_connect:
+                self.mark_done(btn_send_conf, highlight='red', type='button')
+            elif len(self.ok_to_send_list) > 0:
+                self.mark_done(btn_send_conf, text_color='black', highlight='blue', type='button')
+            else:
+                self.mark_done(btn_send_conf, text_color='black', highlight='green', type='button')
 
             btn_send_conf.config(command=send)   # ACTIVATES SEND OPTION
 
         def send():
+            if self.sp.demo:
+                if not self.demo_connect:
+                    self.mark_done(btn_send_conf, highlight='red', type='button')
+                    return
+                else:
+                    time.sleep(1)
+
             print("\n--- SEND VALUES ---")
 
             print("Attempting to send configs to device...")
@@ -899,9 +938,11 @@ class GUI:
 
         def get_str():
             temp1 = f"slit = {self.slit.get()} [um]"
-            temp2 = f"grating = {self.grating.get()} "
+            #temp2 = f"grating = {self.grating.get()} "
+            temp2 = f"grating = {self.grating_levels[self.grating.get()]['grating']}"
             temp3 = f"center = {self.center_wavelength.get()} [nm]"
             temp4 = f"width = {self.width_wavelength.get()} [nm]"
+            #return [temp1, temp2, temp3, temp4]
             return [temp1, temp2, temp3, temp4]
 
         def start():
