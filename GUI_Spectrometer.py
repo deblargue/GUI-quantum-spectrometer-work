@@ -17,6 +17,8 @@ from matplotlib.backend_bases import key_press_handler
 
 from test_data import *
 from tkinter.messagebox import _show
+from WebSQControl import WebSQControl
+
 
 # TODO NOW:
 #  - Display the count rate of several detectors as a histogram     (email from Val)
@@ -48,8 +50,6 @@ from tkinter.messagebox import _show
 #  - self.params (defaults)  -->  Create config file where defaults can be saved and read from
 
 
-
-
 class Demo:
     @staticmethod
     def read(param):
@@ -74,6 +74,153 @@ class Demo:
     def connect(port_connect):
         gui.mark_done(port_connect, highlight="green", text_color='black', type='button')
         gui.demo_connect = True
+
+
+class SQControl:
+    """
+    The following code explains how to
+        - receive counts from the detectors
+        - set/get a bias current
+        - set/get trigger level
+        - set/get the measurement time
+        - enable the detectors
+        - get the number of detectors
+    """
+    def __init__(self):
+        # -------------- ARGUMENTS: --------------
+        # Number of measurements (default 10)
+        self.N = 1
+        # dest='N', type=int, default=10, help='The amount of measurements done.'
+
+        # TODO: FIGURE OUT CORRECT IP ADDRESS
+        # TCP IP Address of your system (default 192.168.1.1)
+        self.tcp_ip_address = '192.168.35.236'
+        # dest='tcp_ip_address', type=str, default='192.168.1.1', help='The TCP IP address of the detector'
+
+        # The control port (default 12000)
+        self.control_port = 12000
+
+        # The port emitting the photon Counts (default 12345)
+        self.counts_port = 12345
+        self.open_connection()
+
+    def main(self):
+        try:
+            self.get_number_of_detectors()   # required other functions!!
+            #self.get_auto_bias_current()
+            #self.set_integration_time()
+            #self.enable_detector()
+            #self.set_curr_bias()
+            #self.set_trigger_lvl()
+            #self.get_counts()
+            self.read_back()   # prints: periode, bias, trigger
+
+        except:
+            print("FAILED TRY")
+            self.close_connection()
+            raise
+
+    def open_connection(self):
+        try:
+            print("Attempting connection to WebSQ...")
+            self.websq = WebSQControl(TCP_IP_ADR=self.tcp_ip_address, CONTROL_PORT=self.control_port, COUNTS_PORT=self.counts_port)
+            print(self.websq)
+
+            self.websq.connect()
+            print("Connected to WebSQ!")
+            print(self.websq)
+        except:
+            print("Connection error with WebSQ")
+            raise
+
+    def get_auto_bias_current(self):
+        print("Automatically finding bias current, avoid Light exposure")
+        self.found_bias_current = self.websq.auto_bias_calibration(DarkCounts=[100, 100, 100, 100])
+        print("Bias current: " + str(self.found_bias_current))
+
+    def get_number_of_detectors(self):
+        # Acquire number of detectors in the system
+        self.number_of_detectors = self.websq.get_number_of_detectors()
+        print("Your system has " + str(self.number_of_detectors) + ' detectors\n')
+
+    def set_integration_time(self, dt=100):
+        print(f"Set integration time to {dt} ms\n")
+        self.websq.set_measurement_periode(dt)  # Time in ms
+
+    def enable_detector(self):
+        print("Enable detectors\n")
+        self.websq.enable_detectors(True)
+
+    def set_curr_bias(self, bias=None):
+        if not bias:
+            bias = -15  # uA
+
+        # Set the bias current
+        curr = []
+        for n in range(self.number_of_detectors):
+            curr.append(bias)
+
+        print(f"Set bias currents to: {curr}")
+        self.websq.set_bias_current(current_in_uA=curr)
+        print("\n")
+
+    def set_trigger_lvl(self, trigger=None):
+        if not trigger:
+            trigger = -150  # mV
+
+        # Set the trigger level
+        trig = []
+        for n in range(self.number_of_detectors):
+            trig.append(trigger)
+
+        print(f"Set trigger levels to: {trig}")
+        self.websq.set_trigger_level(trigger_level_mV=trig)
+        print("\n")
+
+    def get_counts(self):
+        # Acquire N counts measurements:
+        #   Returns an array filled with N numpy arrays each containing as first element a
+        #   time stamp and then the detector counts ascending order
+
+        print(f"Acquire {self.N} counts measurements \n============================\n")
+        # Get the counts
+        counts = self.websq.acquire_cnts(self.N)
+
+        print("counts (raw):")
+        print(counts)
+
+        # Print the counts nicely
+        header = "Timestamp\t\t"
+        for n in range(self.number_of_detectors):
+            header += "Channel" + str(n + 1) + "\t"
+        print("Header:", header)
+
+        total_counts = [0, 0, 0, 0]
+        for row in counts:
+            line = ""
+            for j, element in enumerate(row):
+                line += str(element) + '\t'
+                total_counts[j] += element
+            print(line)
+
+        print("total counts:\n", total_counts)
+
+        print("----------------------")
+
+    def read_back(self):
+        print("\nRead back set values\n====================\n")
+        print(f"Measurement Periode (ms): \t {self.websq.get_measurement_periode()}")
+        print(f"Bias Currents in uA: \t\t {self.websq.get_bias_current()}")
+        print(f"Trigger Levels in mV: \t\t {self.websq.get_trigger_level()}")
+
+    def close_connection(self):
+        # Close connection
+        try:
+            self.websq.close()
+            print("Connection closed with WebSQ")
+        except:
+            print("Failed close connection with WebSQ")
+            raise
 
 class SP2750:
 
@@ -1031,11 +1178,18 @@ class GUI:
         return frm_info
 
 
+# test
+#sq = SQControl()
+#sq.main()
+#sq.close_connection()   # close SQWeb connection
+
+#-----
+
 # real
 gui = GUI()  # starts GUI
 gui.root.after(1000, gui.scanning)  # After 1 second, call scanning
 gui.root.mainloop()
 gui.sp.disconnect()   # closes connection with spectrometer
 
-print("Closing program!")
+print("Closed GUI program!")
 
