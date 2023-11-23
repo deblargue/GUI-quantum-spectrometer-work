@@ -89,12 +89,17 @@ class SQControl:
     def __init__(self):
         # -------------- ARGUMENTS: --------------
         # Number of measurements (default 10)
-        self.N = 1
+        self.N = 5
         # dest='N', type=int, default=10, help='The amount of measurements done.'
-
+        self.tinyLab = False
         # TODO: FIGURE OUT CORRECT IP ADDRESS
+
         # TCP IP Address of your system (default 192.168.1.1)
-        self.tcp_ip_address = '192.168.35.236'
+        if self.tinyLab:
+            self.tcp_ip_address = '192.168.120.119'     # for tiny lab wifi (8 channels for us)
+        else:
+            self.tcp_ip_address = '192.168.35.236'     # for big lab wifi (4 channels that other use)
+
         # dest='tcp_ip_address', type=str, default='192.168.1.1', help='The TCP IP address of the detector'
 
         # The control port (default 12000)
@@ -106,13 +111,15 @@ class SQControl:
 
     def main(self):
         try:
-            self.get_number_of_detectors()   # required other functions!!
-            #self.get_auto_bias_current()
+            self.get_number_of_detectors()   # NOTE: required other functions!!
+
+            #######self.get_auto_bias_current()  # noe maybe not good idea
             #self.set_integration_time()
             #self.enable_detector()
             #self.set_curr_bias()
             #self.set_trigger_lvl()
-            #self.get_counts()
+
+            self.get_counts()
             self.read_back()   # prints: periode, bias, trigger
 
         except:
@@ -135,10 +142,12 @@ class SQControl:
 
     def get_auto_bias_current(self):
         print("Automatically finding bias current, avoid Light exposure")
-        self.found_bias_current = self.websq.auto_bias_calibration(DarkCounts=[100, 100, 100, 100])
-        print("Bias current: " + str(self.found_bias_current))
+        print("DONT DO THIS")
+        #######self.found_bias_current = self.websq.auto_bias_calibration(DarkCounts=[100, 100, 100, 100])
+        #print("Bias current: " + str(self.found_bias_current))
 
     def get_number_of_detectors(self):
+        """Your system has 4 detectors"""
         # Acquire number of detectors in the system
         self.number_of_detectors = self.websq.get_number_of_detectors()
         print("Your system has " + str(self.number_of_detectors) + ' detectors\n')
@@ -181,33 +190,47 @@ class SQControl:
         # Acquire N counts measurements:
         #   Returns an array filled with N numpy arrays each containing as first element a
         #   time stamp and then the detector counts ascending order
+        """
+        Acquire 10 counts measurements
+        ============================
+
+        raw counts [[1700723885.6048694, 0.0, 0.0, 17.0, 162.0], [1700723885.8363566, 0.0, 1.0, 11.0, 161.0], [1700723886.042608, 1.0, 1.0, 18.0, 146.0], [1700723886.3765514, 0.0, 0.0, 23.0, 161.0], [1700723886.5506241, 0.0, 0.0, 21.0, 163.0], [1700723886.7209494, 0.0, 1.0, 30.0, 148.0], [1700723886.89586, 0.0, 0.0, 11.0, 133.0], [1700723887.0686586, 0.0, 0.0, 16.0, 147.0], [1700723887.3816106, 1.0, 0.0, 18.0, 150.0], [1700723887.551227, 1.0, 0.0, 10.0, 154.0]]
+        total counts of 10 measurements:
+        [   3.    3.  175. 1525.]
+        timestamps:
+        [1700723885.6048694, 1700723885.8363566, 1700723886.042608, 1700723886.3765514, 1700723886.5506241, 1700723886.7209494, 1700723886.89586, 1700723887.0686586, 1700723887.3816106, 1700723887.551227]
+        ----------------------
+        Connection closed with WebSQ
+        Closed GUI program!
+        """
 
         print(f"Acquire {self.N} counts measurements \n============================\n")
         # Get the counts
         counts = self.websq.acquire_cnts(self.N)
+        #print("raw counts", counts)
+        timestamps = []
+        all_counts = np.array([0.0,0.0,0.0,0.0])
 
-        print("counts (raw):")
-        print(counts)
-
-        # Print the counts nicely
-        header = "Timestamp\t\t"
-        for n in range(self.number_of_detectors):
-            header += "Channel" + str(n + 1) + "\t"
-        print("Header:", header)
-
-        total_counts = [0, 0, 0, 0]
         for row in counts:
-            line = ""
-            for j, element in enumerate(row):
-                line += str(element) + '\t'
-                total_counts[j] += element
-            print(line)
+            timestamps.append(row[0])
+            all_counts += np.array(row[1:])
 
-        print("total counts:\n", total_counts)
-
+        print(f"total counts of {self.N} measurements:")
+        print(all_counts)
+        #print("timestamps:")
+        #print(timestamps)
         print("----------------------")
 
     def read_back(self):
+        """
+                Read back set values
+        ====================
+
+        Measurement Periode (ms): 	 100
+        Bias Currents in uA: 		 [-14.5, -16, -17.7, -12.4]
+        Trigger Levels in mV: 		 [-150, -150, -150, -150]
+        """
+
         print("\nRead back set values\n====================\n")
         print(f"Measurement Periode (ms): \t {self.websq.get_measurement_periode()}")
         print(f"Bias Currents in uA: \t\t {self.websq.get_bias_current()}")
@@ -1179,16 +1202,16 @@ class GUI:
 
 
 # test
-#sq = SQControl()
-#sq.main()
-#sq.close_connection()   # close SQWeb connection
+sq = SQControl()
+sq.main()
+sq.close_connection()   # close SQWeb connection
 
 #-----
 
 # real
 gui = GUI()  # starts GUI
-gui.root.after(1000, gui.scanning)  # After 1 second, call scanning
-gui.root.mainloop()
+#gui.root.after(1000, gui.scanning)  # After 1 second, call scanning
+#gui.root.mainloop()
 gui.sp.disconnect()   # closes connection with spectrometer
 
 print("Closed GUI program!")
