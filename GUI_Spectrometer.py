@@ -1,4 +1,5 @@
 import random
+import tkinter
 import tkinter as tk
 from tkinter import ttk
 from tkinter.filedialog import askopenfilename, asksaveasfilename, askdirectory
@@ -49,195 +50,106 @@ from WebSQControl import WebSQControl
 #  - Add integration time
 #  - self.params (defaults)  -->  Create config file where defaults can be saved and read from
 
-
-class Demo:
-    @staticmethod
-    def read(param):
-        print(f"DEMO: SUCCESS READ FOR {param}")
-        if param == 'nm':
-            return gui.device_wavelength
-        elif param == 'grating':
-            return gui.device_grating
-        else:
-            return
-
-    @staticmethod
-    def write(param, value):
-        print(f"DEMO: SUCCESS WRITE FOR {param} --> {value}")
-        if param == 'nm':
-            gui.device_wavelength = value - 0.003
-        elif param == 'grating':
-            gui.device_grating = value
-        return True
-
-    @staticmethod
-    def connect(port_connect):
-        gui.mark_done(port_connect, highlight="green", text_color='black', type='button')
-        gui.demo_connect = True
-
-
 class SQControl:
-    """
-    The following code explains how to
-        - receive counts from the detectors
-        - set/get a bias current
-        - set/get trigger level
-        - set/get the measurement time
-        - enable the detectors
-        - get the number of detectors
-    """
+    """Class to control detector via WebSQ"""
     def __init__(self):
         # -------------- ARGUMENTS: --------------
-        # Number of measurements (default 10)
-        self.N = 5
-        # dest='N', type=int, default=10, help='The amount of measurements done.'
-        self.tinyLab = False
-        # TODO: FIGURE OUT CORRECT IP ADDRESS
 
-        # TCP IP Address of your system (default 192.168.1.1)
+        self.tinyLab = True
+        # TCP IP Address of the detector (default 192.168.1.1)
         if self.tinyLab:
-            self.tcp_ip_address = '192.168.120.119'     # for tiny lab wifi (8 channels for us)
+            self.tcp_ip_address = '192.168.120.119'    # for tiny lab wifi (8 channels for our spectrometer)
+            self.number_of_detectors = 8
         else:
-            self.tcp_ip_address = '192.168.35.236'     # for big lab wifi (4 channels that other use)
-
-        # dest='tcp_ip_address', type=str, default='192.168.1.1', help='The TCP IP address of the detector'
+            self.tcp_ip_address = '192.168.35.236'     # for big lab wifi (4 channels that others use)
+            self.number_of_detectors = 4
 
         # The control port (default 12000)
         self.control_port = 12000
-
         # The port emitting the photon Counts (default 12345)
         self.counts_port = 12345
-        self.open_connection()
 
-    def main(self):
-        try:
-            self.get_number_of_detectors()   # NOTE: required other functions!!
+        # Number of measurements, used when reading counts,  type=int
+        self.N = 10
 
-            #######self.get_auto_bias_current()  # noe maybe not good idea
-            #self.set_integration_time()
-            #self.enable_detector()
-            #self.set_curr_bias()
-            #self.set_trigger_lvl()
+        if not demo:
+            # test
+            self.open_connection()
+            self.number_of_detectors = self.get_number_of_detectors()  # Returns how many channels/detectors we have in the system  # NOTE: required other functions!!
+            self.set_integration_time(dt=100)                             # Sets the integration time to collect counts in bin
+            #self.test()  # NOTE: OPTIONAL TEST
+            self.close_connection()  # close SQWeb connection   # note, we should close it later when we're done instead
 
-            self.get_counts()
-            self.read_back()   # prints: periode, bias, trigger
-
-        except:
-            print("FAILED TRY")
-            self.close_connection()
-            raise
+        # OPTIONS TO IMPLEMENT IN GUI:
+        # self.set_curr_bias()
+        # self.set_trigger_lvl()
+        # self.read_back()               # reads and prints: periode, bias, trigger
+        # counts = self.get_counts(N=10)  # this returns both timestamps and counts per detector for N measurements
 
     def open_connection(self):
+        if demo:
+            return
         try:
             print("Attempting connection to WebSQ...")
             self.websq = WebSQControl(TCP_IP_ADR=self.tcp_ip_address, CONTROL_PORT=self.control_port, COUNTS_PORT=self.counts_port)
-            print(self.websq)
-
             self.websq.connect()
             print("Connected to WebSQ!")
-            print(self.websq)
         except:
             print("Connection error with WebSQ")
             raise
 
-    def get_auto_bias_current(self):
-        print("Automatically finding bias current, avoid Light exposure")
-        print("DONT DO THIS")
-        #######self.found_bias_current = self.websq.auto_bias_calibration(DarkCounts=[100, 100, 100, 100])
-        #print("Bias current: " + str(self.found_bias_current))
-
     def get_number_of_detectors(self):
-        """Your system has 4 detectors"""
-        # Acquire number of detectors in the system
-        self.number_of_detectors = self.websq.get_number_of_detectors()
-        print("Your system has " + str(self.number_of_detectors) + ' detectors\n')
+        """Acquire number of detectors in the system"""
+        n = self.websq.get_number_of_detectors()
+        print(f"System as {n} detectors")
+        return n
 
     def set_integration_time(self, dt=100):
-        print(f"Set integration time to {dt} ms\n")
+        print(f"Set integration time to {dt} ms")
         self.websq.set_measurement_periode(dt)  # Time in ms
 
-    def enable_detector(self):
-        print("Enable detectors\n")
-        self.websq.enable_detectors(True)
-
-    def set_curr_bias(self, bias=None):
-        if not bias:
-            bias = -15  # uA
-
+    def set_curr_bias(self):
         # Set the bias current
+        # TODO: scan bias of detectors?
+        bias = 0
         curr = []
         for n in range(self.number_of_detectors):
             curr.append(bias)
-
-        print(f"Set bias currents to: {curr}")
+        print(f"Set bias to: {curr}")
         self.websq.set_bias_current(current_in_uA=curr)
-        print("\n")
 
-    def set_trigger_lvl(self, trigger=None):
-        if not trigger:
-            trigger = -150  # mV
-
+    def set_trigger_lvl(self):
         # Set the trigger level
+        # TODO set some value (or a list of values)
+        trigger = -150  # mV
         trig = []
         for n in range(self.number_of_detectors):
             trig.append(trigger)
-
         print(f"Set trigger levels to: {trig}")
         self.websq.set_trigger_level(trigger_level_mV=trig)
-        print("\n")
 
-    def get_counts(self):
+    def get_counts(self, N=10):
         # Acquire N counts measurements:
-        #   Returns an array filled with N numpy arrays each containing as first element a
-        #   time stamp and then the detector counts ascending order
-        """
-        Acquire 10 counts measurements
-        ============================
-
-        raw counts [[1700723885.6048694, 0.0, 0.0, 17.0, 162.0], [1700723885.8363566, 0.0, 1.0, 11.0, 161.0], [1700723886.042608, 1.0, 1.0, 18.0, 146.0], [1700723886.3765514, 0.0, 0.0, 23.0, 161.0], [1700723886.5506241, 0.0, 0.0, 21.0, 163.0], [1700723886.7209494, 0.0, 1.0, 30.0, 148.0], [1700723886.89586, 0.0, 0.0, 11.0, 133.0], [1700723887.0686586, 0.0, 0.0, 16.0, 147.0], [1700723887.3816106, 1.0, 0.0, 18.0, 150.0], [1700723887.551227, 1.0, 0.0, 10.0, 154.0]]
-        total counts of 10 measurements:
-        [   3.    3.  175. 1525.]
-        timestamps:
-        [1700723885.6048694, 1700723885.8363566, 1700723886.042608, 1700723886.3765514, 1700723886.5506241, 1700723886.7209494, 1700723886.89586, 1700723887.0686586, 1700723887.3816106, 1700723887.551227]
-        ----------------------
-        Connection closed with WebSQ
-        Closed GUI program!
-        """
-
-        print(f"Acquire {self.N} counts measurements \n============================\n")
-        # Get the counts
-        counts = self.websq.acquire_cnts(self.N)
-        #print("raw counts", counts)
-        timestamps = []
-        all_counts = np.array([0.0,0.0,0.0,0.0])
-
-        for row in counts:
-            timestamps.append(row[0])
-            all_counts += np.array(row[1:])
-
-        print(f"total counts of {self.N} measurements:")
-        print(all_counts)
-        #print("timestamps:")
-        #print(timestamps)
-        print("----------------------")
+        #   Returns an array filled with N numpy arrays each containing as first element a time stamp and then the detector counts ascending order
+        print(f"Acquiring {N} counts measurements...")
+        all_counts = self.websq.acquire_cnts(N)   # note: this includes the time stamp as well
+        return all_counts
 
     def read_back(self):
         """
-                Read back set values
-        ====================
-
-        Measurement Periode (ms): 	 100
-        Bias Currents in uA: 		 [-14.5, -16, -17.7, -12.4]
-        Trigger Levels in mV: 		 [-150, -150, -150, -150]
+        Example:
+            Measurement Periode (ms): 	 100
+            Bias Currents in uA: 		 [-14.5, -16, -17.7, -12.4]
+            Trigger Levels in mV: 		 [-150, -150, -150, -150]
         """
-
-        print("\nRead back set values\n====================\n")
-        print(f"Measurement Periode (ms): \t {self.websq.get_measurement_periode()}")
-        print(f"Bias Currents in uA: \t\t {self.websq.get_bias_current()}")
-        print(f"Trigger Levels in mV: \t\t {self.websq.get_trigger_level()}")
+        print("\nRead back set values\n====================")
+        print(f"Measurement Periode (ms):    {self.websq.get_measurement_periode()}")
+        print(f"Bias Currents in uA:         {self.websq.get_bias_current()}")
+        print(f"Trigger Levels in mV:        {self.websq.get_trigger_level()}")
 
     def close_connection(self):
-        # Close connection
+        if demo:
+            return
         try:
             self.websq.close()
             print("Connection closed with WebSQ")
@@ -248,18 +160,12 @@ class SQControl:
 class SP2750:
 
     def __init__(self):
-        #self.find_ports()   # TODO
+        #self.find_ports()  
 
         # Serial connection settings:
         self.handle = None
-        self.port = "COM4"        # usb port
-        self.demo = True            # NOTE: use this for testing program without connecting to spectrometer
+        self.port = "COM4"          # USB port
 
-        if self.demo:
-            self.device_grating = 2
-            self.device_wavelength = 749.997
-
-        # TODO fill out list!!
         self.dict = {
             'gratings list': {
                 'value type': None,
@@ -290,24 +196,28 @@ class SP2750:
 
         }
 
-    def find_ports(self):  # FIXME
+        if demo:
+            self.device_grating = 1
+            self.device_wavelength = 600
+
+    def find_ports(self):  # TODO: find our device port and connect automatically
+        print("---------")
         for port in serial.tools.list_ports.comports():
-            print("---")
-            print("device:          ", port.device)
-            print("name:            ", port.name)
-            print("description:     ", port.description)
-            print("hwid:            ", port.hwid)
-            print("vid:             ", port.vid)
-            print("pid:             ", port.pid)
-            print("serial_number:   ", port.serial_number)
-            print("location:        ", port.location)
-            print("manufacturer:    ", port.manufacturer)
-            print("product:         ", port.product)
-            print("interface:       ", port.interface)
-        print("---")
+            print(f"\ndevice:          {port.device       }"
+                  f"\nname:            {port.name         }"
+                  f"\ndescription:     {port.description  }"
+                  f"\nhwid:            {port.hwid         }"
+                  f"\nvid:             {port.vid          }"
+                  f"\npid:             {port.pid          }"
+                  f"\nserial_number:   {port.serial_number}"
+                  f"\nlocation:        {port.location     }"
+                  f"\nmanufacturer:    {port.manufacturer }"
+                  f"\nproduct:         {port.product      }"
+                  f"\ninterface:       {port.interface    }")
+            print("---------")
 
     def connect(self):
-        if self.demo:
+        if demo:
             return
 
         try:
@@ -325,7 +235,7 @@ class SP2750:
             raise
 
     def disconnect(self):
-        if self.demo:
+        if demo:
             return
 
         if self.handle is None:
@@ -379,8 +289,8 @@ class SP2750:
         if not self.check_cmd('read', param):
             return
 
-        if self.demo:
-            return Demo.read(param)
+        if demo:
+            return Demo.d_read(param)
 
         if not self.check_handle():  # check if handle is ok
             return
@@ -403,8 +313,8 @@ class SP2750:
         if not self.check_cmd('write', param, value):
             return False
 
-        if self.demo:
-            Demo.write(param, value)
+        if demo:
+            Demo.d_write(param, value)
             return True
 
         if not self.check_handle():  # check if handle is ok
@@ -442,21 +352,24 @@ class SP2750:
 class GUI:
 
     def __init__(self):
+        self.temp_counter = 0   # REMOVE LATER  USED TO TEST HISTO PLOTTING WITH SAMPLE DATA
+
+        self.sq = SQControl()
+
         # initialize communication class with spectrometer
         self.sp = SP2750()
+
         # Create and configure the main GUI window
         self.init_window()
         # define global variables
-        #self.running = False  # this tracks if we are running a scan (collecting counts from detector)
         self.init_parameters()
         # Create and place tabs frame on window grid
         self.init_fill_tabs()
-        #if self.sp.demo:
-        #   self.root.after(100, lambda: _show('Title', 'Demo Version'))
+        #if demo:
+        #    self.root.after(100, lambda: _show('Title', 'Demo Version'))
 
     def init_parameters(self):
         self.data = []
-        self.save_data(mode="w")
         self.running = False  # this tracks if we are running a scan (collecting counts from detector)
         self.demo_connect = False  # temp for demo to check if we've actually connected to device
         self.current_file_name = None
@@ -492,11 +405,11 @@ class GUI:
         self.root = tk.Tk()
         self.root.title("Quantum Spectrometer GUI - Ghostly matters")   # *Ghostly matters*
         self.root.resizable(True, True)
+        self.root.config(background='#fafafa')
         #self.root.rowconfigure(0, minsize=30, weight=1)   # TODO: check if we need this
         #self.root.columnconfigure(0, minsize=50, weight=1)  # TODO: check if we need this
         #self.root.geometry('1200x700+200+100')
         #self.root.state('zoomed')   # TODO: check if we need this
-        self.root.config(background='#fafafa')
 
     def init_fill_tabs(self):
 
@@ -507,7 +420,7 @@ class GUI:
             start_tab = tk.Frame(new_scan_tab, relief=tk.RAISED, bd=2)   # frame to gather things to communicate with devices
 
             self.widgets['param_config'] = self.choose_param_configs_widget(new_scan_tab)
-            self.widgets['live_spectrum'] = self.plot_histo(new_scan_tab)  # TRYING HISTO  instead of --> self.plot_live_spectrum_widget(new_scan_tab)
+            self.widgets['live_spectrum'] = self.plot_live_histo(new_scan_tab)
 
             # sub frame:
             self.widgets['file_config'] = self.choose_file_configs_widget(start_tab)
@@ -593,8 +506,8 @@ class GUI:
     def choose_param_configs_widget(self, tab):
 
         def press_connect():  # TODO
-            if self.sp.demo:
-                Demo.connect(port_connect)
+            if demo:
+                Demo.d_connect(port_connect)
                 return
                 
             self.sp.disconnect()
@@ -853,7 +766,7 @@ class GUI:
 
         def send():
             self.suggest_filename(self.name_entry)
-            if self.sp.demo:
+            if demo:
                 if not self.demo_connect:
                     self.mark_done(btn_send_conf, highlight='red', type='button')
                     #return
@@ -911,25 +824,79 @@ class GUI:
 
         return frm_send
 
-    def get_counts(self):  # FIXME: check exactly when we get counts, and if it interferes with update rate of scanning method
+    def get_counts(self):  # TODO: make general for self.sq.nr_of_detectors
 
-        # TODO: READ channel counts and append list to self.data
+        rando = False   # uses
+        if rando:   # testing with random data
+            # note: below is pretend data
+            #----------------------
+            bias = [1, 0.3, 0.7, 1.2, 0.1, 0.1, 0.1, 0.1]
+            self.data = []
+            for i in range(self.sq.N):  # number of measurements
+                self.data.append([])
+                for j in range(self.sq.number_of_detectors):
+                    val = random.randrange(0, 100)
+                    self.data[-1].append(int(val*bias[j]))
+                #self.data[-1].append(0)  # note: empty channel to display histogram correctly
 
-        # note: below is pretend data
-        bias = [1, 0.3, 0.7, 1.2, 0.1, 0.1, 0.1, 0.1]
-        self.data = []
-        for i in range(4):
-            self.data.append([])
-            for j in range(8):
-                val = random.randrange(0, 100)
-                self.data[-1].append(int(val*bias[j]))
-            self.data[-1].append(0)  # note: empty channel to display histogram correctly
+            print(self.cumulative_ch_counts)
+            print("generated data:", self.data)
+            for row in np.array(self.data):
+                self.cumulative_ch_counts += row  # (note self.data is now smaller than other
+            print("cumulative:", self.cumulative_ch_counts)
+            # NOTE: data should be a list of lists (one list per integration time with 4 channel bins)
+        else:
+            if demo:
+                if self.sq.number_of_detectors == 4:
+                    # below is duplicate of a N=10 sized measurement
+                    raw_counts = [[1700723885.6048694, 0.0, 0.0, 17.0, 162.0], [1700723885.8363566, 0.0, 1.0, 11.0, 161.0],
+                                  [1700723886.042608, 1.0, 1.0, 18.0, 146.0], [1700723886.3765514, 0.0, 0.0, 23.0, 161.0],
+                                  [1700723886.5506241, 0.0, 0.0, 21.0, 163.0], [1700723886.7209494, 0.0, 1.0, 30.0, 148.0],
+                                  [1700723886.89586, 0.0, 0.0, 11.0, 133.0], [1700723887.0686586, 0.0, 0.0, 16.0, 147.0],
+                                  [1700723887.3816106, 1.0, 0.0, 18.0, 150.0], [1700723887.551227, 1.0, 0.0, 10.0, 154.0],
+                                  [1700723885.6048694, 0.0, 0.0, 17.0, 162.0], [1700723885.8363566, 0.0, 1.0, 11.0, 161.0],
+                                  [1700723886.042608, 1.0, 1.0, 18.0, 146.0], [1700723886.3765514, 0.0, 0.0, 23.0, 161.0],
+                                  [1700723886.5506241, 0.0, 0.0, 21.0, 163.0], [1700723886.7209494, 0.0, 1.0, 30.0, 148.0],
+                                  [1700723886.89586, 0.0, 0.0, 11.0, 133.0], [1700723887.0686586, 0.0, 0.0, 16.0, 147.0],
+                                  [1700723887.3816106, 1.0, 0.0, 18.0, 150.0], [1700723887.551227, 1.0, 0.0, 10.0, 154.0]
+                                  ]
+                else:  # self.sq.number_of_detectors == 8:
+                    # below is duplicate of a N=10 sized measurement    (altered from N=4 measurement)
+                    raw_counts = [[1700723885.6048694, 0.0, 0.0, 17.0, 22.0, 0.0, 0.0, 7.0, 22.0],
+                                  [1700723885.8363566, 0.0, 1.0, 11.0, 21.0, 0.0, 1.0, 1.0, 21.0],
+                                  [1700723886.042608,  1.0, 1.0, 18.0, 26.0, 1.0, 1.0, 8.0, 26.0],
+                                  [1700723886.3765514, 0.0, 3.0, 13.0, 21.0, 0.0, 0.0, 3.0, 11.0],
+                                  [1700723886.5506241, 5.0, 0.0, 11.0, 23.0, 0.0, 0.0, 1.0, 13.0],
+                                  [1700723886.7209494, 0.0, 1.0, 10.0, 28.0, 0.0, 1.0, 0.0, 18.0],
+                                  [1700723886.89586,   0.0, 0.0, 11.0, 23.0, 0.0, 0.0, 1.0, 13.0],
+                                  [1700723887.0686586, 0.0, 0.0, 16.0, 27.0, 0.0, 7.0, 6.0, 17.0],
+                                  [1700723887.3816106, 1.0, 0.0, 18.0, 20.0, 1.0, 0.0, 8.0, 10.0],
+                                  [1700723887.551227,  1.0, 0.0, 10.0, 24.0, 1.0, 0.0, 0.0, 24.0],
+                                  [1700723888.6048694, 0.0, 0.0, 17.0, 22.0, 2.0, 0.0, 7.0, 22.0],
+                                  [1700723888.8363566, 6.0, 1.0, 11.0, 21.0, 0.0, 1.0, 1.0, 21.0],
+                                  [1700723889.042608,  1.0, 1.0, 18.0, 26.0, 1.0, 1.0, 8.0, 26.0],
+                                  [1700723889.3765514, 0.0, 0.0, 23.0, 21.0, 0.0, 0.0, 3.0, 21.0],
+                                  [1700723889.5506241, 0.0, 0.0, 21.0, 23.0, 0.0, 0.0, 1.0, 23.0],
+                                  [1700723889.7209494, 0.0, 1.0, 30.0, 28.0, 0.0, 1.0, 0.0, 18.0],
+                                  [1700723889.89586,   0.0, 0.0, 11.0, 23.0, 0.0, 0.0, 1.0, 13.0],
+                                  [1700723890.0686586, 0.0, 0.0, 16.0, 27.0, 2.0, 0.0, 6.0, 17.0],
+                                  [1700723890.3816106, 1.0, 0.0, 18.0, 20.0, 1.0, 0.0, 8.0, 10.0],
+                                  [1700723890.551227,  1.0, 0.0, 10.0, 24.0, 1.0, 0.0, 0.0, 14.0]
+                                  ]
+                if self.temp_counter == len(raw_counts) - 1:
+                    return
+                self.temp_counter += 1
+                counts = [raw_counts[self.temp_counter]]
 
-        for row in np.array(self.data):
-            self.cumulative_ch_counts += row  # (note self.data is now smaller than other
+            else:
+                counts = self.sq.get_counts(self.sq.N)
 
-        # NOTE: data should be a list of lists (one list per integration time with 4 channel bins)
-        pass
+            # TODO: do something with timestamps
+            #timestamps = []   # resetting here means we are only getting the timestamps for current measurement of size N
+            for row in counts:
+                #timestamps.append(row[0])
+                self.data.append(row[1:])
+                self.cumulative_ch_counts += np.array(row[1:])
 
     def scanning(self):
         if self.running:   # if start button is active
@@ -938,9 +905,10 @@ class GUI:
         self.root.after(1000, self.scanning)  # After 1 second, call scanning
 
     def save_data(self, mode):
+        #print("saving data")
         data_str = []
         for row in self.data:
-            vals = [str(x) for x in row[:-1]]
+            vals = [str(int(x)) for x in row]
             data_str.append(' '.join(vals)+' \n')
         with open("counts_file.txt", mode) as file:   # FIXME need to make sure that new scan => new/empty file
             file.writelines(data_str)  # TODO maybe add time of each
@@ -949,6 +917,7 @@ class GUI:
     def start_scan_widget(self, tab):
 
         def press_start():
+            self.save_data(mode="w")   # TODO: maybe only have this once per new measurement (so that we can pause and start again)
             # True:     if we have successfully configured the device
             # False:    failed to do all configs to device, should not start scan
             # None:     did not send new configs, will check but can start scan anyway (maybe??)
@@ -956,11 +925,11 @@ class GUI:
             self.mark_done(btn_start, highlight=outcome[self.config_success], type='button')
             self.mark_done(btn_stop, highlight=self.button_color, type='button')
             self.running = True
-            print(f"START: RUNNING SCAN IS {self.running}")
+            #print(f"START: RUNNING SCAN IS {self.running}")
 
         def press_stop():
             self.running = False
-            print(f"STOP: RUNNING SCAN IS {self.running}")
+            #print(f"STOP: RUNNING SCAN IS {self.running}")
             self.mark_done(btn_start, highlight=self.button_color, type='button')
             self.mark_done(btn_stop, highlight='red', type='button')
 
@@ -992,7 +961,7 @@ class GUI:
 
         return plt_frame, canvas
 
-    def plot_histo(self, tab):
+    def plot_live_histo(self, tab):
 
         def update_histo():  # TODO: add data conversion for respective unit
             if self.y_max < 1.2*max(self.cumulative_ch_counts):
@@ -1005,15 +974,28 @@ class GUI:
             plot1.set_ylabel('photon count')
             plot1.set_title("Intensity")
             plot1.set_ylim([0, self.y_max])
-            N, bins, bars = plot1.hist(x, bins=8, weights=self.cumulative_ch_counts, rwidth=0.9, align='left')
+            N, bins, bars = plot1.hist(x, bins=b, weights=self.cumulative_ch_counts, rwidth=0.9, align='left')
             plot1.bar_label(bars)
             canvas.draw()
-            self.root.after(1000, update_histo)   # updates every second todo: maybe change
 
+            # go to idle state if we are not running a scan (reading counts)
+            if not self.running:
+                self.root.after(1000, idle)   # updates every second todo: maybe change
+            else:
+                self.root.after(1000, update_histo)   # updates every second todo: maybe change
+
+        def idle():
+            # go back to plotting counts when running scan (from idle state)
+            if self.running:
+                self.root.after(1000, update_histo)  # updates every second todo: maybe change
+            else:
+                self.root.after(1000, idle)  # updates every second todo: maybe change
+
+        # --------
         self.y_max = 1000  # initial value??
 
-        x = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9])   # todo:  change this to re a list of the wavelengths note the last channel is fake
-        self.cumulative_ch_counts = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0])  # starting with 8 channels for now
+        x = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9][:self.sq.number_of_detectors])   # todo:  change this to re a list of the wavelengths note the last channel is fake
+        self.cumulative_ch_counts = np.zeros(self.sq.number_of_detectors)  # starting with 8 channels for now
 
         fig = plt.Figure(figsize=(9, 5), dpi=100)
         plot1 = fig.add_subplot(111)
@@ -1024,7 +1006,9 @@ class GUI:
         plot1.set_ylabel('photon count')
         plot1.set_title("Intensity")
         plot1.set_ylim([0, self.y_max])
-        N, bins, bars = plot1.hist(x, bins=8,  weights=self.cumulative_ch_counts, rwidth=0.9, align='left')
+        b = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5]
+
+        N, bins, bars = plot1.hist(x, bins=b,  weights=self.cumulative_ch_counts, rwidth=0.9, align='left')
         # maybe if data is a dict --> use counted_data.keys(), weights = counted_data.values()
 
         plt_frame, canvas = self.pack_plot(tab, fig)
@@ -1033,48 +1017,10 @@ class GUI:
 
         return plt_frame
 
-    def plot_live_spectrum_widget(self, tab):
-
-        def animate(i):
-            if i < len(xar_b):
-                xar_b.append(example_data_blue[i][0])
-                yar_b.append(example_data_blue[i][1])
-                line_b.set_data(xar_b, yar_b)
-            if i < len(xar_r):
-                xar_r.append(example_data_red[i][0])
-                yar_r.append(example_data_red[i][1])
-                line_r.set_data(xar_r, yar_r)
-            if i > len(xar_b) and i > len(xar_r):
-                print("DONE ANIMATING")
-
-        # ----- LIVE -----
-        xar_b = []
-        yar_b = []
-        xar_r = []
-        yar_r = []
-
-        #---
-        #style.use('ggplot')
-        fig = plt.Figure(figsize=(9, 5), dpi=100)
-        plot1 = fig.add_subplot(111)
-        plot1.set_xlim(1545, 1565)
-        plot1.set_ylim(0, 5000)
-        plot1.set_xlabel('λ (nm)')
-        plot1.set_ylabel('photon count')
-        plot1.set_title("Photoluminescence Intensity")
-        line_b, = plot1.plot(xar_b, yar_b, 'b')
-        line_r, = plot1.plot(xar_r, yar_r, 'r')
-
-        # FIXME: ani = animation.FuncAnimation(fig, animate, interval=1000, blit=False)  # FIXME
-
-        plt_frame, canvas = self.pack_plot(tab, fig)
-        return plt_frame
-
     def plot_spectrum_widget(self, tab):
-        # TODO: create live graph???
+        # TODO: make it live? live graph???
 
         def pressed_xlabel():  # TODO: add data conversion for respective unit
-            # x = ...
             fig.clear()
             plot1 = fig.add_subplot(111)
             plot1.plot(xar_b, yar_b, 'b')
@@ -1200,19 +1146,64 @@ class GUI:
 
         return frm_info
 
+    def close(self):
+        time.sleep(1)
+        print("Closing SP AND WebSQ connections!")
+        self.sp.disconnect()  # closes connection with spectrometer
+        self.sq.close_connection()  # close SQWeb connection
 
-# test
-sq = SQControl()
-sq.main()
-sq.close_connection()   # close SQWeb connection
+class Demo:
+    @staticmethod
+    def d_read(param):
+        if param == 'nm':
+            return gui.device_wavelength
+        elif param == 'grating':
+            return gui.device_grating
+        else:
+            return
+
+    @staticmethod
+    def d_write(param, value):
+        if param == 'nm':
+            gui.device_wavelength = value - 0.003
+        elif param == 'grating':
+            gui.device_grating = value
+        return True
+
+    @staticmethod
+    def d_connect(port_connect):
+        gui.mark_done(port_connect, highlight="green", text_color='black', type='button')
+        gui.demo_connect = True
+
+
+# TODO: look into exceptions, plan for window crashing
 
 #-----
+demo = True
+gui = GUI()
+try:
+    gui.root.after(1000, gui.scanning)  # After 1 second, call scanning
+    gui.root.mainloop()
 
-# real
-gui = GUI()  # starts GUI
-#gui.root.after(1000, gui.scanning)  # After 1 second, call scanning
-#gui.root.mainloop()
-gui.sp.disconnect()   # closes connection with spectrometer
+except KeyboardInterrupt:
+    print("ERROR: PROGRAM INTERRUPTED EARLY.")
+    #gui.close()  # Close all external connections
+    raise
 
-print("Closed GUI program!")
+except SystemExit:
+    print("system exit")
+    raise
+
+except tkinter.EXCEPTION:
+    print("tkinter exception")
+    raise
+
+except serial.SerialException:
+    print("serial exception")
+    raise
+
+finally:
+    print("Finally:")
+    gui.close()  # Close all external connections
+
 
