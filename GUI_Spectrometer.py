@@ -22,12 +22,11 @@ from WebSQControl import WebSQControl
 
 
 # TODO NOW:
-#  - Display the count rate of several detectors as a histogram     (email from Val)
-#       - Read counts from detector
-#       - Define wavelengths for each detector
-#       - Create conversion to different units
-#  - Simplify your current code to control the spectrometer         (email from Val)
-
+#       - Define wavelengths for each detector (display on x axis plot, display next to channel?)
+#       - Create conversion to different units  --> implement into graph 2
+#  - Have Stephan show (on the WebSQ interface) how he wants the bias to be measured --> execute the same using code below
+#  - Simplify your current code to control the spectrometer
+#  - Disable the ability to congifure spectrometer (grating and so on) while running a scan (maybe?)
 
 # TODO LATER:
 #  - add settings and specs to datafile (create a separator to know at what row data starts!)
@@ -54,7 +53,7 @@ class SQControl:
     """Class to control detector via WebSQ"""
     def __init__(self):
         # -------------- ARGUMENTS: --------------
-
+        self.websq_handle = None
         self.tinyLab = True
         # TCP IP Address of the detector (default 192.168.1.1)
         if self.tinyLab:
@@ -72,13 +71,14 @@ class SQControl:
         # Number of measurements, used when reading counts,  type=int
         self.N = 10
 
+        self.open_connection()
+
         if not demo:
             # test
-            self.open_connection()
             self.number_of_detectors = self.get_number_of_detectors()  # Returns how many channels/detectors we have in the system  # NOTE: required other functions!!
             self.set_integration_time(dt=100)                             # Sets the integration time to collect counts in bin
             #self.test()  # NOTE: OPTIONAL TEST
-            self.close_connection()  # close SQWeb connection   # note, we should close it later when we're done instead
+            #self.close_connection()  # close SQWeb connection   # NOTE, we should close it later when we're done instead
 
         # OPTIONS TO IMPLEMENT IN GUI:
         # self.set_curr_bias()
@@ -88,11 +88,12 @@ class SQControl:
 
     def open_connection(self):
         if demo:
+            self.websq_handle = True
             return
         try:
             print("Attempting connection to WebSQ...")
-            self.websq = WebSQControl(TCP_IP_ADR=self.tcp_ip_address, CONTROL_PORT=self.control_port, COUNTS_PORT=self.counts_port)
-            self.websq.connect()
+            self.websq_handle = WebSQControl(TCP_IP_ADR=self.tcp_ip_address, CONTROL_PORT=self.control_port, COUNTS_PORT=self.counts_port)
+            self.websq_handle.connect()
             print("Connected to WebSQ!")
         except:
             print("Connection error with WebSQ")
@@ -100,13 +101,13 @@ class SQControl:
 
     def get_number_of_detectors(self):
         """Acquire number of detectors in the system"""
-        n = self.websq.get_number_of_detectors()
+        n = self.websq_handle.get_number_of_detectors()
         print(f"System as {n} detectors")
         return n
 
     def set_integration_time(self, dt=100):
         print(f"Set integration time to {dt} ms")
-        self.websq.set_measurement_periode(dt)  # Time in ms
+        self.websq_handle.set_measurement_periode(dt)  # Time in ms
 
     def set_curr_bias(self):
         # Set the bias current
@@ -116,7 +117,7 @@ class SQControl:
         for n in range(self.number_of_detectors):
             curr.append(bias)
         print(f"Set bias to: {curr}")
-        self.websq.set_bias_current(current_in_uA=curr)
+        self.websq_handle.set_bias_current(current_in_uA=curr)
 
     def set_trigger_lvl(self):
         # Set the trigger level
@@ -126,13 +127,13 @@ class SQControl:
         for n in range(self.number_of_detectors):
             trig.append(trigger)
         print(f"Set trigger levels to: {trig}")
-        self.websq.set_trigger_level(trigger_level_mV=trig)
+        self.websq_handle.set_trigger_level(trigger_level_mV=trig)
 
     def get_counts(self, N=10):
         # Acquire N counts measurements:
         #   Returns an array filled with N numpy arrays each containing as first element a time stamp and then the detector counts ascending order
         print(f"Acquiring {N} counts measurements...")
-        all_counts = self.websq.acquire_cnts(N)   # note: this includes the time stamp as well
+        all_counts = self.websq_handle.acquire_cnts(N)   # note: this includes the time stamp as well
         return all_counts
 
     def read_back(self):
@@ -143,15 +144,17 @@ class SQControl:
             Trigger Levels in mV: 		 [-150, -150, -150, -150]
         """
         print("\nRead back set values\n====================")
-        print(f"Measurement Periode (ms):    {self.websq.get_measurement_periode()}")
-        print(f"Bias Currents in uA:         {self.websq.get_bias_current()}")
-        print(f"Trigger Levels in mV:        {self.websq.get_trigger_level()}")
+        print(f"Measurement Periode (ms):    {self.websq_handle.get_measurement_periode()}")
+        print(f"Bias Currents in uA:         {self.websq_handle.get_bias_current()}")
+        print(f"Trigger Levels in mV:        {self.websq_handle.get_trigger_level()}")
 
     def close_connection(self):
         if demo:
+            #self.websq_handle = None
             return
         try:
-            self.websq.close()
+            self.websq_handle.close()
+            self.websq_handle = None
             print("Connection closed with WebSQ")
         except:
             print("Failed close connection with WebSQ")
@@ -163,7 +166,7 @@ class SP2750:
         #self.find_ports()  
 
         # Serial connection settings:
-        self.handle = None
+        self.sp_handle = None
         self.port = "COM4"          # USB port
 
         self.dict = {
@@ -199,6 +202,10 @@ class SP2750:
         if demo:
             self.device_grating = 1
             self.device_wavelength = 600
+        else:
+            self.connect()
+            self.sp_handle.write(b'NO-ECHO\r')
+            self.wait_for_read()  # b'  ok\r\n'
 
     def find_ports(self):  # TODO: find our device port and connect automatically
         print("---------")
@@ -217,20 +224,21 @@ class SP2750:
             print("---------")
 
     def connect(self):
-        if demo:
+        if demo:   # TODO: i don't think this is needed
+            self.sp_handle = True
             return
 
         try:
-            self.handle = serial.Serial(port=self.port, baudrate=9600, parity=serial.PARITY_NONE,
+            self.sp_handle = serial.Serial(port=self.port, baudrate=9600, parity=serial.PARITY_NONE,
                                         stopbits=serial.STOPBITS_ONE, bytesize=serial.EIGHTBITS)  # , timeout=self.serial_timeout)
-            if self.handle.isOpen():
-                print(f"Successfully connected to PORT: {self.port}\nSerial handle:", self.handle)
+            if self.sp_handle.isOpen():
+                print(f"Successfully connected to PORT: {self.port}\nSerial handle:", self.sp_handle)
             else:
                 print("ERROR: handle still None")
                 raise serial.SerialException
         except serial.SerialException:
             print(f"ERROR: could not connect to PORT: {self.port}")
-            if self.handle:
+            if self.sp_handle:
                 self.disconnect()
             raise
 
@@ -238,12 +246,12 @@ class SP2750:
         if demo:
             return
 
-        if self.handle is None:
+        if self.sp_handle is None:
             print("Not connected to device --> don't need to disconnect")
             return
 
-        self.handle.close()
-        self.handle = None
+        self.sp_handle.close()
+        self.sp_handle = None
         print("Connection Closed!")
 
     def check_cmd(self, access, param, value=None):
@@ -275,10 +283,10 @@ class SP2750:
         return True
 
     def check_handle(self):
-        if self.handle is None:
+        if self.sp_handle is None:
             print("ERROR: Not connected to device!")
             return False
-        elif not self.handle.isOpen():
+        elif not self.sp_handle.isOpen():
             print("ERROR: Device not open!")
             return False
         return True
@@ -330,7 +338,7 @@ class SP2750:
 
     def query(self, cmd):
         cmd_bytes = cmd.encode("ASCII") + b'\r'
-        self.handle.write(cmd_bytes)
+        self.sp_handle.write(cmd_bytes)
         return self.wait_for_read()
 
     def wait_for_read(self):
@@ -343,7 +351,7 @@ class SP2750:
                 return res
             else:
                 time.sleep(0.5)
-                res_r = self.handle.readline()
+                res_r = self.sp_handle.readline()
                 print(res_r)
                 res += res_r
         print('failed wait to read')
@@ -361,10 +369,13 @@ class GUI:
 
         # Create and configure the main GUI window
         self.init_window()
+
         # define global variables
         self.init_parameters()
+
         # Create and place tabs frame on window grid
         self.init_fill_tabs()
+
         #if demo:
         #    self.root.after(100, lambda: _show('Title', 'Demo Version'))
 
@@ -375,8 +386,8 @@ class GUI:
         self.current_file_name = None
         self.current_file_type = None
         self.current_file_path = None
-        self.device_grating = 0
-        self.device_wavelength = 0
+        self.device_grating = 1
+        self.device_wavelength = 600
         self.config_success = None   # None if not tried to configure yet
         self.checked_configs = False
         self.ok_to_send_list = []
@@ -385,21 +396,24 @@ class GUI:
         self.button_color = 'grey'  # default button colors
         self.port = tk.StringVar()     # note maybe change later when implemented
         self.x_label = tk.StringVar(value='λ [nm]')
-        self.grating_levels = {   # TODO: make this configurable?
-            1: {'grating': 600,  'blz': '750 nm'},
-            2: {'grating': 150,  'blz': '800 nm'},
-            3: {'grating': 1800, 'blz': 'H-VIS'},
+        self.grating_lvl = {   # TODO: make this configurable?   # TODO fill in correct width (based on grating)
+            1: {'grating': 600,  'blz': '750 nm', 'width': 8},
+            2: {'grating': 150,  'blz': '800 nm', 'width': 4},
+            3: {'grating': 1800, 'blz': 'H-VIS',  'width': 1},
         }
         self.params = {
             'grating':           {'var': tk.IntVar(value=1),    'type': 'radio',     'default' : 1, 'value': [1, 2, 3]},
             'nm':                {'var': tk.IntVar(value=600),  'type': 'int entry', 'default' : 350, 'value': [350, 650, 750]},
-            'width_nm' :         {'var': tk.IntVar(),           'type': 'int entry', 'default' : 10, 'value': [5, 15, 30]},
+            'width_nm' :         {'var': tk.IntVar(value=1),    'type': 'int entry', 'default' : 10, 'value': [5, 15, 30]},
             'slit':              {'var': tk.IntVar(value=10),   'type': 'int entry', 'default' : 10, 'value': [10, 20, 30]},
             'nr_pixels':         {'var': tk.IntVar(value=8),    'type': 'int entry', 'default' : 8, 'value': [3, 8, 12]},
             'file_name':         {'var': tk.StringVar(),        'type': 'str entry', 'default' : '', 'value': ['butterfly.timeres', 'frog.timeres', 'sheep.timeres']},
             'folder_name':       {'var': tk.StringVar(),        'type': 'str entry', 'default' : '', 'value': ['~/Desktop/GUI/Data1', '~/Desktop/GUI/Data2', '~/Desktop/GUI/Data3']},
             'eta_recipe':        {'var': tk.StringVar(),        'type': 'str entry', 'default' : '', 'value': ['~/Desktop/GUI/Recipe/gui_recipe_1.eta', '~/Desktop/GUI/Recipe/gui_recipe_2.eta', '~/Desktop/GUI/Recipe/gui_recipe_3.eta']},
         }
+        self.ch_bias_list = []  #
+        self.ch_nm_bin_edges = []  # TODO
+        self.calculate_nm_bins()
 
     def init_window(self):
         self.root = tk.Tk()
@@ -487,7 +501,6 @@ class GUI:
 
     @staticmethod
     def add_to_grid(widg, rows, cols, sticky, columnspan=None):
-        # EXAMPLE: self.add_to_grid(widg=[name_entry, folder_entry, recipe_entry], rows=[1,2,3], cols=[1,1,1], sticky=["ew", "ew", "ew"])
         for i in range(len(widg)):
             if columnspan:
                 widg[i].grid(row=rows[i], column=cols[i], sticky=sticky[i], padx=0, pady=0, columnspan=columnspan[i])
@@ -503,26 +516,44 @@ class GUI:
             widget.config(foreground=text_color)  # green
             widget.config(activeforeground='blue')   #maybe only reset for send btn ???
 
+    # NOTE TODO: make sure that we use the actual device grating and not the selected one.
+    def calculate_nm_bins(self):
+        self.ch_nm_bin_edges = []   # clear list of bins
+
+        print("device grating", self.device_grating)
+        #width_nm = self.grating_lvl[self.params['grating']['var'].get()]['width']   # total width/range of all channels
+        width_nm = self.grating_lvl[self.device_grating]['width']   # total width/range of all channels
+        delta_nm = width_nm/self.sq.number_of_detectors
+        center_nm = self.params['nm']['var'].get()
+        n = self.sq.number_of_detectors
+
+        for i in range(int(-n/2), int(n/2)+1):
+            self.ch_nm_bin_edges.append(center_nm + (i*delta_nm))
+        print(self.ch_nm_bin_edges)
+
     def choose_param_configs_widget(self, tab):
 
         def press_connect():  # TODO
+            #self.running = False  # TODO CHECK: need to stop scanning i think???
+
             if demo:
-                Demo.d_connect(port_connect)
+                Demo.d_connect(port_parts[2])
+                self.sp.sp_handle = True
                 return
                 
             self.sp.disconnect()
             self.sp.connect()
-            self.sp.handle.write(b'NO-ECHO\r')
+            self.sp.sp_handle.write(b'NO-ECHO\r')
             self.sp.wait_for_read()  # b'  ok\r\n'
-            port_entry.config(text=f'{self.sp.port}')
+            port_parts[1].config(text=f'{self.sp.port}')
 
-            if self.sp.handle.isOpen():
-                self.mark_done(port_connect, highlight="green", text_color='black', type='button')
+            if self.sp.sp_handle.isOpen():
+                self.mark_done(port_parts[2], highlight="green", text_color='black', type='button')
             else:
-                self.mark_done(port_connect, highlight="red", text_color='black', type='button')
+                self.mark_done(port_parts[2], highlight="red", text_color='black', type='button')
 
         def reset_button_col():
-            for button in [btn_def_1, btn_def_2, btn_def_3]:
+            for button in default_but_parts[1:]:
                 self.mark_done(button, highlight=self.button_color, type='button')
 
         def default_press(n=0):
@@ -532,7 +563,7 @@ class GUI:
                 for key in self.params.keys():
                     self.params[key]['var'].set(self.params[key]['default'])        # Clear all
             else:
-                self.mark_done(default_btns[n], highlight='green', type='button')   # set one of the defaults
+                self.mark_done(default_but_parts[n], highlight='green', type='button')   # set one of the defaults
                 for key in self.params.keys():
                     self.params[key]['var'].set(self.params[key]['value'][n-1])
                 self.suggest_filename(self.name_entry)
@@ -541,114 +572,120 @@ class GUI:
 
         def select_grating():
             # FIXME OR REMOVE
+            #self.calculate_nm_bins()
+            # TODO: auto update plot axis
             pass
 
         def update_ch():
             # removes previously shown channels (in case we want to decrease in amount)
-            for j, widget in enumerate(frm_ch.winfo_children()):   # FIXME NOTE TODO: USE THIS LATER TO ACCESS BUTTONS FOR MARKING DONE
+            for j, widget in enumerate(frm['ch'].winfo_children()):   # FIXME NOTE TODO: USE THIS LATER TO ACCESS BUTTONS FOR MARKING DONE
                 if j > 2:
                     widget.destroy()
             fill_ch()
 
         def fill_ch():
-            self.channels = []
-            for i in range(self.params['nr_pixels']['var'].get()):
-                self.channels.append(tk.IntVar())  #
-                tk.Label(frm_ch, text=f"Pixel {i + 1}").grid(row=i + 2, column=0, sticky="ew", padx=0, pady=0)
-                tk.Entry(frm_ch, bd=2, textvariable=self.channels[i], width=6).grid(row=i + 2, column=1, sticky="ew", padx=0, pady=0)
+            self.ch_bias_list = []
+            for pix in range(self.params['nr_pixels']['var'].get()):
+                self.ch_bias_list.append(tk.IntVar())  #
+                tk.Label(frm['ch'], text=f"Pixel {pix + 1}").grid(row=pix + 2, column=0, sticky="ew", padx=0, pady=0)
+                tk.Entry(frm['ch'], bd=2, textvariable=self.ch_bias_list[pix], width=6).grid(row=pix + 2, column=1, sticky="ew", padx=0, pady=0)
 
         # ---------------
         self.port.set(self.sp.port)  # note maybe change later when implemented
 
+
         # FRAMES
         frm_test = tk.Frame(tab, relief=tk.RAISED, bd=2)
-        frm_default = tk.Frame(frm_test, relief=tk.RAISED, bd=2)
-        frm_port = tk.Frame(frm_test, relief=tk.RAISED, bd=2)
-        frm_slit = tk.Frame(frm_test, relief=tk.RAISED, bd=2)
-        frm_grating = tk.Frame(frm_test, relief=tk.RAISED, bd=2)
-        frm_detect = tk.Frame(frm_test, relief=tk.RAISED, bd=2)
-        frm_ch = tk.Frame(frm_test, relief=tk.RAISED, bd=2)
+        frm = {}
+        for name in ['default', 'port', 'slit', 'grating', 'detect', 'ch']:
+            frm[name] = tk.Frame(frm_test, relief=tk.RAISED, bd=2)
 
         # WIDGETS
+        
         #  -- Default:
-        btn_clear = tk.Button(frm_default, text="Clear all", command=lambda : default_press(0), activeforeground='red', highlightbackground=self.button_color)
-        btn_def_1 = tk.Button(frm_default, text="Default 1", command=lambda : default_press(1), activeforeground='blue', highlightbackground=self.button_color)
-        btn_def_2 = tk.Button(frm_default, text="Default 2", command=lambda : default_press(2), activeforeground='blue', highlightbackground=self.button_color)
-        btn_def_3 = tk.Button(frm_default, text="Default 3", command=lambda : default_press(3), activeforeground='blue', highlightbackground=self.button_color)
-        default_btns = [btn_clear, btn_def_1, btn_def_2, btn_def_3]
+        default_but_parts = [
+            tk.Button(frm['default'], text="Clear all", command=lambda : default_press(0), activeforeground='red', highlightbackground=self.button_color),
+            tk.Button(frm['default'], text="Default 1", command=lambda : default_press(1), activeforeground='blue', highlightbackground=self.button_color),
+            tk.Button(frm['default'], text="Default 2", command=lambda : default_press(2), activeforeground='blue', highlightbackground=self.button_color),
+            tk.Button(frm['default'], text="Default 3", command=lambda : default_press(3), activeforeground='blue', highlightbackground=self.button_color),]
 
         #  -- Port:
-        port_txt = tk.Label(frm_port, text='USB Port')    # port_entry = tk.Entry(frm_port, bd=2, textvariable=self.port, width=5)   # FIXME later
-        port_entry = tk.Label(frm_port, text=f'{self.port.get()}')
-        port_connect = tk.Button(frm_port, text="Connect Device", command=press_connect, activeforeground='blue', highlightbackground=self.button_color)
-
+        port_parts = [tk.Label(frm['port'], text='USB Port'),   # port_entry = tk.Entry(frm_port, bd=2, textvariable=self.port, width=5)   # FIXME later
+                      tk.Label(frm['port'], text=f'{self.port.get()}'),
+                      tk.Button(frm['port'], text="Connect Device", command=press_connect, activeforeground='blue', highlightbackground=self.button_color)]
+        
         #  -- Slit:
-        slt_txt = tk.Label(frm_slit, text='Slit width')
-        slt_entry = tk.Entry(frm_slit, bd=2, textvariable=self.params['slit']['var'], width=5)
-        slt_unit = tk.Label(frm_slit, text='[um]')
+        slt_parts = [tk.Label(frm['slit'], text='Slit width'),
+                     tk.Entry(frm['slit'], bd=2, textvariable=self.params['slit']['var'], width=5),
+                     tk.Label(frm['slit'], text='[um]')]
 
         #  -- Grating:
-        grt_txt = tk.Label(frm_grating, text='Grating')
-        grt_txt_blz = tk.Label(frm_grating, text='Blaze')
-
-        grt_rad_1 = tk.Radiobutton(frm_grating, text=str(self.grating_levels[1]['grating'])+"  [gr/mm]", variable=self.params['grating']['var'], value=1, command=select_grating)
-        grt_rad_2 = tk.Radiobutton(frm_grating, text=str(self.grating_levels[2]['grating'])+"  [gr/mm]", variable=self.params['grating']['var'], value=2, command=select_grating)
-        grt_rad_3 = tk.Radiobutton(frm_grating, text=str(self.grating_levels[3]['grating'])+"  [gr/mm]", variable=self.params['grating']['var'], value=3, command=select_grating)
-
-        grt_txt_1_blz = tk.Label(frm_grating, text="   "+self.grating_levels[1]['blz'])
-        grt_txt_2_blz = tk.Label(frm_grating, text="   "+self.grating_levels[2]['blz'])
-        grt_txt_3_blz = tk.Label(frm_grating, text="   "+self.grating_levels[3]['blz'])
+        grating_widget_dict = {
+            'radio_b' : [],
+            'grt_txt': [tk.Label(frm['grating'], text='Grating')],
+            'blz_txt': [tk.Label(frm['grating'], text='Blaze')],
+            'wid_txt': [tk.Label(frm['grating'], text='Width')],
+        }
+        for c in range(3):
+            #grating_widget_dict['radio_b'].append(tk.Radiobutton(frm['grating'], text=f"{self.grating_lvl[i+1]['grating']}  [gr/mm]", variable=self.params['grating']['var'], value=i+1, command=select_grating))
+            grating_widget_dict['radio_b'].append(tk.Radiobutton(frm['grating'], text="", variable=self.params['grating']['var'], value=c+1, command=select_grating))
+            grating_widget_dict['grt_txt'].append(tk.Label(frm['grating'], text=f"  {self.grating_lvl[c+1]['grating']}  [gr/mm]"))
+            grating_widget_dict['blz_txt'].append(tk.Label(frm['grating'], text=f"  {self.grating_lvl[c+1]['blz']}"))
+            grating_widget_dict['wid_txt'].append(tk.Label(frm['grating'], text=f"  {self.grating_lvl[c+1]['width']}"))
 
         #  -- Detector:
-        det_txt = tk.Label(frm_detect, text="Detector")
 
-        det_wave_txt = tk.Label(frm_detect, text="Center λ")
-        det_wave_val = tk.Entry(frm_detect, bd=2, textvariable=self.params['nm']['var'], width=6)
-        det_wave_unit = tk.Label(frm_detect, text='[nm]')
+        det_parts = [tk.Label(frm['detect'], text="Center λ"),
+                     tk.Entry(frm['detect'], bd=2, textvariable=self.params['nm']['var'], width=6),
+                     tk.Label(frm['detect'], text='[nm]')]
 
-        det_width_txt = tk.Label(frm_detect, text="Pixel width")
-        det_width_val = tk.Entry(frm_detect, bd=2, textvariable=self.params['width_nm']['var'], width=6)
-        det_width_unit = tk.Label(frm_detect, text='[nm]')
+        wid_parts = [tk.Label(frm['detect'], text="Pixel width"),
+                     tk.Entry(frm['detect'], bd=2, textvariable=self.params['width_nm']['var'], width=6),
+                     tk.Label(frm['detect'], text='[nm]')]
 
-        det_no_txt = tk.Label(frm_detect, text="Nr. of pixels")
-        det_no_val = tk.Entry(frm_detect, bd=2, textvariable=self.params['nr_pixels']['var'], width=6)
-        ch_butt0 = tk.Button(frm_detect, text="Update", command=update_ch, activeforeground='blue', highlightbackground=self.button_color)  # NOTE: previously in channel frame below
+        det_no_parts = [tk.Label(frm['detect'], text="Nr. of pixels"),
+                        tk.Entry(frm['detect'], bd=2, textvariable=self.params['nr_pixels']['var'], width=6),
+                        tk.Button(frm['detect'], text="Update", command=update_ch, activeforeground='blue', highlightbackground=self.button_color)]
 
         # -- Channels:
-        ch_txt_ch = tk.Label(frm_ch, text='Pixel')
-        ch_txt_bias = tk.Label(frm_ch, text='Bias')
-        ch_txt_cnts = tk.Label(frm_ch, text='Counts')
+        ch_parts = [
+            tk.Label(frm['ch'], text='Pixel'),
+            tk.Label(frm['ch'], text='Bias'),
+            tk.Label(frm['ch'], text='Counts')]
 
         # GRID
         # -- Default
-        self.add_to_grid(widg=[btn_clear, btn_def_1, btn_def_2, btn_def_3], rows=[0,0,0,0], cols=[0,1,2,3], sticky=["ew", "ew", "ew", "ew"])
+        self.add_to_grid(widg=default_but_parts, rows=[0,0,0,0], cols=[0,1,2,3], sticky=["ew", "ew", "ew", "ew"])
         # -- Port
-        self.add_to_grid(widg=[port_txt, port_entry, port_connect], rows=[0,0,0], cols=[0,1,2], sticky=["", "", ""])
+        self.add_to_grid(widg=port_parts, rows=[0,0,0], cols=[0,1,2], sticky=["", "", ""])
         # -- Slit
-        self.add_to_grid(widg=[slt_txt, slt_entry, slt_unit], rows=[0,0,0], cols=[0,1,2], sticky=["", "", ""])
+        self.add_to_grid(widg=slt_parts, rows=[0,0,0], cols=[0,1,2], sticky=["", "", ""])
         # -- Grating
-        self.add_to_grid(widg=[grt_txt, grt_rad_1, grt_rad_2, grt_rad_3], rows=[2,3,4,5], cols=[0,0,0,0], sticky=["", "s", "s", "s"])
-        self.add_to_grid(widg=[grt_txt_blz, grt_txt_1_blz, grt_txt_2_blz, grt_txt_3_blz], rows=[2,3,4,5], cols=[1,1,1,1], sticky=["", "s", "s", "s"])
+        self.add_to_grid(widg=grating_widget_dict['radio_b'], rows=[3,4,5], cols=[0,0,0], sticky=["", "s", "s", "s"])
+        self.add_to_grid(widg=grating_widget_dict['grt_txt'], rows=[2,3,4,5], cols=[1,1,1,1], sticky=["", "s", "s", "s"])
+        self.add_to_grid(widg=grating_widget_dict['blz_txt'], rows=[2,3,4,5], cols=[2,2,2,2], sticky=["", "s", "s", "s"])
+        self.add_to_grid(widg=grating_widget_dict['wid_txt'], rows=[2,3,4,5], cols=[3,3,3,3], sticky=["", "s", "s", "s"])
+
         # -- Detector
-        self.add_to_grid(widg=[det_txt], rows=[0], cols=[0], sticky=["ew"], columnspan=[2])
-        self.add_to_grid(widg=[det_wave_txt, det_wave_val, det_wave_unit], rows=[1,1,1], cols=[0,1,2], sticky=["ew", "ew", "ew"])
-        self.add_to_grid(widg=[det_width_txt, det_width_val, det_width_unit], rows=[2,2,2], cols=[0,1,2], sticky=["ew", "ew", "ew"])
-        self.add_to_grid(widg=[det_no_txt, det_no_val, ch_butt0], rows=[3,3,3], cols=[0,1,2], sticky=["ew", "ew", "ew"])
+        self.add_to_grid(widg=[tk.Label(frm['detect'], text="Detector")], rows=[0], cols=[0], sticky=["ew"], columnspan=[2])
+        self.add_to_grid(widg=det_parts, rows=[1,1,1], cols=[0,1,2], sticky=["ew", "ew", "ew"])
+        # self.add_to_grid(widg=wid_parts, rows=[2,2,2], cols=[0,1,2], sticky=["ew", "ew", "ew"])
+        self.add_to_grid(widg=det_no_parts, rows=[3,3,3], cols=[0,1,2], sticky=["ew", "ew", "ew"])
+
         # -- Channels
-        self.add_to_grid(widg=[ch_txt_ch, ch_txt_bias, ch_txt_cnts], rows=[0,0,0], cols=[0,1,2], sticky=["ew", "ew", "ew"])
+        self.add_to_grid(widg=ch_parts, rows=[0,0,0], cols=[0,1,2], sticky=["ew", "ew", "ew"])
         fill_ch()  # Updates channels displayed
 
         # ------------- COMBINING INTO TEST FRAME --------------
         tk.Label(frm_test, text='Settings', font=('', 15)).grid(row=0, column=0, sticky="ew", padx=0, pady=0)
-        self.add_to_grid(widg=[frm_default, frm_port, frm_slit, frm_grating, frm_detect], rows=[1,2,3,4,5], cols=[0,0,0,0,0], sticky=["ew", "ew", "ew", "ew", "ew"])
-        frm_ch.grid(row=6, column=0, rowspan=100, sticky="ew", padx=0, pady=0)
+        self.add_to_grid(widg=[frm['default'], frm['port'], frm['slit'], frm['grating'], frm['detect']], rows=[1,2,3,4,5], cols=[0,0,0,0,0], sticky=["ew", "ew", "ew", "ew", "ew"])
+        frm['ch'].grid(row=6, column=0, rowspan=100, sticky="ew", padx=0, pady=0)
 
         return frm_test
 
     def suggest_filename(self, entry):
         currDate = date.today().strftime("%y%m%d")
         currTime = time.strftime("%Hh%Mm%Ss", time.localtime())
-
         temp = f"slit({self.params['slit']['var'].get()})_" \
                f"grating({self.params['grating']['var'].get()})_" \
                f"lamda({self.params['nm']['var'].get()})_" \
@@ -662,36 +699,35 @@ class GUI:
 
         def get_recipe():
             self.params['eta_recipe']['var'].set(askopenfilename(filetypes=[("ETA recipe", "*.eta")]) )
-            recipe_entry.delete(0, tk.END)
-            recipe_entry.insert(0, self.params['eta_recipe']['var'].get())
+            file_entry[2].delete(0, tk.END)
+            file_entry[2].insert(0, self.params['eta_recipe']['var'].get())
 
         def get_folder():
             self.params['folder_name']['var'].set(askdirectory())
-            folder_entry.delete(0, tk.END)
-            folder_entry.insert(0, self.params['folder_name']['var'].get())
+            file_entry[1].delete(0, tk.END)
+            file_entry[1].insert(0, self.params['folder_name']['var'].get())
 
         def suggest_name():
-            self.suggest_filename(self.name_entry)
+            self.suggest_filename(file_entry[0])
 
         frm_misc = tk.Frame(tab, relief=tk.RAISED, bd=2)
 
+        file_lab_parts = []
+        file_entry = []
+        for i, label in enumerate(["New File Name", "New File Location", "ETA recipe"]):
+            file_lab_parts.append(tk.Label(frm_misc, text=label))
+            file_entry.append(tk.Entry(frm_misc, bd=2, textvariable=self.params[['file_name', 'folder_name', 'eta_recipe'][i]]['var'], width=20))
+
+        file_buts = [tk.Button(frm_misc, text="Suggest...", command=suggest_name, activeforeground='blue', highlightbackground=self.button_color),
+                     tk.Button(frm_misc, text="Open Folder", command=get_folder, activeforeground='blue', highlightbackground=self.button_color),
+                     tk.Button(frm_misc, text="Choose File", command=get_recipe, activeforeground='blue', highlightbackground=self.button_color)]
+
+        self.name_entry = file_entry[0]
         tk.Label(frm_misc, text="Analysis Configs").grid(row=0, column=0, columnspan=2, sticky="ew", padx=0, pady=0)
-        tk.Label(frm_misc, text="(optional)").grid(row=0, column=2, sticky="ew", padx=0, pady=0)
-        tk.Label(frm_misc, text="New File Name").grid(row=1, column=0, sticky="ew", padx=0, pady=0)
-        tk.Label(frm_misc, text="New File Location").grid(row=2, column=0, sticky="ew", padx=0, pady=0)
-        tk.Label(frm_misc, text="ETA recipe").grid(row=3, column=0, sticky="ew", padx=0, pady=0)
-
-        # TODO: fix accessibility
-        self.name_entry = tk.Entry(frm_misc, bd=2, textvariable=self.params['file_name']['var'], width=20)
-        folder_entry = tk.Entry(frm_misc, bd=2, textvariable=self.params['folder_name']['var'], width=20)
-        recipe_entry = tk.Entry(frm_misc, bd=2, textvariable=self.params['eta_recipe']['var'], width=40)
-
-        butt0 = tk.Button(frm_misc, text="Suggest...", command=suggest_name, activeforeground='blue', highlightbackground=self.button_color)
-        butt1 = tk.Button(frm_misc, text="Open Folder", command=get_folder, activeforeground='blue', highlightbackground=self.button_color)
-        butt2 = tk.Button(frm_misc, text="Choose File", command=get_recipe, activeforeground='blue', highlightbackground=self.button_color)
-
-        self.add_to_grid(widg=[self.name_entry, folder_entry, recipe_entry], rows=[1,2,3], cols=[1,1,1], sticky=["ew", "ew", "ew"])
-        self.add_to_grid(widg=[butt0, butt1, butt2], rows=[1,2,3], cols=[2,2,2], sticky=["ew", "ew", "ew"])
+        self.add_to_grid(widg=[tk.Label(frm_misc, text="(optional)")], rows=[0], cols=[2], sticky=["ew"])
+        self.add_to_grid(widg=file_lab_parts, rows=[1,2,3], cols=[0,0,0], sticky=["ew","ew","ew","ew"])
+        self.add_to_grid(widg=file_entry, rows=[1,2,3], cols=[1,1,1], sticky=["ew", "ew", "ew"])
+        self.add_to_grid(widg=file_buts, rows=[1,2,3], cols=[2,2,2], sticky=["ew", "ew", "ew"])
 
         return frm_misc
 
@@ -707,16 +743,16 @@ class GUI:
 
         def show_configs():
             temp = get_str()
-            for i, widget in enumerate([send_txt_1, send_txt_2, send_txt_3]):
+            for i, widget in enumerate(send_txt):
                 widget.config(text=temp[i], foreground='black')   # make green for passed tests!
 
         def check():
             show_configs()
-            self.ok_to_send_list = [] #reset
+            self.ok_to_send_list = []  # reset
             # todo: maybe should also check connection and values on device (if active/correct)
             check_list = [
-                    ['grating',     0, send_txt_2, 'grating', self.device_grating],
-                    ['nm',   0, send_txt_3, 'center λ', self.device_wavelength],
+                    ['grating', 0, send_txt[1], 'grating', self.device_grating],
+                    ['nm',      0, send_txt[2], 'center λ', self.device_wavelength],
                 ]
             for check_thing in check_list:
 
@@ -727,13 +763,13 @@ class GUI:
                     continue  # skip rest of loop iteration
 
                 res = self.sp.read_cmd(param=check_thing[0])  # returns true if correctly configured
-                print(" value =", res)
+                #print(" value =", res)
 
                 tempi = f"{check_thing[3]} = {res}  -->  {self.params[check_thing[0]]['var'].get()}"
 
                 check_thing[2].config(text=tempi, foreground='black')  # make green for passed tests!
 
-                print(res)
+                #print(res)
                 if res is None:
                     self.mark_done(check_thing[2], text_color='red', type='text')  # ????
 
@@ -773,10 +809,12 @@ class GUI:
                 else:
                     time.sleep(1)
 
-            print("\n--- SEND VALUES ---")
+            if self.running:
+                print("can not config during scan")
+                return
 
             print("Attempting to send configs to device...")
-            if self.checked_configs:  # if we've double-checked currently set values
+            if self.checked_configs:  # if we've double-checked currently set values      
                 self.mark_done(btn_send_conf, highlight=self.button_color, type='button')
 
                 #try:   # woking parts will be marked green
@@ -803,8 +841,8 @@ class GUI:
             else:
                 self.mark_done(btn_send_conf, highlight='red', type='button')
 
-            # DOUBLE CHECK AFTER
             check()
+            self.calculate_nm_bins()
             print('done')
 
         temp = get_str()
@@ -812,15 +850,16 @@ class GUI:
         frm_send = tk.Frame(tab, relief=tk.RAISED, bd=2)
         frm_send_values = tk.Frame(frm_send, relief=tk.RAISED, bd=2)
 
-        send_txt_1 = tk.Label(frm_send_values, text=temp[0], foreground='white', justify="left")
-        send_txt_2 = tk.Label(frm_send_values, text=temp[0], foreground='white', justify="left")
-        send_txt_3 = tk.Label(frm_send_values, text=temp[1], foreground='white', justify="right")
+        send_txt = [
+            tk.Label(frm_send_values, text=temp[0], foreground='white', justify="left"),
+            tk.Label(frm_send_values, text=temp[0], foreground='white', justify="left"),
+            tk.Label(frm_send_values, text=temp[1], foreground='white', justify="right")]
 
         btn_check_conf = tk.Button(frm_send, text="Check values..", command=check, activeforeground='blue', highlightbackground=self.button_color)
-        btn_send_conf = tk.Button(frm_send,  text="Send to Device", command=nothing, foreground='white', activeforeground='white') #, highlightbackground=self.button_color)
+        btn_send_conf = tk.Button(frm_send,  text="Send to Device", command=nothing, foreground='white', activeforeground='white')  # , highlightbackground=self.button_color)
 
         self.add_to_grid(widg=[btn_check_conf, frm_send_values, btn_send_conf], rows=[0,1,2], cols=[0,0,0], sticky=["new", "new", "new"])
-        self.add_to_grid(widg=[send_txt_1, send_txt_2, send_txt_3], rows=[0,1,2], cols=[0,0,0], sticky=["new", "new", "new"])
+        self.add_to_grid(widg=send_txt, rows=[0,1,2], cols=[0,0,0], sticky=["new", "new", "new"])
 
         return frm_send
 
@@ -839,11 +878,9 @@ class GUI:
                     self.data[-1].append(int(val*bias[j]))
                 #self.data[-1].append(0)  # note: empty channel to display histogram correctly
 
-            print(self.cumulative_ch_counts)
-            print("generated data:", self.data)
+            #print("generated data:", self.data)
             for row in np.array(self.data):
                 self.cumulative_ch_counts += row  # (note self.data is now smaller than other
-            print("cumulative:", self.cumulative_ch_counts)
             # NOTE: data should be a list of lists (one list per integration time with 4 channel bins)
         else:
             if demo:
@@ -897,7 +934,6 @@ class GUI:
                 #timestamps.append(row[0])
                 self.data.append(row[1:])
                 self.cumulative_ch_counts += np.array(row[1:])
-
     def scanning(self):
         if self.running:   # if start button is active
             self.get_counts()  # saves data to self.data. note that live graph updates every second using self.data
@@ -905,7 +941,6 @@ class GUI:
         self.root.after(1000, self.scanning)  # After 1 second, call scanning
 
     def save_data(self, mode):
-        #print("saving data")
         data_str = []
         for row in self.data:
             vals = [str(int(x)) for x in row]
@@ -917,6 +952,13 @@ class GUI:
     def start_scan_widget(self, tab):
 
         def press_start():
+            print(self.sp.sp_handle)
+            print(self.sq.websq_handle)
+            if (not self.sp.sp_handle) or (not self.sq.websq_handle):
+                print("Can not start scan if we are not connected")
+                self.running = False
+                return
+
             self.save_data(mode="w")   # TODO: maybe only have this once per new measurement (so that we can pause and start again)
             # True:     if we have successfully configured the device
             # False:    failed to do all configs to device, should not start scan
@@ -925,11 +967,9 @@ class GUI:
             self.mark_done(btn_start, highlight=outcome[self.config_success], type='button')
             self.mark_done(btn_stop, highlight=self.button_color, type='button')
             self.running = True
-            #print(f"START: RUNNING SCAN IS {self.running}")
 
         def press_stop():
             self.running = False
-            #print(f"STOP: RUNNING SCAN IS {self.running}")
             self.mark_done(btn_start, highlight=self.button_color, type='button')
             self.mark_done(btn_stop, highlight='red', type='button')
 
@@ -967,6 +1007,9 @@ class GUI:
             if self.y_max < 1.2*max(self.cumulative_ch_counts):
                 self.y_max = self.y_max*2
 
+            # fixme: reset x to match grating
+            x = np.array(self.ch_nm_bin_edges[:self.sq.number_of_detectors])  # todo:  change this to re a list of the wavelengths note the last channel is fake
+
             fig.clear()
             plot1 = fig.add_subplot(111)
             plot1.yaxis.set_major_formatter(ticker.FormatStrFormatter('%1.0f'))
@@ -974,7 +1017,7 @@ class GUI:
             plot1.set_ylabel('photon count')
             plot1.set_title("Intensity")
             plot1.set_ylim([0, self.y_max])
-            N, bins, bars = plot1.hist(x, bins=b, weights=self.cumulative_ch_counts, rwidth=0.9, align='left')
+            N, bins, bars = plot1.hist(x, bins=self.ch_nm_bin_edges, weights=self.cumulative_ch_counts, rwidth=0.9, align='mid')
             plot1.bar_label(bars)
             canvas.draw()
 
@@ -994,7 +1037,7 @@ class GUI:
         # --------
         self.y_max = 1000  # initial value??
 
-        x = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9][:self.sq.number_of_detectors])   # todo:  change this to re a list of the wavelengths note the last channel is fake
+        x = np.array(self.ch_nm_bin_edges[:self.sq.number_of_detectors])   # todo:  change this to re a list of the wavelengths note the last channel is fake
         self.cumulative_ch_counts = np.zeros(self.sq.number_of_detectors)  # starting with 8 channels for now
 
         fig = plt.Figure(figsize=(9, 5), dpi=100)
@@ -1006,9 +1049,9 @@ class GUI:
         plot1.set_ylabel('photon count')
         plot1.set_title("Intensity")
         plot1.set_ylim([0, self.y_max])
-        b = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5]
+        #b = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5]
 
-        N, bins, bars = plot1.hist(x, bins=b,  weights=self.cumulative_ch_counts, rwidth=0.9, align='left')
+        N, bins, bars = plot1.hist(x, bins=self.ch_nm_bin_edges,  weights=self.cumulative_ch_counts, rwidth=0.9, align='mid')
         # maybe if data is a dict --> use counted_data.keys(), weights = counted_data.values()
 
         plt_frame, canvas = self.pack_plot(tab, fig)
