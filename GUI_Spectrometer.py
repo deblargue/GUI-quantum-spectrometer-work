@@ -1,5 +1,4 @@
 import random
-import tkinter
 import tkinter as tk
 from tkinter import ttk
 from tkinter.filedialog import askopenfilename, asksaveasfilename, askdirectory
@@ -17,7 +16,6 @@ from matplotlib import style
 from matplotlib.backend_bases import key_press_handler
 
 from test_data import *
-from tkinter.messagebox import _show
 from WebSQControl import WebSQControl
 
 
@@ -61,7 +59,7 @@ class SQControl:
         self.counts_port = 12345
 
         # Number of measurements, used when reading counts,  type=int
-        self.N = 10
+        self.N = 5
         self.number_of_detectors = 8
 
         self.open_connection(self.number_of_detectors)
@@ -135,10 +133,8 @@ class SQControl:
     def get_counts(self, N=10):
         # Acquire N counts measurements:
         #   Returns an array filled with N numpy arrays each containing as first element a time stamp and then the detector counts ascending order
-        print("not getting counts... temp!")
-        #all_counts = [[0] * (self.number_of_detectors + 1)]  # TEMP FOR TEST
 
-        print(f"Acquiring {N} counts measurements...")
+        #print(f"Acquiring {N} counts measurements...")
         all_counts = self.websq_handle.acquire_cnts(N)   # note: this includes the time stamp as well
         return all_counts
 
@@ -261,7 +257,7 @@ class SP2750:
         print("Connection Closed!")
 
     def check_cmd(self, access, param, value=None):
-
+        print('checking cmd')
         # Check if parameter is correctly defined
         if param not in self.dict.keys():
             print(f"ERROR: unknown {access} param ({param})")
@@ -289,6 +285,8 @@ class SP2750:
         return True
 
     def check_handle(self):
+        print('checking handle')
+
         if self.sp_handle is None:
             print("ERROR: Not connected to device!")
             return False
@@ -298,6 +296,7 @@ class SP2750:
         return True
 
     def read_cmd(self, param):
+        print('read cmd')
 
         # Checks if desired command and value is ok to send
         if not self.check_cmd('read', param):
@@ -323,6 +322,8 @@ class SP2750:
         return eval(res_num)   # remove later
 
     def write_cmd(self, param, value):
+        print('write cmd')
+
         # Checks if desired command and value is ok to send
         if not self.check_cmd('write', param, value):
             return False
@@ -343,11 +344,14 @@ class SP2750:
         return False
 
     def query(self, cmd):
+        print('query cmd')
+
         cmd_bytes = cmd.encode("ASCII") + b'\r'
         self.sp_handle.write(cmd_bytes)
         return self.wait_for_read()
 
     def wait_for_read(self):
+        print('wait for read')
 
         # reads response every second and waits until request is complete.
         res = b''
@@ -381,7 +385,7 @@ class GUI:
 
         # Create and place tabs frame on window grid
         self.init_fill_tabs()
-
+        self.live_mode = True # FIXME
         #if demo:
         #    self.root.after(100, lambda: _show('Title', 'Demo Version'))
 
@@ -408,14 +412,22 @@ class GUI:
             3: {'grating': 1800, 'blz': 'H-VIS',  'width': 2},
         }
         self.params = {
-            'grating':           {'var': tk.IntVar(value=1),    'type': 'radio',     'default' : 1, 'value': [1, 2, 3]},
-            'nm':                {'var': tk.IntVar(value=600),  'type': 'int entry', 'default' : 350, 'value': [350, 650, 750]},
-            'width_nm' :         {'var': tk.IntVar(value=1),    'type': 'int entry', 'default' : 10, 'value': [5, 15, 30]},
-            'slit':              {'var': tk.IntVar(value=10),   'type': 'int entry', 'default' : 10, 'value': [10, 20, 30]},
-            'nr_pixels':         {'var': tk.IntVar(value=8),    'type': 'int entry', 'default' : 8, 'value': [3, 8, 12]},
-            'file_name':         {'var': tk.StringVar(),        'type': 'str entry', 'default' : '', 'value': ['butterfly.timeres', 'frog.timeres', 'sheep.timeres']},
-            'folder_name':       {'var': tk.StringVar(),        'type': 'str entry', 'default' : '', 'value': ['~/Desktop/GUI/Data1', '~/Desktop/GUI/Data2', '~/Desktop/GUI/Data3']},
-            'eta_recipe':        {'var': tk.StringVar(),        'type': 'str entry', 'default' : '', 'value': ['~/Desktop/GUI/Recipe/gui_recipe_1.eta', '~/Desktop/GUI/Recipe/gui_recipe_2.eta', '~/Desktop/GUI/Recipe/gui_recipe_3.eta']},
+            'grating':
+                {'var': tk.IntVar(value=1),    'type': 'radio',     'default' : 1, 'value': [1, 2, 3]},
+            'nm':
+                {'var': tk.IntVar(value=600),  'type': 'int entry', 'default' : 350, 'value': [350, 650, 750]},
+            'width_nm' :
+                {'var': tk.IntVar(value=1),    'type': 'int entry', 'default' : 10, 'value': [5, 15, 30]},
+            'slit':
+                {'var': tk.IntVar(value=10),   'type': 'int entry', 'default' : 10, 'value': [10, 20, 30]},
+            'nr_pixels':
+                {'var': tk.IntVar(value=8),    'type': 'int entry', 'default' : 8, 'value': [3, 8, 12]},
+            'file_name':
+                {'var': tk.StringVar(),        'type': 'str entry', 'default' : '', 'value': ['butterfly.timeres', 'frog.timeres', 'sheep.timeres']},
+            'folder_name':
+                {'var': tk.StringVar(),        'type': 'str entry', 'default' : '', 'value': ['~/Desktop/GUI/Data1', '~/Desktop/GUI/Data2', '~/Desktop/GUI/Data3']},
+            'eta_recipe':
+                {'var': tk.StringVar(),        'type': 'str entry', 'default' : '', 'value': ['~/Desktop/GUI/Recipe/gui_recipe_1.eta', '~/Desktop/GUI/Recipe/gui_recipe_2.eta', '~/Desktop/GUI/Recipe/gui_recipe_3.eta']},
         }
         self.ch_bias_list = []  #
         self.ch_nm_bin_edges = []  # TODO
@@ -425,11 +437,11 @@ class GUI:
         self.root = tk.Tk()
         self.root.title("Quantum Spectrometer GUI - Ghostly matters")   # *Ghostly matters*
         self.root.resizable(True, True)
-        self.root.config(background='#fafafa')
-        #self.root.rowconfigure(0, minsize=30, weight=1)   # TODO: check if we need this
-        #self.root.columnconfigure(0, minsize=50, weight=1)  # TODO: check if we need this
-        #self.root.geometry('1200x700+200+100')
-        #self.root.state('zoomed')   # TODO: check if we need this
+        self.root.config(background='#0a50f5')
+        self.root.geometry('1200x700')
+
+
+
 
     def init_fill_tabs(self):
 
@@ -440,7 +452,7 @@ class GUI:
             start_tab = tk.Frame(new_scan_tab, relief=tk.RAISED, bd=2)   # frame to gather things to communicate with devices
 
             self.widgets['param_config'] = self.choose_param_configs_widget(new_scan_tab)
-            self.widgets['live_spectrum'] = self.plot_live_histo(new_scan_tab)
+            self.widgets['live_spectrum'], button_frame = self.plot_live_histo(new_scan_tab)
 
             # sub frame:
             self.widgets['file_config'] = self.choose_file_configs_widget(start_tab)
@@ -450,6 +462,7 @@ class GUI:
             self.widgets['param_config'].grid(row=0, column=0, rowspan=100, sticky="news", padx=0, pady=0)
             start_tab.grid(row=0, column=1, columnspan=1, sticky="news", padx=0, pady=0)
             self.widgets['live_spectrum'].grid(row=2, column=1, columnspan=1, sticky="news", padx=0, pady=0)
+            button_frame.grid(row=2, column=2, columnspan=1, sticky="news", padx=0, pady=0)
 
             tk.Label(start_tab, text='Device Communication', font=('', 15)).grid(row=0, column=0, columnspan=4, sticky="news", padx=0, pady=0)
             self.widgets['file_config'].grid(row=1, column=0, sticky="news", padx=0, pady=0)  # in sub frame
@@ -493,6 +506,12 @@ class GUI:
             # TODO: add widgets
             tabControl.add(settings_tab, text='Settings')
 
+        style1 = ttk.Style()
+        style1.theme_create("style1", parent="alt", settings={
+            "TNotebook": {"configure": {"tabmargins": [0, 0, 0, 0]}},
+            "TNotebook.Tab": {"configure": {"padding": [10, 10], "font": ('garamond', '11', 'bold')}, }})
+        style1.theme_use("style1")
+
         # Create notebook for multi tab window:
         tabControl = ttk.Notebook(self.root)
         # Create and add tabs to notebook:
@@ -502,6 +521,26 @@ class GUI:
         plot_lifetime_tab()
         plot_3d_lifetime_tab()
         settings_tab()
+
+        # ---------------------------------------------
+        newguyframe = ttk.Frame(tabControl)
+        tabControl.add(newguyframe, text='second new guy')
+
+        def press_newguy1():
+            print('Violets are blue!   / new guy')
+
+        def press_newguy2():
+            print("Who's there??")
+
+        newguy_button1 = tk.Button(newguyframe, text="Roses are red", command=press_newguy1, height=5, width=12)
+        newguy_button2 = tk.Button(newguyframe, text="Knock knock", command=press_newguy2, height=5, width=12)
+
+        newguy_button1.grid(row=0, column=0, padx=0, pady=0)
+        newguy_button2.grid(row=1, column=1, padx=0, pady=0)
+        newguy_button2.place(x=1000, y=300)
+
+        # ---------------------------------------------
+
         # Pack all tabs in notebook to window:
         tabControl.pack(expand=1, fill="both")
 
@@ -527,7 +566,6 @@ class GUI:
         self.ch_nm_bin_edges = []   # clear list of bins
 
         print("device grating", self.device_grating)
-        #width_nm = self.grating_lvl[self.params['grating']['var'].get()]['width']   # total width/range of all channels
         width_nm = self.grating_lvl[self.device_grating]['width']   # total width/range of all channels
         delta_nm = width_nm/self.sq.number_of_detectors
         center_nm = self.params['nm']['var'].get()
@@ -574,7 +612,7 @@ class GUI:
                     self.params[key]['var'].set(self.params[key]['value'][n-1])
                 self.suggest_filename(self.name_entry)
 
-            update_ch()
+            update_ch(self.sq.number_of_detectors)
 
         def select_grating():
             # FIXME OR REMOVE
@@ -702,6 +740,7 @@ class GUI:
         fill_ch()  # Updates channels displayed
 
         # ------------- COMBINING INTO TEST FRAME --------------
+
         tk.Label(frm_test, text='Settings', font=('', 15)).grid(row=0, column=0, sticky="ew", padx=0, pady=0)
         self.add_to_grid(widg=[frm['default'], frm['port'], frm['slit'], frm['grating'], frm['detect']], rows=[1,2,3,4,5], cols=[0,0,0,0,0], sticky=["ew", "ew", "ew", "ew", "ew"])
         frm['ch'].grid(row=6, column=0, rowspan=100, sticky="ew", padx=0, pady=0)
@@ -756,11 +795,6 @@ class GUI:
 
         return frm_misc
 
-    def reset_histo_bins(self):
-        self.calculate_nm_bins()
-        self.cumulative_ch_counts = np.zeros(self.sq.number_of_detectors)
-        self.temp_counter = 0
-
     def send_param_configs_widget(self, tab):
 
         def nothing():
@@ -777,6 +811,7 @@ class GUI:
                 widget.config(text=temp[i], foreground='black')   # make green for passed tests!
 
         def check():
+            print('check device')
             show_configs()
             self.ok_to_send_list = []  # reset
             # todo: maybe should also check connection and values on device (if active/correct)
@@ -786,14 +821,15 @@ class GUI:
                 ]
             for check_thing in check_list:
 
-                if not self.demo_connect:
+                if demo and (not self.demo_connect):
+                    print('not demo connect')
                     tempi = ''
                     check_thing[2].config(text=tempi, foreground='black')  # make green for passed tests!
                     self.mark_done(check_thing[2], text_color='red', type='text')  # ????
                     continue  # skip rest of loop iteration
 
                 res = self.sp.read_cmd(param=check_thing[0])  # returns true if correctly configured
-                #print(" value =", res)
+                print(" value =", res)
 
                 tempi = f"{check_thing[3]} = {res}  -->  {self.params[check_thing[0]]['var'].get()}"
 
@@ -821,7 +857,7 @@ class GUI:
             self.checked_configs = True
             self.suggest_filename(self.name_entry)
 
-            if not self.demo_connect:
+            if not self.demo_connect:  # TODO CHECK
                 self.mark_done(btn_send_conf, highlight='red', type='button')
             elif len(self.ok_to_send_list) > 0:
                 self.mark_done(btn_send_conf, text_color='black', highlight='blue', type='button')
@@ -897,10 +933,14 @@ class GUI:
         if demo:
             counts = Demo.d_get_counts()
         else:
-            counts = self.sq.get_counts(self.sq.N)   # TODO: make number of measurements a variable?
+            n = 1
+            counts = self.sq.get_counts(n)   # TODO: make number of measurements a variable?
 
         # TODO: do something with timestamps
         #timestamps = []   # resetting here means we are only getting the timestamps for current measurement of size N
+        if self.live_mode:
+            self.cumulative_ch_counts = np.zeros(self.sq.number_of_detectors)
+
         for row in counts:
             #timestamps.append(row[0])
             self.data.append(row[1:])
@@ -911,6 +951,7 @@ class GUI:
             self.pix_counts_list[idx].config(text=f"{int(val)}")
 
     def scanning(self):
+
         if self.running:   # if start button is active
             self.get_counts()  # saves data to self.data. note that live graph updates every second using self.data
             self.save_data(mode="a")
@@ -977,11 +1018,44 @@ class GUI:
 
         return plt_frame, canvas
 
+    def reset_histo_bins(self):
+        self.calculate_nm_bins()
+        self.cumulative_ch_counts = np.zeros(self.sq.number_of_detectors)
+        self.temp_counter = 0
+        self.y_max = 1000
+
+
     def plot_live_histo(self, tab):
 
+        def make_buttons():
+            # BUTTONS:
+            butt_frame = tk.Frame(tab, relief=tk.RAISED, bd=2)
+            tk.Label(butt_frame, text=f'Change X-axis to:').grid(row=0, column=0, sticky="nsew")
+            tk.Radiobutton(butt_frame, text="wavelength [nm]", value='λ [nm]', variable=self.x_label, command=pressed_xlabel).grid(row=1, column=0, sticky="ew", padx=0, pady=0)
+            tk.Radiobutton(butt_frame, text="frequency [Hz]", value='f [Hz]', variable=self.x_label, command=pressed_xlabel).grid(row=2, column=0, sticky="ew", padx=0, pady=0)
+            tk.Radiobutton(butt_frame, text="photon energy [eV]", value='E [eV]', variable=self.x_label, command=pressed_xlabel).grid(row=3, column=0, sticky="ew", padx=0, pady=0)
+            tk.Radiobutton(butt_frame, text="wave number [cm^{-1}]", value='v [cm^-1]', variable=self.x_label, command=pressed_xlabel).grid(row=4, column=0, sticky="ew", padx=0, pady=0)
+            return butt_frame
+
+        def clear_histo():
+            self.reset_histo_bins()
+
+            x = np.array(self.ch_nm_bin_edges[:self.sq.number_of_detectors])  # todo:  change this to re a list of the wavelengths note the last channel is fake
+            fig.clear()
+            plot1 = fig.add_subplot(111)
+            plot1.yaxis.set_major_formatter(ticker.FormatStrFormatter('%1.0f'))
+            plot1.set_xlabel('λ (nm)')
+            plot1.set_ylabel('photon count')
+            plot1.set_title("Intensity")
+            plot1.set_ylim([0, self.y_max])
+            N, bins, bars = plot1.hist(x, bins=self.ch_nm_bin_edges, weights=self.cumulative_ch_counts, rwidth=0.9, align='mid')
+            plot1.bar_label(bars)
+            canvas.draw()
+
         def update_histo():  # TODO: add data conversion for respective unit
-            if self.y_max < 1.2*max(self.cumulative_ch_counts):
-                self.y_max = self.y_max*2
+            thresh = 1.2*max(self.cumulative_ch_counts)
+            if self.y_max < thresh:
+                self.y_max = max(thresh, self.y_max*2)
 
             # fixme: reset x to match device grating
             x = np.array(self.ch_nm_bin_edges[:self.sq.number_of_detectors])  # todo:  change this to re a list of the wavelengths note the last channel is fake
@@ -1001,14 +1075,46 @@ class GUI:
             if not self.running:
                 self.root.after(1000, idle)   # updates every second todo: maybe change
             else:
-                self.root.after(1000, update_histo)   # updates every second todo: maybe change
+                self.root.after(500, update_histo)   # updates every second todo: maybe change
 
         def idle():
             # go back to plotting counts when running scan (from idle state)
             if self.running:
-                self.root.after(1000, update_histo)  # updates every second todo: maybe change
+                self.root.after(500, update_histo)  # updates every second todo: maybe change
             else:
                 self.root.after(1000, idle)  # updates every second todo: maybe change
+
+        def pressed_xlabel():  # TODO: add data conversion for respective unit
+            pass
+
+            """fig.clear()
+            plot1 = fig.add_subplot(111)
+
+            x_temp = convert_values()
+
+            plot1.plot(x_temp, yar_b, 'b')
+            #plot1.plot(xar_r, yar_r, 'r')
+            plot1.set_xlabel(self.x_label.get())
+            plot1.set_ylabel("counts")
+            plot1.set_title("Spectrum")
+            canvas.draw()"""
+
+        def convert_values():
+            unit = self.x_label.get()
+
+            if unit == "λ [nm]":
+                x_temp = [value for value in x]
+
+            elif unit == "f [Hz]":
+                c = 2.99792458e9
+                x_temp = [c/(value*1e-9) for value in x]
+
+            elif unit == "E [eV]":
+                x_temp = [1240/value for value in x]
+
+            elif unit == "v [cm^-1]":
+                x_temp = [1/(value_nm*1e-7) for value_nm in x]
+            return x_temp
 
         # --------
         self.y_max = 1000  # initial value??
@@ -1030,20 +1136,53 @@ class GUI:
         N, bins, bars = plot1.hist(x, bins=self.ch_nm_bin_edges,  weights=self.cumulative_ch_counts, rwidth=0.9, align='mid')
         # maybe if data is a dict --> use counted_data.keys(), weights = counted_data.values()
 
+        #plt_frame_main = tk.Frame(tab, relief=tk.RAISED, bd=2)
+        #plt_frame, canvas = self.pack_plot(plt_frame_main, fig)
+
         plt_frame, canvas = self.pack_plot(tab, fig)
+
+        #reset_button = tk.Button(plt_frame, text="reset plot", command=clear_histo, activeforeground='blue', highlightbackground=self.button_color)
+        #reset_button.pack()
 
         update_histo()
 
-        return plt_frame
+        butt_frame = make_buttons()
+
+        return plt_frame, butt_frame
 
     def plot_spectrum_widget(self, tab):
         # TODO: make it live? live graph???
 
+        def convert_values():
+            unit = self.x_label.get()
+
+            if unit == "λ [nm]":
+                x = [value for value in xar_b]
+
+            elif unit == "f [Hz]":
+                c = 2.99792458e9
+                x = [c/(value*1e-9) for value in xar_b]
+
+            elif unit == "E [eV]":
+                x = [1240/value for value in xar_b]
+
+            elif unit == "v [cm^-1]":
+                x = [1/(value_nm*1e-7) for value_nm in xar_b]
+
+            else:
+                print("ERROR NOT FOUND")
+                x = []
+
+            return x
+
         def pressed_xlabel():  # TODO: add data conversion for respective unit
             fig.clear()
             plot1 = fig.add_subplot(111)
-            plot1.plot(xar_b, yar_b, 'b')
-            plot1.plot(xar_r, yar_r, 'r')
+
+            x = convert_values()
+
+            plot1.plot(x, yar_b, 'b')
+            #plot1.plot(xar_r, yar_r, 'r')
             plot1.set_xlabel(self.x_label.get())
             plot1.set_ylabel("counts")
             plot1.set_title("Spectrum")
@@ -1074,7 +1213,6 @@ class GUI:
         plot1.set_xlim(1545, 1565)
         plot1.set_ylim(0, 5000)
         line_b, = plot1.plot(xar_b, yar_b, 'b')  # , marker='o')
-        line_r, = plot1.plot(xar_r, yar_r, 'r')  # , marker='.')
         plot1.set_xlabel(self.x_label.get())
         plot1.set_ylabel("counts")
         plot1.set_title("Spectrum")
@@ -1085,10 +1223,10 @@ class GUI:
         butt_frame = tk.Frame(tab, relief=tk.RAISED, bd=2)
 
         tk.Label(butt_frame, text=f'Change X-axis to:').grid(row=0, column=0, sticky="nsew")
-        tk.Radiobutton(butt_frame, text="wavelength", value='λ [nm]', variable=self.x_label, command=pressed_xlabel).grid(row=1, column=0, sticky="ew", padx=0, pady=0)
-        tk.Radiobutton(butt_frame, text="frequency", value='f [Hz]', variable=self.x_label, command=pressed_xlabel).grid(row=2, column=0, sticky="ew", padx=0, pady=0)
-        tk.Radiobutton(butt_frame, text="photon energy", value='E [eV]', variable=self.x_label, command=pressed_xlabel).grid(row=3, column=0, sticky="ew", padx=0, pady=0)
-        tk.Radiobutton(butt_frame, text="spectroscopic wave number", value='v [cm^-1]', variable=self.x_label, command=pressed_xlabel).grid(row=4, column=0, sticky="ew", padx=0, pady=0)
+        tk.Radiobutton(butt_frame, text="wavelength [nm]", value='λ [nm]', variable=self.x_label, command=pressed_xlabel).grid(row=1, column=0, sticky="ew", padx=0, pady=0)
+        tk.Radiobutton(butt_frame, text="frequency [Hz]", value='f [Hz]', variable=self.x_label, command=pressed_xlabel).grid(row=2, column=0, sticky="ew", padx=0, pady=0)
+        tk.Radiobutton(butt_frame, text="photon energy [eV]", value='E [eV]', variable=self.x_label, command=pressed_xlabel).grid(row=3, column=0, sticky="ew", padx=0, pady=0)
+        tk.Radiobutton(butt_frame, text="wave number [cm^{-1}]", value='v [cm^-1]', variable=self.x_label, command=pressed_xlabel).grid(row=4, column=0, sticky="ew", padx=0, pady=0)
 
         return plt_frame, butt_frame
 
@@ -1241,10 +1379,10 @@ class Demo:
 # TODO: look into exceptions, plan for window crashing
 
 #-----
-demo = True
+demo = False
 gui = GUI()
 try:
-    gui.root.after(1000, gui.scanning)  # After 1 second, call scanning
+    gui.root.after(500, gui.scanning)  # After 1 second, call scanning
     gui.root.mainloop()
 
 except KeyboardInterrupt:
@@ -1256,7 +1394,7 @@ except SystemExit:
     print("system exit")
     raise
 
-except tkinter.EXCEPTION:
+except tk.EXCEPTION:
     print("tkinter exception")
     raise
 
