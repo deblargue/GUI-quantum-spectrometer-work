@@ -54,14 +54,6 @@ class SQControl:
     def __init__(self):
         # -------------- ARGUMENTS: --------------
         self.websq_handle = None
-        self.tinyLab = True
-        # TCP IP Address of the detector (default 192.168.1.1)
-        if self.tinyLab:
-            self.tcp_ip_address = '192.168.120.119'    # for tiny lab wifi (8 channels for our spectrometer)
-            self.number_of_detectors = 8
-        else:
-            self.tcp_ip_address = '192.168.35.236'     # for big lab wifi (4 channels that others use)
-            self.number_of_detectors = 4
 
         # The control port (default 12000)
         self.control_port = 12000
@@ -70,8 +62,9 @@ class SQControl:
 
         # Number of measurements, used when reading counts,  type=int
         self.N = 10
+        self.number_of_detectors = 8
 
-        self.open_connection()
+        self.open_connection(self.number_of_detectors)
 
         if not demo:
             # test
@@ -86,15 +79,25 @@ class SQControl:
         # self.read_back()               # reads and prints: periode, bias, trigger
         # counts = self.get_counts(N=10)  # this returns both timestamps and counts per detector for N measurements
 
-    def open_connection(self):
+    def open_connection(self, nr_det):
         if demo:
             self.websq_handle = True
+            self.number_of_detectors = nr_det
             return
         try:
+            # TCP IP Address of the detector (default 192.168.1.1)
+            if nr_det == 4:
+                self.tcp_ip_address = '192.168.35.236'  # for big lab wifi (4 channels that others use)
+                self.number_of_detectors = 4
+            else:
+                self.tcp_ip_address = '192.168.120.119'  # for tiny lab wifi (8 channels for our spectrometer)
+                self.number_of_detectors = 8
+                print("ERROR: Other channel amount not available. Default set to 8.")
+
             print("Attempting connection to WebSQ...")
             self.websq_handle = WebSQControl(TCP_IP_ADR=self.tcp_ip_address, CONTROL_PORT=self.control_port, COUNTS_PORT=self.counts_port)
             self.websq_handle.connect()
-            print("Connected to WebSQ!")
+            print(f"Connected to WebSQ! With {self.number_of_detectors} detectors!")
         except:
             print("Connection error with WebSQ")
             raise
@@ -132,6 +135,9 @@ class SQControl:
     def get_counts(self, N=10):
         # Acquire N counts measurements:
         #   Returns an array filled with N numpy arrays each containing as first element a time stamp and then the detector counts ascending order
+        print("not getting counts... temp!")
+        #all_counts = [[0] * (self.number_of_detectors + 1)]  # TEMP FOR TEST
+
         print(f"Acquiring {N} counts measurements...")
         all_counts = self.websq_handle.acquire_cnts(N)   # note: this includes the time stamp as well
         return all_counts
@@ -399,7 +405,7 @@ class GUI:
         self.grating_lvl = {   # TODO: make this configurable?   # TODO fill in correct width (based on grating)
             1: {'grating': 600,  'blz': '750 nm', 'width': 8},
             2: {'grating': 150,  'blz': '800 nm', 'width': 4},
-            3: {'grating': 1800, 'blz': 'H-VIS',  'width': 1},
+            3: {'grating': 1800, 'blz': 'H-VIS',  'width': 2},
         }
         self.params = {
             'grating':           {'var': tk.IntVar(value=1),    'type': 'radio',     'default' : 1, 'value': [1, 2, 3]},
@@ -529,7 +535,7 @@ class GUI:
 
         for i in range(int(-n/2), int(n/2)+1):
             self.ch_nm_bin_edges.append(center_nm + (i*delta_nm))
-        print(self.ch_nm_bin_edges)
+        #print(self.ch_nm_bin_edges)
 
     def choose_param_configs_widget(self, tab):
 
@@ -576,19 +582,34 @@ class GUI:
             # TODO: auto update plot axis
             pass
 
-        def update_ch():
+        def update_ch(nr_pixels):
+            if nr_pixels not in [4,8]:
+                print("ERROR: other pixel amounts not available yet")
+                return
+
+            self.params['nr_pixels']['var'].set(nr_pixels)
+
             # removes previously shown channels (in case we want to decrease in amount)
             for j, widget in enumerate(frm['ch'].winfo_children()):   # FIXME NOTE TODO: USE THIS LATER TO ACCESS BUTTONS FOR MARKING DONE
                 if j > 2:
                     widget.destroy()
+
+            # Connecting to other/new WebSQ server
+            self.sq.close_connection()
+            self.sq.open_connection(nr_pixels)
+            self.reset_histo_bins()
             fill_ch()
 
         def fill_ch():
             self.ch_bias_list = []
+            self.pix_counts_list = []
             for pix in range(self.params['nr_pixels']['var'].get()):
                 self.ch_bias_list.append(tk.IntVar())  #
-                tk.Label(frm['ch'], text=f"Pixel {pix + 1}").grid(row=pix + 2, column=0, sticky="ew", padx=0, pady=0)
+                tk.Label(frm['ch'], text=f"{pix + 1}").grid(row=pix + 2, column=0, sticky="ew", padx=0, pady=0)
                 tk.Entry(frm['ch'], bd=2, textvariable=self.ch_bias_list[pix], width=6).grid(row=pix + 2, column=1, sticky="ew", padx=0, pady=0)
+                c_temp = tk.Label(frm['ch'], text=f"0")
+                c_temp.grid(row=pix + 2, column=2, sticky="ew", padx=0, pady=0)  # counts
+                self.pix_counts_list.append(c_temp)
 
         # ---------------
         self.port.set(self.sp.port)  # note maybe change later when implemented
@@ -636,16 +657,20 @@ class GUI:
         #  -- Detector:
 
         det_parts = [tk.Label(frm['detect'], text="Center λ"),
-                     tk.Entry(frm['detect'], bd=2, textvariable=self.params['nm']['var'], width=6),
-                     tk.Label(frm['detect'], text='[nm]')]
+                     tk.Entry(frm['detect'], bd=2, textvariable=self.params['nm']['var'], width=4),
+                     tk.Label(frm['detect'], text='[nm]', width=4)]
 
         wid_parts = [tk.Label(frm['detect'], text="Pixel width"),
                      tk.Entry(frm['detect'], bd=2, textvariable=self.params['width_nm']['var'], width=6),
                      tk.Label(frm['detect'], text='[nm]')]
 
-        det_no_parts = [tk.Label(frm['detect'], text="Nr. of pixels"),
+        """det_no_parts = [tk.Label(frm['detect'], text="Nr. of pixels"),
                         tk.Entry(frm['detect'], bd=2, textvariable=self.params['nr_pixels']['var'], width=6),
-                        tk.Button(frm['detect'], text="Update", command=update_ch, activeforeground='blue', highlightbackground=self.button_color)]
+                        tk.Button(frm['detect'], text="Update", command=update_ch, activeforeground='blue', highlightbackground=self.button_color)]"""
+
+        det_no_parts = [tk.Label(frm['detect'], text="Nr. of pixels"),
+                        tk.Button(frm['detect'], text="4", command=lambda : update_ch(4), activeforeground='blue', highlightbackground=self.button_color),
+                        tk.Button(frm['detect'], text="8", command=lambda : update_ch(8), activeforeground='blue', highlightbackground=self.button_color)]
 
         # -- Channels:
         ch_parts = [
@@ -667,7 +692,7 @@ class GUI:
         self.add_to_grid(widg=grating_widget_dict['wid_txt'], rows=[2,3,4,5], cols=[3,3,3,3], sticky=["", "s", "s", "s"])
 
         # -- Detector
-        self.add_to_grid(widg=[tk.Label(frm['detect'], text="Detector")], rows=[0], cols=[0], sticky=["ew"], columnspan=[2])
+        self.add_to_grid(widg=[tk.Label(frm['detect'], text="Detector")], rows=[0], cols=[0], sticky=["ew"])  # , columnspan=[2])
         self.add_to_grid(widg=det_parts, rows=[1,1,1], cols=[0,1,2], sticky=["ew", "ew", "ew"])
         # self.add_to_grid(widg=wid_parts, rows=[2,2,2], cols=[0,1,2], sticky=["ew", "ew", "ew"])
         self.add_to_grid(widg=det_no_parts, rows=[3,3,3], cols=[0,1,2], sticky=["ew", "ew", "ew"])
@@ -730,6 +755,11 @@ class GUI:
         self.add_to_grid(widg=file_buts, rows=[1,2,3], cols=[2,2,2], sticky=["ew", "ew", "ew"])
 
         return frm_misc
+
+    def reset_histo_bins(self):
+        self.calculate_nm_bins()
+        self.cumulative_ch_counts = np.zeros(self.sq.number_of_detectors)
+        self.temp_counter = 0
 
     def send_param_configs_widget(self, tab):
 
@@ -842,7 +872,7 @@ class GUI:
                 self.mark_done(btn_send_conf, highlight='red', type='button')
 
             check()
-            self.calculate_nm_bins()
+            self.reset_histo_bins()
             print('done')
 
         temp = get_str()
@@ -864,81 +894,27 @@ class GUI:
         return frm_send
 
     def get_counts(self):  # TODO: make general for self.sq.nr_of_detectors
-
-        rando = False   # uses
-        if rando:   # testing with random data
-            # note: below is pretend data
-            #----------------------
-            bias = [1, 0.3, 0.7, 1.2, 0.1, 0.1, 0.1, 0.1]
-            self.data = []
-            for i in range(self.sq.N):  # number of measurements
-                self.data.append([])
-                for j in range(self.sq.number_of_detectors):
-                    val = random.randrange(0, 100)
-                    self.data[-1].append(int(val*bias[j]))
-                #self.data[-1].append(0)  # note: empty channel to display histogram correctly
-
-            #print("generated data:", self.data)
-            for row in np.array(self.data):
-                self.cumulative_ch_counts += row  # (note self.data is now smaller than other
-            # NOTE: data should be a list of lists (one list per integration time with 4 channel bins)
+        if demo:
+            counts = Demo.d_get_counts()
         else:
-            if demo:
-                if self.sq.number_of_detectors == 4:
-                    # below is duplicate of a N=10 sized measurement
-                    raw_counts = [[1700723885.6048694, 0.0, 0.0, 17.0, 162.0], [1700723885.8363566, 0.0, 1.0, 11.0, 161.0],
-                                  [1700723886.042608, 1.0, 1.0, 18.0, 146.0], [1700723886.3765514, 0.0, 0.0, 23.0, 161.0],
-                                  [1700723886.5506241, 0.0, 0.0, 21.0, 163.0], [1700723886.7209494, 0.0, 1.0, 30.0, 148.0],
-                                  [1700723886.89586, 0.0, 0.0, 11.0, 133.0], [1700723887.0686586, 0.0, 0.0, 16.0, 147.0],
-                                  [1700723887.3816106, 1.0, 0.0, 18.0, 150.0], [1700723887.551227, 1.0, 0.0, 10.0, 154.0],
-                                  [1700723885.6048694, 0.0, 0.0, 17.0, 162.0], [1700723885.8363566, 0.0, 1.0, 11.0, 161.0],
-                                  [1700723886.042608, 1.0, 1.0, 18.0, 146.0], [1700723886.3765514, 0.0, 0.0, 23.0, 161.0],
-                                  [1700723886.5506241, 0.0, 0.0, 21.0, 163.0], [1700723886.7209494, 0.0, 1.0, 30.0, 148.0],
-                                  [1700723886.89586, 0.0, 0.0, 11.0, 133.0], [1700723887.0686586, 0.0, 0.0, 16.0, 147.0],
-                                  [1700723887.3816106, 1.0, 0.0, 18.0, 150.0], [1700723887.551227, 1.0, 0.0, 10.0, 154.0]
-                                  ]
-                else:  # self.sq.number_of_detectors == 8:
-                    # below is duplicate of a N=10 sized measurement    (altered from N=4 measurement)
-                    raw_counts = [[1700723885.6048694, 0.0, 0.0, 17.0, 22.0, 0.0, 0.0, 7.0, 22.0],
-                                  [1700723885.8363566, 0.0, 1.0, 11.0, 21.0, 0.0, 1.0, 1.0, 21.0],
-                                  [1700723886.042608,  1.0, 1.0, 18.0, 26.0, 1.0, 1.0, 8.0, 26.0],
-                                  [1700723886.3765514, 0.0, 3.0, 13.0, 21.0, 0.0, 0.0, 3.0, 11.0],
-                                  [1700723886.5506241, 5.0, 0.0, 11.0, 23.0, 0.0, 0.0, 1.0, 13.0],
-                                  [1700723886.7209494, 0.0, 1.0, 10.0, 28.0, 0.0, 1.0, 0.0, 18.0],
-                                  [1700723886.89586,   0.0, 0.0, 11.0, 23.0, 0.0, 0.0, 1.0, 13.0],
-                                  [1700723887.0686586, 0.0, 0.0, 16.0, 27.0, 0.0, 7.0, 6.0, 17.0],
-                                  [1700723887.3816106, 1.0, 0.0, 18.0, 20.0, 1.0, 0.0, 8.0, 10.0],
-                                  [1700723887.551227,  1.0, 0.0, 10.0, 24.0, 1.0, 0.0, 0.0, 24.0],
-                                  [1700723888.6048694, 0.0, 0.0, 17.0, 22.0, 2.0, 0.0, 7.0, 22.0],
-                                  [1700723888.8363566, 6.0, 1.0, 11.0, 21.0, 0.0, 1.0, 1.0, 21.0],
-                                  [1700723889.042608,  1.0, 1.0, 18.0, 26.0, 1.0, 1.0, 8.0, 26.0],
-                                  [1700723889.3765514, 0.0, 0.0, 23.0, 21.0, 0.0, 0.0, 3.0, 21.0],
-                                  [1700723889.5506241, 0.0, 0.0, 21.0, 23.0, 0.0, 0.0, 1.0, 23.0],
-                                  [1700723889.7209494, 0.0, 1.0, 30.0, 28.0, 0.0, 1.0, 0.0, 18.0],
-                                  [1700723889.89586,   0.0, 0.0, 11.0, 23.0, 0.0, 0.0, 1.0, 13.0],
-                                  [1700723890.0686586, 0.0, 0.0, 16.0, 27.0, 2.0, 0.0, 6.0, 17.0],
-                                  [1700723890.3816106, 1.0, 0.0, 18.0, 20.0, 1.0, 0.0, 8.0, 10.0],
-                                  [1700723890.551227,  1.0, 0.0, 10.0, 24.0, 1.0, 0.0, 0.0, 14.0]
-                                  ]
-                if self.temp_counter == len(raw_counts) - 1:
-                    return
-                self.temp_counter += 1
-                counts = [raw_counts[self.temp_counter]]
+            counts = self.sq.get_counts(self.sq.N)   # TODO: make number of measurements a variable?
 
-            else:
-                counts = self.sq.get_counts(self.sq.N)
+        # TODO: do something with timestamps
+        #timestamps = []   # resetting here means we are only getting the timestamps for current measurement of size N
+        for row in counts:
+            #timestamps.append(row[0])
+            self.data.append(row[1:])
+            self.cumulative_ch_counts += np.array(row[1:])
 
-            # TODO: do something with timestamps
-            #timestamps = []   # resetting here means we are only getting the timestamps for current measurement of size N
-            for row in counts:
-                #timestamps.append(row[0])
-                self.data.append(row[1:])
-                self.cumulative_ch_counts += np.array(row[1:])
+        # Displaying current counts next to bias configs
+        for idx, val in enumerate(self.cumulative_ch_counts):
+            self.pix_counts_list[idx].config(text=f"{int(val)}")
+
     def scanning(self):
         if self.running:   # if start button is active
             self.get_counts()  # saves data to self.data. note that live graph updates every second using self.data
             self.save_data(mode="a")
-        self.root.after(1000, self.scanning)  # After 1 second, call scanning
+        self.root.after(500, self.scanning)  # After 1 second, call scanning
 
     def save_data(self, mode):
         data_str = []
@@ -1007,7 +983,7 @@ class GUI:
             if self.y_max < 1.2*max(self.cumulative_ch_counts):
                 self.y_max = self.y_max*2
 
-            # fixme: reset x to match grating
+            # fixme: reset x to match device grating
             x = np.array(self.ch_nm_bin_edges[:self.sq.number_of_detectors])  # todo:  change this to re a list of the wavelengths note the last channel is fake
 
             fig.clear()
@@ -1218,6 +1194,49 @@ class Demo:
         gui.mark_done(port_connect, highlight="green", text_color='black', type='button')
         gui.demo_connect = True
 
+    @staticmethod
+    def d_get_counts():
+        if gui.sq.number_of_detectors == 4:
+            # below is duplicate of a N=10 sized measurement
+            raw_counts = [[1700723885.6048694, 0.0, 0.0, 17.0, 162.0], [1700723885.8363566, 0.0, 1.0, 11.0, 161.0],
+                          [1700723886.042608, 1.0, 1.0, 18.0, 146.0], [1700723886.3765514, 0.0, 0.0, 23.0, 161.0],
+                          [1700723886.5506241, 0.0, 0.0, 21.0, 163.0], [1700723886.7209494, 0.0, 1.0, 30.0, 148.0],
+                          [1700723886.89586, 0.0, 0.0, 11.0, 133.0], [1700723887.0686586, 0.0, 0.0, 16.0, 147.0],
+                          [1700723887.3816106, 1.0, 0.0, 18.0, 150.0], [1700723887.551227, 1.0, 0.0, 10.0, 154.0],
+                          [1700723885.6048694, 0.0, 0.0, 17.0, 162.0], [1700723885.8363566, 0.0, 1.0, 11.0, 161.0],
+                          [1700723886.042608, 1.0, 1.0, 18.0, 146.0], [1700723886.3765514, 0.0, 0.0, 23.0, 161.0],
+                          [1700723886.5506241, 0.0, 0.0, 21.0, 163.0], [1700723886.7209494, 0.0, 1.0, 30.0, 148.0],
+                          [1700723886.89586, 0.0, 0.0, 11.0, 133.0], [1700723887.0686586, 0.0, 0.0, 16.0, 147.0],
+                          [1700723887.3816106, 1.0, 0.0, 18.0, 150.0], [1700723887.551227, 1.0, 0.0, 10.0, 154.0]
+                          ]
+        else:  # self.sq.number_of_detectors == 8:
+            # below is duplicate of a N=10 sized measurement    (altered from N=4 measurement)
+            raw_counts = [[1700723885.6048694, 0.0, 0.0, 17.0, 22.0, 0.0, 0.0, 7.0, 22.0],
+                          [1700723885.8363566, 0.0, 1.0, 11.0, 21.0, 0.0, 1.0, 1.0, 21.0],
+                          [1700723886.042608, 1.0, 1.0, 18.0, 26.0, 1.0, 1.0, 8.0, 26.0],
+                          [1700723886.3765514, 0.0, 3.0, 13.0, 21.0, 0.0, 0.0, 3.0, 11.0],
+                          [1700723886.5506241, 5.0, 0.0, 11.0, 23.0, 0.0, 0.0, 1.0, 13.0],
+                          [1700723886.7209494, 0.0, 1.0, 10.0, 28.0, 0.0, 1.0, 0.0, 18.0],
+                          [1700723886.89586, 0.0, 0.0, 11.0, 23.0, 0.0, 0.0, 1.0, 13.0],
+                          [1700723887.0686586, 0.0, 0.0, 16.0, 27.0, 0.0, 7.0, 6.0, 17.0],
+                          [1700723887.3816106, 1.0, 0.0, 18.0, 20.0, 1.0, 0.0, 8.0, 10.0],
+                          [1700723887.551227, 1.0, 0.0, 10.0, 24.0, 1.0, 0.0, 0.0, 24.0],
+                          [1700723888.6048694, 0.0, 0.0, 17.0, 22.0, 2.0, 0.0, 7.0, 22.0],
+                          [1700723888.8363566, 6.0, 1.0, 11.0, 21.0, 0.0, 1.0, 1.0, 21.0],
+                          [1700723889.042608, 1.0, 1.0, 18.0, 26.0, 1.0, 1.0, 8.0, 26.0],
+                          [1700723889.3765514, 0.0, 0.0, 23.0, 21.0, 0.0, 0.0, 3.0, 21.0],
+                          [1700723889.5506241, 0.0, 0.0, 21.0, 23.0, 0.0, 0.0, 1.0, 23.0],
+                          [1700723889.7209494, 0.0, 1.0, 30.0, 28.0, 0.0, 1.0, 0.0, 18.0],
+                          [1700723889.89586, 0.0, 0.0, 11.0, 23.0, 0.0, 0.0, 1.0, 13.0],
+                          [1700723890.0686586, 0.0, 0.0, 16.0, 27.0, 2.0, 0.0, 6.0, 17.0],
+                          [1700723890.3816106, 1.0, 0.0, 18.0, 20.0, 1.0, 0.0, 8.0, 10.0],
+                          [1700723890.551227, 1.0, 0.0, 10.0, 24.0, 1.0, 0.0, 0.0, 14.0]
+                          ]
+        if gui.temp_counter == len(raw_counts) - 1:
+            return []
+        gui.temp_counter += 1
+        counts = [raw_counts[gui.temp_counter]]
+        return counts
 
 # TODO: look into exceptions, plan for window crashing
 
