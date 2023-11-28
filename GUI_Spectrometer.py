@@ -1,7 +1,6 @@
-import random
 import tkinter as tk
 from tkinter import ttk
-from tkinter.filedialog import askopenfilename, asksaveasfilename, askdirectory
+from tkinter.filedialog import askopenfilename, askdirectory
 import time
 import serial
 from serial.tools import list_ports
@@ -11,9 +10,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-import matplotlib.animation as animation
-from matplotlib import style
-from matplotlib.backend_bases import key_press_handler
+# from matplotlib import style
+# from matplotlib.backend_bases import key_press_handler
 
 from test_data import *
 from WebSQControl import WebSQControl
@@ -21,14 +19,14 @@ from WebSQControl import WebSQControl
 
 # TODO NOW:
 #       - Define wavelengths for each detector (display on x axis plot, display next to channel?)
-#       - Create conversion to different units  --> implement into graph 2
-#  - Have Stephan show (on the WebSQ interface) how he wants the bias to be measured --> execute the same using code below
+#  - Have Stephan show (on the WebSQ interface) how he wants the bias to be measured
+#           --> execute the same using code below
 #  - Simplify your current code to control the spectrometer
-#  - Disable the ability to congifure spectrometer (grating and so on) while running a scan (maybe?)
+#  - Disable the ability to configure spectrometer (grating and so on) while running a scan (maybe?)
 
 # TODO LATER:
 #  - add settings and specs to datafile (create a separator to know at what row data starts!)
-#  - Display the detection rates from the different pixels in a histrogram that will have an energy/wavelength scale  (email from Val)
+#  - Display the detection rates from the different pixels in a histrogram that will have an energy/wavelength scale
 #  - Separate or remove demo mode
 #  - live graph for all plots
 #  - OBS: PLOTS SHOULD BE HISTOGRAMS
@@ -38,7 +36,8 @@ from WebSQControl import WebSQControl
 #       --> find out how to list available/active ports as options (dropdown list)
 #  - fix "check device" layout
 #  - add a tab with one button per command to read to device one by one, and display response??
-#  - maybe add a thing (when pressing start scan button) that checks (reads) current device configs and compares to desired. if not a match then abort scan
+#  - maybe add a thing (when pressing start scan button) that checks (reads) current device configs and
+#           compares to desired. if not a match then abort scan
 #  - make a print tab to the right where "progress" is being shown :)"
 #  - ETA data saving and reading
 #  - Display counts
@@ -60,16 +59,8 @@ class SQControl:
 
         # Number of measurements, used when reading counts,  type=int
         self.N = 5
-        self.number_of_detectors = 8
 
-        self.open_connection(self.number_of_detectors)
-
-        if not demo:
-            # test
-            self.number_of_detectors = self.get_number_of_detectors()  # Returns how many channels/detectors we have in the system  # NOTE: required other functions!!
-            self.set_integration_time(dt=100)                             # Sets the integration time to collect counts in bin
-            #self.test()  # NOTE: OPTIONAL TEST
-            #self.close_connection()  # close SQWeb connection   # NOTE, we should close it later when we're done instead
+        self.websq_connect(nr_det=8)
 
         # OPTIONS TO IMPLEMENT IN GUI:
         # self.set_curr_bias()
@@ -77,7 +68,7 @@ class SQControl:
         # self.read_back()               # reads and prints: periode, bias, trigger
         # counts = self.get_counts(N=10)  # this returns both timestamps and counts per detector for N measurements
 
-    def open_connection(self, nr_det):
+    def websq_connect(self, nr_det):
         if demo:
             self.websq_handle = True
             self.number_of_detectors = nr_det
@@ -90,24 +81,30 @@ class SQControl:
             else:
                 self.tcp_ip_address = '192.168.120.119'  # for tiny lab wifi (8 channels for our spectrometer)
                 self.number_of_detectors = 8
-                print("ERROR: Other channel amount not available. Default set to 8.")
+                if nr_det != 8:
+                    print("ERROR: Other channel amount not available. Default set to 8.")
 
-            print("Attempting connection to WebSQ...")
             self.websq_handle = WebSQControl(TCP_IP_ADR=self.tcp_ip_address, CONTROL_PORT=self.control_port, COUNTS_PORT=self.counts_port)
             self.websq_handle.connect()
-            print(f"Connected to WebSQ! With {self.number_of_detectors} detectors!")
+            print(f"Connected to WebSQ on IP {self.tcp_ip_address}! Server with {self.number_of_detectors} detectors!")
+
+            self.number_of_detectors = self.get_number_of_detectors()  # Returns how many channels/detectors we have in the system  # NOTE: required other functions!!
+            self.set_integration_time(dt=100)  # Sets the integration time to collect counts in bin
+
+            self.read_back()
         except:
             print("Connection error with WebSQ")
+            self.websq_disconnect()
             raise
 
     def get_number_of_detectors(self):
         """Acquire number of detectors in the system"""
         n = self.websq_handle.get_number_of_detectors()
-        print(f"System as {n} detectors")
+        print(f"     System as {n} detectors")
         return n
 
     def set_integration_time(self, dt=100):
-        print(f"Set integration time to {dt} ms")
+        print(f"     Set integration time to {dt} ms")
         self.websq_handle.set_measurement_periode(dt)  # Time in ms
 
     def set_curr_bias(self):
@@ -150,7 +147,13 @@ class SQControl:
         print(f"Bias Currents in uA:         {self.websq_handle.get_bias_current()}")
         print(f"Trigger Levels in mV:        {self.websq_handle.get_trigger_level()}")
 
-    def close_connection(self):
+    def get_curr_bias(self):
+        return self.websq_handle.get_bias_current()
+
+    def get_curr_trigger(self):
+        return self.websq_handle.get_trigger_level()
+
+    def websq_disconnect(self):
         if demo:
             #self.websq_handle = None
             return
@@ -165,12 +168,11 @@ class SQControl:
 class SP2750:
 
     def __init__(self):
-        #self.find_ports()  
 
         # Serial connection settings:
         self.sp_handle = None
-        self.port = "COM4"          # USB port
-
+        self.acton_serial = 'FT5Z6FVRA'  # NOTE: this is for our device, and we use it to compare and find the port
+        self.port = self.find_ports()    # USB PORT "COM4"
         self.dict = {
             'gratings list': {
                 'value type': None,
@@ -198,34 +200,50 @@ class SP2750:
                 'cmd': "?NM/MIN",           # FIXME
                 'access': ['read', '']      # FIXME, NOTE: not fully implemented yet
             },
-
         }
 
         if demo:
             self.device_grating = 1
             self.device_wavelength = 600
         else:
-            self.connect()
-            self.sp_handle.write(b'NO-ECHO\r')
-            self.wait_for_read()  # b'  ok\r\n'
+            self.acton_connect()
+            print(f"     Grating:    {self.read_cmd(param='grating', fb=False)}")
+            print(f"     Wavelength: {self.read_cmd(param='nm', fb=False)}")
 
     def find_ports(self):  # TODO: find our device port and connect automatically
-        print("---------")
-        for port in serial.tools.list_ports.comports():
-            print(f"\ndevice:          {port.device       }"
-                  f"\nname:            {port.name         }"
-                  f"\ndescription:     {port.description  }"
-                  f"\nhwid:            {port.hwid         }"
-                  f"\nvid:             {port.vid          }"
-                  f"\npid:             {port.pid          }"
-                  f"\nserial_number:   {port.serial_number}"
-                  f"\nlocation:        {port.location     }"
-                  f"\nmanufacturer:    {port.manufacturer }"
-                  f"\nproduct:         {port.product      }"
-                  f"\ninterface:       {port.interface    }")
-            print("---------")
+        """
+        device:          COM4
+        name:            COM4
+        description:     USB Serial Port (COM4)
+        hwid:            USB VID:PID=0403:6015 SER=FT5Z6FVRA
+        vid:             1027
+        pid:             24597
+        serial_number:   FT5Z6FVRA
+        location:        None
+        manufacturer:    FTDI
+        product:         None
+        interface:       None
+        """
 
-    def connect(self):
+        for port in serial.tools.list_ports.comports():
+            if (port.serial_number == self.acton_serial) and (port.manufacturer == 'FTDI'):
+                #print(f"FOUND ACTON DEVICE ON PORT {port.device}")
+                return port.device
+            """print(f'---------\n'
+                  f'  device:          {port.device       }'
+                  f'\nname:            {port.name         }'
+                  f'\ndescription:     {port.description  }'
+                  f'\nhwid:            {port.hwid         }'
+                  f'\nvid:             {port.vid          }'
+                  f'\npid:             {port.pid          }'
+                  f'\nserial_number:   {port.serial_number}'
+                  f'\nlocation:        {port.location     }'
+                  f'\nmanufacturer:    {port.manufacturer }'
+                  f'\nproduct:         {port.product      }'
+                  f'\ninterface:       {port.interface    }'
+                  f'\n---------')"""
+
+    def acton_connect(self):
         if demo:   # TODO: i don't think this is needed
             self.sp_handle = True
             return
@@ -234,17 +252,19 @@ class SP2750:
             self.sp_handle = serial.Serial(port=self.port, baudrate=9600, parity=serial.PARITY_NONE,
                                         stopbits=serial.STOPBITS_ONE, bytesize=serial.EIGHTBITS)  # , timeout=self.serial_timeout)
             if self.sp_handle.isOpen():
-                print(f"Successfully connected to PORT: {self.port}\nSerial handle:", self.sp_handle)
+                print(f"Successfully connected Acton Spectrometer on UBS port '{self.port}'!")
+                self.sp_handle.write(b'NO-ECHO\r')
+                self.wait_for_read(fb=False)  # returns: b'  ok\r\n'
             else:
                 print("ERROR: handle still None")
                 raise serial.SerialException
         except serial.SerialException:
             print(f"ERROR: could not connect to PORT: {self.port}")
             if self.sp_handle:
-                self.disconnect()
+                self.acton_disconnect()
             raise
 
-    def disconnect(self):
+    def acton_disconnect(self):
         if demo:
             return
 
@@ -254,10 +274,10 @@ class SP2750:
 
         self.sp_handle.close()
         self.sp_handle = None
-        print("Connection Closed!")
+        print("Connection closed with Acton Spectrometer!")
 
     def check_cmd(self, access, param, value=None):
-        print('checking cmd')
+        #print('checking cmd')
         # Check if parameter is correctly defined
         if param not in self.dict.keys():
             print(f"ERROR: unknown {access} param ({param})")
@@ -285,7 +305,7 @@ class SP2750:
         return True
 
     def check_handle(self):
-        print('checking handle')
+        #print('checking handle')
 
         if self.sp_handle is None:
             print("ERROR: Not connected to device!")
@@ -295,8 +315,8 @@ class SP2750:
             return False
         return True
 
-    def read_cmd(self, param):
-        print('read cmd')
+    def read_cmd(self, param, fb=True):
+        #print('read cmd')
 
         # Checks if desired command and value is ok to send
         if not self.check_cmd('read', param):
@@ -308,8 +328,8 @@ class SP2750:
         if not self.check_handle():  # check if handle is ok
             return
 
-        #print(f"\nReading {param}...")
-        res = self.query(cmd=self.dict[param]['cmd'])
+        # print(f"\nReading {param}...")
+        res = self.query(cmd=self.dict[param]['cmd'], fb=fb)
 
         # Extract value from response
         res_num = ''
@@ -322,7 +342,7 @@ class SP2750:
         return eval(res_num)   # remove later
 
     def write_cmd(self, param, value):
-        print('write cmd')
+        #print('write cmd')
 
         # Checks if desired command and value is ok to send
         if not self.check_cmd('write', param, value):
@@ -343,39 +363,41 @@ class SP2750:
         print('ERROR: bad response...')
         return False
 
-    def query(self, cmd):
-        print('query cmd')
+    def query(self, cmd, fb=True):
+        #print('query cmd')
 
         cmd_bytes = cmd.encode("ASCII") + b'\r'
         self.sp_handle.write(cmd_bytes)
-        return self.wait_for_read()
+        return self.wait_for_read(fb)
 
-    def wait_for_read(self):
-        print('wait for read')
+    def wait_for_read(self, fb=True):
+        # print('wait for read')
 
         # reads response every second and waits until request is complete.
         res = b''
         for i in range(60):
             if b'ok' in res:
-                print('done')
+                if fb:
+                    print('done reading')
                 return res
             else:
                 time.sleep(0.5)
                 res_r = self.sp_handle.readline()
-                print(res_r)
+                # print(res_r)
                 res += res_r
         print('failed wait to read')
-
 
 class GUI:
 
     def __init__(self):
-        self.temp_counter = 0   # REMOVE LATER  USED TO TEST HISTO PLOTTING WITH SAMPLE DATA
+        self.temp_counter = 0   # REMOVE LATER USED TO TEST HISTO PLOTTING WITH SAMPLE DATA
 
+        print('------')
         self.sq = SQControl()
 
         # initialize communication class with spectrometer
         self.sp = SP2750()
+        print('------')
 
         # Create and configure the main GUI window
         self.init_window()
@@ -385,11 +407,12 @@ class GUI:
 
         # Create and place tabs frame on window grid
         self.init_fill_tabs()
-        self.live_mode = True # FIXME
+        self.live_mode = True  # FIXME: add button to change this
         #if demo:
         #    self.root.after(100, lambda: _show('Title', 'Demo Version'))
 
     def init_parameters(self):
+        # TODO: CHECK WHAT WE CAN REMOVE!!!
         self.data = []
         self.running = False  # this tracks if we are running a scan (collecting counts from detector)
         self.demo_connect = False  # temp for demo to check if we've actually connected to device
@@ -402,7 +425,7 @@ class GUI:
         self.checked_configs = False
         self.ok_to_send_list = []
         self.widgets = {}
-        self.buttons = {}  # todo, do we need or use these?
+        self.buttons = {}  # TODO: save all buttons here with key
         self.button_color = 'grey'  # default button colors
         self.port = tk.StringVar()     # note maybe change later when implemented
         self.x_label = tk.StringVar(value='λ [nm]')
@@ -412,36 +435,26 @@ class GUI:
             3: {'grating': 1800, 'blz': 'H-VIS',  'width': 2},
         }
         self.params = {
-            'grating':
-                {'var': tk.IntVar(value=1),    'type': 'radio',     'default' : 1, 'value': [1, 2, 3]},
-            'nm':
-                {'var': tk.IntVar(value=600),  'type': 'int entry', 'default' : 350, 'value': [350, 650, 750]},
-            'width_nm' :
-                {'var': tk.IntVar(value=1),    'type': 'int entry', 'default' : 10, 'value': [5, 15, 30]},
-            'slit':
-                {'var': tk.IntVar(value=10),   'type': 'int entry', 'default' : 10, 'value': [10, 20, 30]},
-            'nr_pixels':
-                {'var': tk.IntVar(value=8),    'type': 'int entry', 'default' : 8, 'value': [3, 8, 12]},
-            'file_name':
-                {'var': tk.StringVar(),        'type': 'str entry', 'default' : '', 'value': ['butterfly.timeres', 'frog.timeres', 'sheep.timeres']},
-            'folder_name':
-                {'var': tk.StringVar(),        'type': 'str entry', 'default' : '', 'value': ['~/Desktop/GUI/Data1', '~/Desktop/GUI/Data2', '~/Desktop/GUI/Data3']},
-            'eta_recipe':
-                {'var': tk.StringVar(),        'type': 'str entry', 'default' : '', 'value': ['~/Desktop/GUI/Recipe/gui_recipe_1.eta', '~/Desktop/GUI/Recipe/gui_recipe_2.eta', '~/Desktop/GUI/Recipe/gui_recipe_3.eta']},
+            'grating':     {'var': tk.IntVar(value=1),   'type': 'radio',     'default': 1,   'value': [1, 2, 3]},
+            'nm':          {'var': tk.IntVar(value=600), 'type': 'int entry', 'default': 350, 'value': [350, 650, 750]},
+            'width_nm':    {'var': tk.IntVar(value=1),   'type': 'int entry', 'default': 10,  'value': [5, 15, 30]},
+            'slit':        {'var': tk.IntVar(value=10),  'type': 'int entry', 'default': 10,  'value': [10, 20, 30]},
+            'nr_pixels':   {'var': tk.IntVar(value=8),   'type': 'int entry', 'default': 8,   'value': [3, 8, 12]},
+            'file_name':   {'var': tk.StringVar(),       'type': 'str entry', 'default': '',  'value': ['butterfly.timeres', 'frog.timeres', 'sheep.timeres']},
+            'folder_name': {'var': tk.StringVar(),       'type': 'str entry', 'default': '',  'value': ['~/Desktop/GUI/Data1', '~/Desktop/GUI/Data2', '~/Desktop/GUI/Data3']},
+            'eta_recipe':  {'var': tk.StringVar(),       'type': 'str entry', 'default': '',  'value': ['~/Desktop/GUI/Recipe/gui_recipe_1.eta', '~/Desktop/GUI/Recipe/gui_recipe_2.eta', '~/Desktop/GUI/Recipe/gui_recipe_3.eta']},
         }
-        self.ch_bias_list = []  #
+        self.ch_bias_list = []
+        self.ch_trig_list = []
         self.ch_nm_bin_edges = []  # TODO
         self.calculate_nm_bins()
 
     def init_window(self):
         self.root = tk.Tk()
         self.root.title("Quantum Spectrometer GUI - Ghostly matters")   # *Ghostly matters*
-        self.root.resizable(True, True)
-        self.root.config(background='#0a50f5')
-        self.root.geometry('1200x700')
-
-
-
+        # self.root.resizable(True, True)
+        # self.root.config(background='#0a50f5')   # TODO figure out why colors don't work
+        # self.root.geometry('1800x1200')
 
     def init_fill_tabs(self):
 
@@ -522,25 +535,6 @@ class GUI:
         plot_3d_lifetime_tab()
         settings_tab()
 
-        # ---------------------------------------------
-        newguyframe = ttk.Frame(tabControl)
-        tabControl.add(newguyframe, text='second new guy')
-
-        def press_newguy1():
-            print('Violets are blue!   / new guy')
-
-        def press_newguy2():
-            print("Who's there??")
-
-        newguy_button1 = tk.Button(newguyframe, text="Roses are red", command=press_newguy1, height=5, width=12)
-        newguy_button2 = tk.Button(newguyframe, text="Knock knock", command=press_newguy2, height=5, width=12)
-
-        newguy_button1.grid(row=0, column=0, padx=0, pady=0)
-        newguy_button2.grid(row=1, column=1, padx=0, pady=0)
-        newguy_button2.place(x=1000, y=300)
-
-        # ---------------------------------------------
-
         # Pack all tabs in notebook to window:
         tabControl.pack(expand=1, fill="both")
 
@@ -565,7 +559,7 @@ class GUI:
     def calculate_nm_bins(self):
         self.ch_nm_bin_edges = []   # clear list of bins
 
-        print("device grating", self.device_grating)
+        #print("device grating", self.device_grating)
         width_nm = self.grating_lvl[self.device_grating]['width']   # total width/range of all channels
         delta_nm = width_nm/self.sq.number_of_detectors
         center_nm = self.params['nm']['var'].get()
@@ -585,8 +579,8 @@ class GUI:
                 self.sp.sp_handle = True
                 return
                 
-            self.sp.disconnect()
-            self.sp.connect()
+            self.sp.acton_disconnect()
+            self.sp.acton_connect()
             self.sp.sp_handle.write(b'NO-ECHO\r')
             self.sp.wait_for_read()  # b'  ok\r\n'
             port_parts[1].config(text=f'{self.sp.port}')
@@ -621,7 +615,7 @@ class GUI:
             pass
 
         def update_ch(nr_pixels):
-            if nr_pixels not in [4,8]:
+            if nr_pixels not in [4, 8]:
                 print("ERROR: other pixel amounts not available yet")
                 return
 
@@ -633,25 +627,32 @@ class GUI:
                     widget.destroy()
 
             # Connecting to other/new WebSQ server
-            self.sq.close_connection()
-            self.sq.open_connection(nr_pixels)
+            self.sq.websq_disconnect()
+            self.sq.websq_connect(nr_pixels)
             self.reset_histo_bins()
             fill_ch()
 
         def fill_ch():
             self.ch_bias_list = []
             self.pix_counts_list = []
+            device_bias = self.sq.get_curr_bias()
+            device_trigger = self.sq.get_curr_trigger()
+
             for pix in range(self.params['nr_pixels']['var'].get()):
-                self.ch_bias_list.append(tk.IntVar())  #
+                self.ch_bias_list.append(tk.IntVar(value=device_bias[pix]))  # FIXME we are only displaying, not setting anything
+                self.ch_trig_list.append(tk.IntVar(value=device_trigger[pix]))  # FIXME we are only displaying, not setting anything
+
                 tk.Label(frm['ch'], text=f"{pix + 1}").grid(row=pix + 2, column=0, sticky="ew", padx=0, pady=0)
                 tk.Entry(frm['ch'], bd=2, textvariable=self.ch_bias_list[pix], width=6).grid(row=pix + 2, column=1, sticky="ew", padx=0, pady=0)
+                tk.Entry(frm['ch'], bd=2, textvariable=self.ch_trig_list[pix], width=6).grid(row=pix + 2, column=2, sticky="ew", padx=0, pady=0)
+
+                #tk.Label(frm['ch'], text=f"0").grid(row=pix + 2, column=3, sticky="ew", padx=0, pady=0)  # counts
                 c_temp = tk.Label(frm['ch'], text=f"0")
-                c_temp.grid(row=pix + 2, column=2, sticky="ew", padx=0, pady=0)  # counts
+                c_temp.grid(row=pix + 2, column=3, sticky="ew", padx=0, pady=0)  # counts
                 self.pix_counts_list.append(c_temp)
 
         # ---------------
         self.port.set(self.sp.port)  # note maybe change later when implemented
-
 
         # FRAMES
         frm_test = tk.Frame(tab, relief=tk.RAISED, bd=2)
@@ -663,10 +664,10 @@ class GUI:
         
         #  -- Default:
         default_but_parts = [
-            tk.Button(frm['default'], text="Clear all", command=lambda : default_press(0), activeforeground='red', highlightbackground=self.button_color),
-            tk.Button(frm['default'], text="Default 1", command=lambda : default_press(1), activeforeground='blue', highlightbackground=self.button_color),
-            tk.Button(frm['default'], text="Default 2", command=lambda : default_press(2), activeforeground='blue', highlightbackground=self.button_color),
-            tk.Button(frm['default'], text="Default 3", command=lambda : default_press(3), activeforeground='blue', highlightbackground=self.button_color),]
+            tk.Button(frm['default'], text="Clear all", command=lambda: default_press(0), activeforeground='red', highlightbackground=self.button_color),
+            tk.Button(frm['default'], text="Default 1", command=lambda: default_press(1), activeforeground='blue', highlightbackground=self.button_color),
+            tk.Button(frm['default'], text="Default 2", command=lambda: default_press(2), activeforeground='blue', highlightbackground=self.button_color),
+            tk.Button(frm['default'], text="Default 3", command=lambda: default_press(3), activeforeground='blue', highlightbackground=self.button_color),]
 
         #  -- Port:
         port_parts = [tk.Label(frm['port'], text='USB Port'),   # port_entry = tk.Entry(frm_port, bd=2, textvariable=self.port, width=5)   # FIXME later
@@ -693,7 +694,6 @@ class GUI:
             grating_widget_dict['wid_txt'].append(tk.Label(frm['grating'], text=f"  {self.grating_lvl[c+1]['width']}"))
 
         #  -- Detector:
-
         det_parts = [tk.Label(frm['detect'], text="Center λ"),
                      tk.Entry(frm['detect'], bd=2, textvariable=self.params['nm']['var'], width=4),
                      tk.Label(frm['detect'], text='[nm]', width=4)]
@@ -713,7 +713,8 @@ class GUI:
         # -- Channels:
         ch_parts = [
             tk.Label(frm['ch'], text='Pixel'),
-            tk.Label(frm['ch'], text='Bias'),
+            tk.Label(frm['ch'], text='Bias (uA)'),
+            tk.Label(frm['ch'], text='Trigger (mV)'),
             tk.Label(frm['ch'], text='Counts')]
 
         # GRID
@@ -736,7 +737,7 @@ class GUI:
         self.add_to_grid(widg=det_no_parts, rows=[3,3,3], cols=[0,1,2], sticky=["ew", "ew", "ew"])
 
         # -- Channels
-        self.add_to_grid(widg=ch_parts, rows=[0,0,0], cols=[0,1,2], sticky=["ew", "ew", "ew"])
+        self.add_to_grid(widg=ch_parts, rows=[0,0,0,0,0], cols=[0,1,2,3,4], sticky=["ew", "ew", "ew", "ew"])
         fill_ch()  # Updates channels displayed
 
         # ------------- COMBINING INTO TEST FRAME --------------
@@ -835,7 +836,6 @@ class GUI:
 
                 check_thing[2].config(text=tempi, foreground='black')  # make green for passed tests!
 
-                #print(res)
                 if res is None:
                     self.mark_done(check_thing[2], text_color='red', type='text')  # ????
 
@@ -871,7 +871,7 @@ class GUI:
             if demo:
                 if not self.demo_connect:
                     self.mark_done(btn_send_conf, highlight='red', type='button')
-                    #return
+                    # return ???
                 else:
                     time.sleep(1)
 
@@ -929,20 +929,19 @@ class GUI:
 
         return frm_send
 
-    def get_counts(self):  # TODO: make general for self.sq.nr_of_detectors
+    def get_counts(self):
         if demo:
             counts = Demo.d_get_counts()
         else:
             n = 1
             counts = self.sq.get_counts(n)   # TODO: make number of measurements a variable?
 
-        # TODO: do something with timestamps
-        #timestamps = []   # resetting here means we are only getting the timestamps for current measurement of size N
+        # TODO: do something with timestamps  #timestamps = []   # resetting here means we are only getting the timestamps for current measurement of size N
         if self.live_mode:
             self.cumulative_ch_counts = np.zeros(self.sq.number_of_detectors)
 
         for row in counts:
-            #timestamps.append(row[0])
+            # timestamps.append(row[0])
             self.data.append(row[1:])
             self.cumulative_ch_counts += np.array(row[1:])
 
@@ -1022,54 +1021,93 @@ class GUI:
         self.calculate_nm_bins()
         self.cumulative_ch_counts = np.zeros(self.sq.number_of_detectors)
         self.temp_counter = 0
-        self.y_max = 1000
-
+        self.y_max.set(value=1000)
 
     def plot_live_histo(self, tab):
+
+        def press_live():
+            if self.live_mode == True:
+                # change to cumulative mode
+                self.live_mode = False
+                #live_button.config(text='Change to Live mode      ')
+
+            else:
+                # change to live mode
+                self.live_mode = True
+                #live_button.config(text='Change to Cumulative mode')
+        def press_set_y_max():
+
+            if self.y_max_entry.get() == "":
+                self.y_max.set(value=50)
+
+                # Check if we need to rescale y axis
+                thresh = int(np.ceil(1.2*max(self.cumulative_ch_counts) / 100.0)) * 100
+                if self.y_max.get() < thresh:
+                    self.y_max.set(value=thresh)
+            else:
+                self.y_max.set(value=eval(self.y_max_entry.get()))
 
         def make_buttons():
             # BUTTONS:
             butt_frame = tk.Frame(tab, relief=tk.RAISED, bd=2)
-            tk.Label(butt_frame, text=f'Change X-axis to:').grid(row=0, column=0, sticky="nsew")
-            tk.Radiobutton(butt_frame, text="wavelength [nm]", value='λ [nm]', variable=self.x_label, command=pressed_xlabel).grid(row=1, column=0, sticky="ew", padx=0, pady=0)
-            tk.Radiobutton(butt_frame, text="frequency [Hz]", value='f [Hz]', variable=self.x_label, command=pressed_xlabel).grid(row=2, column=0, sticky="ew", padx=0, pady=0)
-            tk.Radiobutton(butt_frame, text="photon energy [eV]", value='E [eV]', variable=self.x_label, command=pressed_xlabel).grid(row=3, column=0, sticky="ew", padx=0, pady=0)
-            tk.Radiobutton(butt_frame, text="wave number [cm^{-1}]", value='v [cm^-1]', variable=self.x_label, command=pressed_xlabel).grid(row=4, column=0, sticky="ew", padx=0, pady=0)
-            return butt_frame
+
+            tk.Label(butt_frame, text=f'Change X-axis to:').grid(row=0, column=0, sticky="e")
+            tk.Radiobutton(butt_frame, text="wavelength     [nm]  ", anchor="w", value='λ [nm]',    variable=self.x_label, command=pressed_xlabel_h).grid(row=1, column=0, sticky="e", padx=0, pady=0)
+            tk.Radiobutton(butt_frame, text="frequency      [Hz]  ", anchor="w", value='f [Hz]',    variable=self.x_label, command=pressed_xlabel_h).grid(row=2, column=0, sticky="e", padx=0, pady=0)
+            tk.Radiobutton(butt_frame, text="photon energy  [eV]  ", anchor="w", value='E [eV]',    variable=self.x_label, command=pressed_xlabel_h).grid(row=3, column=0, sticky="e", padx=0, pady=0)
+            tk.Radiobutton(butt_frame, text="wave number    [1/cm]", anchor="w", value='v [1/cm]', variable=self.x_label, command=pressed_xlabel_h).grid(row=4, column=0, sticky="e", padx=0, pady=0)
+
+            #live_butt = tk.Button(butt_frame, text="Live plot", command=press_live, activeforeground='blue', highlightbackground=self.button_color)
+            #live_butt.grid(row=5, column=0, sticky="ew", padx=0, pady=0)
+            tk.Label(butt_frame, text=f'Ceiling', anchor="w").grid(row=6, column=0, sticky="e")
+            tk.Entry(butt_frame, bd=2, textvariable=self.y_max_entry, width=6).grid(row=6, column=1, sticky="e", padx=0, pady=0)
+            tk.Button(butt_frame, text="Set y max", command=press_set_y_max).grid(row=6, column=2, sticky="ew", padx=0, pady=0)
+
+            tk.Button(butt_frame, text="reset plot", command=clear_histo).grid(row=7, column=0, sticky="ew", padx=0, pady=0)
+
+            return butt_frame#, live_butt
 
         def clear_histo():
             self.reset_histo_bins()
-
             x = np.array(self.ch_nm_bin_edges[:self.sq.number_of_detectors])  # todo:  change this to re a list of the wavelengths note the last channel is fake
+
+            N, bins, bars = plot_histo(x_i=x, bins_i=self.ch_nm_bin_edges, weights_i=self.cumulative_ch_counts)
+
+            return N, bins, bars
+
+        def plot_histo(x_i, bins_i, weights_i):
+            if self.y_max_entry.get() == "":
+                press_set_y_max()
+
             fig.clear()
             plot1 = fig.add_subplot(111)
             plot1.yaxis.set_major_formatter(ticker.FormatStrFormatter('%1.0f'))
-            plot1.set_xlabel('λ (nm)')
+            plot1.set_xlabel(self.x_label.get())
             plot1.set_ylabel('photon count')
             plot1.set_title("Intensity")
-            plot1.set_ylim([0, self.y_max])
-            N, bins, bars = plot1.hist(x, bins=self.ch_nm_bin_edges, weights=self.cumulative_ch_counts, rwidth=0.9, align='mid')
+            plot1.set_ylim([0, self.y_max.get()])
+
+            N, bins, bars = plot1.hist(x_i, bins=bins_i, weights=weights_i, rwidth=0.9, align='mid')
             plot1.bar_label(bars)
             canvas.draw()
+            return N, bins, bars
 
-        def update_histo():  # TODO: add data conversion for respective unit
-            thresh = 1.2*max(self.cumulative_ch_counts)
-            if self.y_max < thresh:
-                self.y_max = max(thresh, self.y_max*2)
+        def update_histo():
 
             # fixme: reset x to match device grating
-            x = np.array(self.ch_nm_bin_edges[:self.sq.number_of_detectors])  # todo:  change this to re a list of the wavelengths note the last channel is fake
+            #x = np.array(self.ch_nm_bin_edges[:self.sq.number_of_detectors])  # todo:  change this to re a list of the wavelengths note the last channel is fake
 
-            fig.clear()
-            plot1 = fig.add_subplot(111)
-            plot1.yaxis.set_major_formatter(ticker.FormatStrFormatter('%1.0f'))
-            plot1.set_xlabel('λ (nm)')
-            plot1.set_ylabel('photon count')
-            plot1.set_title("Intensity")
-            plot1.set_ylim([0, self.y_max])
-            N, bins, bars = plot1.hist(x, bins=self.ch_nm_bin_edges, weights=self.cumulative_ch_counts, rwidth=0.9, align='mid')
-            plot1.bar_label(bars)
-            canvas.draw()
+            bins_temp = convert_values_h(self.ch_nm_bin_edges)
+            weight_temp = list(self.cumulative_ch_counts)
+
+            if bins_temp[1]-bins_temp[0] < 0:  # decreasing order
+                #print("reversed")
+                bins_temp.reverse()
+                weight_temp.reverse()
+
+            x_temp = bins_temp[:-1]
+
+            N, bins, bars = plot_histo(x_i=x_temp, bins_i=bins_temp, weights_i=weight_temp)
 
             # go to idle state if we are not running a scan (reading counts)
             if not self.running:
@@ -1084,68 +1122,46 @@ class GUI:
             else:
                 self.root.after(1000, idle)  # updates every second todo: maybe change
 
-        def pressed_xlabel():  # TODO: add data conversion for respective unit
-            pass
+        def pressed_xlabel_h():  # TODO: add data conversion for respective unit
+            update_histo()
 
-            """fig.clear()
-            plot1 = fig.add_subplot(111)
-
-            x_temp = convert_values()
-
-            plot1.plot(x_temp, yar_b, 'b')
-            #plot1.plot(xar_r, yar_r, 'r')
-            plot1.set_xlabel(self.x_label.get())
-            plot1.set_ylabel("counts")
-            plot1.set_title("Spectrum")
-            canvas.draw()"""
-
-        def convert_values():
+        def convert_values_h(bins_in):
             unit = self.x_label.get()
 
             if unit == "λ [nm]":
-                x_temp = [value for value in x]
+                bins_temp = [value for value in bins_in]
 
             elif unit == "f [Hz]":
                 c = 2.99792458e9
-                x_temp = [c/(value*1e-9) for value in x]
+                bins_temp = [c/(value*1e-9) for value in bins_in]  #
 
             elif unit == "E [eV]":
-                x_temp = [1240/value for value in x]
+                bins_temp = [1240/value for value in bins_in]
 
-            elif unit == "v [cm^-1]":
-                x_temp = [1/(value_nm*1e-7) for value_nm in x]
-            return x_temp
+            elif unit == "v [1/cm]":
+                bins_temp = [1 / (value_nm * 1e-7) for value_nm in bins_in]
+
+            else:
+                print("ERROR: UNKNOWN LABELS")
+                bins_temp = [value for value in bins_in]
+
+            return bins_temp
 
         # --------
-        self.y_max = 1000  # initial value??
+        self.y_max_entry = tk.StringVar(value="")
+        self.y_max = tk.IntVar(value=1000)
 
         x = np.array(self.ch_nm_bin_edges[:self.sq.number_of_detectors])   # todo:  change this to re a list of the wavelengths note the last channel is fake
         self.cumulative_ch_counts = np.zeros(self.sq.number_of_detectors)  # starting with 8 channels for now
 
         fig = plt.Figure(figsize=(9, 5), dpi=100)
-        plot1 = fig.add_subplot(111)
+        plt_frame, canvas = self.pack_plot(tab, fig)  # FIXME: or maybe after plotting histo?
 
-        plot1.yaxis.set_major_formatter(ticker.FormatStrFormatter('%1.0f'))
-
-        plot1.set_xlabel('λ (nm)')
-        plot1.set_ylabel('photon count')
-        plot1.set_title("Intensity")
-        plot1.set_ylim([0, self.y_max])
-        #b = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5]
-
-        N, bins, bars = plot1.hist(x, bins=self.ch_nm_bin_edges,  weights=self.cumulative_ch_counts, rwidth=0.9, align='mid')
-        # maybe if data is a dict --> use counted_data.keys(), weights = counted_data.values()
-
-        #plt_frame_main = tk.Frame(tab, relief=tk.RAISED, bd=2)
-        #plt_frame, canvas = self.pack_plot(plt_frame_main, fig)
-
-        plt_frame, canvas = self.pack_plot(tab, fig)
-
-        #reset_button = tk.Button(plt_frame, text="reset plot", command=clear_histo, activeforeground='blue', highlightbackground=self.button_color)
-        #reset_button.pack()
-
+        # N, bins, bars = plot_histo(x_i=x, bins_i=self.ch_nm_bin_edges, weights_i=self.cumulative_ch_counts)  # placeholder??? # TODO CHECK IF WE NEED PLACEHOLDER
+        N, bins, bar = clear_histo()
         update_histo()
 
+        # butt_frame, live_button = make_buttons()
         butt_frame = make_buttons()
 
         return plt_frame, butt_frame
@@ -1166,7 +1182,7 @@ class GUI:
             elif unit == "E [eV]":
                 x = [1240/value for value in xar_b]
 
-            elif unit == "v [cm^-1]":
+            elif unit == "v [1/cm]":
                 x = [1/(value_nm*1e-7) for value_nm in xar_b]
 
             else:
@@ -1226,7 +1242,7 @@ class GUI:
         tk.Radiobutton(butt_frame, text="wavelength [nm]", value='λ [nm]', variable=self.x_label, command=pressed_xlabel).grid(row=1, column=0, sticky="ew", padx=0, pady=0)
         tk.Radiobutton(butt_frame, text="frequency [Hz]", value='f [Hz]', variable=self.x_label, command=pressed_xlabel).grid(row=2, column=0, sticky="ew", padx=0, pady=0)
         tk.Radiobutton(butt_frame, text="photon energy [eV]", value='E [eV]', variable=self.x_label, command=pressed_xlabel).grid(row=3, column=0, sticky="ew", padx=0, pady=0)
-        tk.Radiobutton(butt_frame, text="wave number [cm^{-1}]", value='v [cm^-1]', variable=self.x_label, command=pressed_xlabel).grid(row=4, column=0, sticky="ew", padx=0, pady=0)
+        tk.Radiobutton(butt_frame, text="wave number [cm^{-1}]", value='v [1/cm]', variable=self.x_label, command=pressed_xlabel).grid(row=4, column=0, sticky="ew", padx=0, pady=0)
 
         return plt_frame, butt_frame
 
@@ -1304,10 +1320,9 @@ class GUI:
         return frm_info
 
     def close(self):
-        time.sleep(1)
-        print("Closing SP AND WebSQ connections!")
-        self.sp.disconnect()  # closes connection with spectrometer
-        self.sq.close_connection()  # close SQWeb connection
+        time.sleep(0.3)
+        self.sp.acton_disconnect()  # closes connection with spectrometer
+        self.sq.websq_disconnect()  # close SQWeb connection
 
 class Demo:
     @staticmethod
@@ -1403,7 +1418,7 @@ except serial.SerialException:
     raise
 
 finally:
-    print("Finally:")
+    print('------\nExiting...')
     gui.close()  # Close all external connections
 
 
