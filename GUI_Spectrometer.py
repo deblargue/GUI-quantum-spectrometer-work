@@ -15,7 +15,16 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 
 from test_data import *
 from WebSQControl import WebSQControl
+import pandas as pd
+import seaborn as sns
 
+# Packages for ETA backend
+import json
+import etabackend.eta  # Available at: https://github.com/timetag/ETA, https://eta.readthedocs.io/en/latest/
+import time
+
+import os
+from pathlib import Path
 
 # TODO NOW:
 #       - Define wavelengths for each detector (display on x axis plot, display next to channel?)
@@ -25,6 +34,7 @@ from WebSQControl import WebSQControl
 #  - Disable the ability to configure spectrometer (grating and so on) while running a scan (maybe?)
 
 # TODO LATER:
+#  - look into exceptions, plan for window crashing
 #  - add settings and specs to datafile (create a separator to know at what row data starts!)
 #  - Display the detection rates from the different pixels in a histrogram that will have an energy/wavelength scale
 #  - Separate or remove demo mode
@@ -507,11 +517,20 @@ class GUI:
         def plot_lifetime_tab():
             plots_lifetime = ttk.Frame(tabControl)
             # TODO: add widgets
+
+            #plt_frame = self.plot_lifetime_widget(plots_lifetime)
+            plt_frame = self.plot_seaborn(plots_lifetime)
+            plt_frame.grid(row=2, column=1, columnspan=1, sticky="news", padx=0, pady=0)
+
             tabControl.add(plots_lifetime, text='Lifetime Plot')
 
         def plot_3d_lifetime_tab():
             plots_3d_lifetime = ttk.Frame(tabControl)
             # TODO: add widgets
+
+            plt_frame = self.plot_3D_lifetime_widget(plots_3d_lifetime)
+            plt_frame.grid(row=2, column=1, columnspan=1, sticky="news", padx=0, pady=0)
+
             tabControl.add(plots_3d_lifetime, text='3D Lifetime Plot')
 
         def settings_tab():  # FIXME
@@ -528,11 +547,13 @@ class GUI:
         # Create notebook for multi tab window:
         tabControl = ttk.Notebook(self.root)
         # Create and add tabs to notebook:
-        scan_tab()
-        plot_spectrum_tab()
-        plot_correlation_tab()
-        plot_lifetime_tab()
+
+        plot_lifetime_tab()   # note: temp moved to front for testing
         plot_3d_lifetime_tab()
+
+        scan_tab()
+        # plot_spectrum_tab()   # note: currently hiding this unless we want to being it back
+        plot_correlation_tab()
         settings_tab()
 
         # Pack all tabs in notebook to window:
@@ -635,6 +656,10 @@ class GUI:
         def fill_ch():
             self.ch_bias_list = []
             self.pix_counts_list = []
+
+            if demo:
+                return
+
             device_bias = self.sq.get_curr_bias()
             device_trigger = self.sq.get_curr_trigger()
 
@@ -1269,23 +1294,144 @@ class GUI:
         # adding the subplot
         plot1 = fig.add_subplot(111)
         # plotting the graph
-        plot1.plot(y)
+        line_b, = plot1.plot([1,2,3], [1,2,3], 'b')  # , marker='o')
+
+        plt_frame, canvas = self.pack_plot(tab, fig)
+        return plt_frame
+
+    def old_plot_3D_lifetime_widget(self, tab):
+        # TODO:
+        # the figure that will contain the plot
+        #fig = plt.Figure(figsize=(10, 3), dpi=100)
+        #y = []  # data list
+        #plot1 = fig.add_subplot(111)  # adding the subplot
+        #plot1.plot(y)  # plotting the graph
+
+        from mpl_toolkits.mplot3d import axes3d
+
+        fig, ax1 = plt.subplots(1, 1, figsize=(14, 7), subplot_kw={'projection': '3d'})
+
+        #fig = plt.Figure(figsize=(9, 5), dpi=100)
+        #plot1 = fig.add_subplot(111)
+
+        #ax1.set_xlim(1545, 1565)
+        #ax1.set_ylim(0, 5000)
+        ax1.set_xlabel("x")
+        ax1.set_ylabel("y")
+        ax1.set_title("Spectrum")
+
+        #X = np.array([[0.5*i for i in range(10)]]*10)   # x grid
+        #Y = np.array([[0.5*i for i in range(10)]]*10)   # y grid
+        #Z = np.array([[5 for i in range(10)]]*10)       # amplitude
+
+        X = np.array([[0, 1, 2, 3, 4, 5, 6, 7],
+                      [0, 1, 2, 3, 4, 5, 6, 7],
+                      [0, 1, 2, 3, 4, 5, 6, 7],
+                      [0, 1, 2, 3, 4, 5, 6, 7],
+                      [0, 1, 2, 3, 4, 5, 6, 7],
+                      [0, 1, 2, 3, 4, 5, 6, 7],
+                      [0, 1, 2, 3, 4, 5, 6, 7],
+                      [0, 1, 2, 3, 4, 5, 6, 7]])
+
+        Y = X.transpose()    # Y_row_i = X_col_i  for all i
+
+        Z = np.array([[0, 1, 0, 0, 2, 0, 0, 0],
+                      [0, 1, 0, 0, 2, 0, 0, 0],
+                      [0, 1, 0, 0, 2, 0, 0, 0],
+                      [0, 1, 0, 0, 2, 0, 0, 0],
+                      [0, 1, 0, 0, 2, 0, 0, 0],
+                      [0, 1, 0, 0, 2, 0, 0, 0],
+                      [0, 1, 0, 0, 2, 0, 0, 0],
+                      [0, 1, 0, 0, 2, 0, 0, 0]])
+
+        # Get the test data
+        #X, Y, Z = axes3d.get_test_data(0.5)
+
+        print("x", X, type(X))
+        print("y", Y, type(Y))
+        print("z", Z, type(Z))
+
+        # Give the second plot only wireframes of the type x = c
+        #ax1.plot_wireframe(X, Y, Z, rstride=10, cstride=10)
+        #ax1.plot_wireframe(X, Y, Z, rstride=0, cstride=10)  # only wireframes of the type x = c
+        ax1.plot_wireframe(X, Y, Z, rstride=10, cstride=0)  # only wireframes of the type y = c
+
+        ax1.set_title("3d lifetime")
 
         plt_frame, canvas = self.pack_plot(tab, fig)
         return plt_frame
 
     def plot_3D_lifetime_widget(self, tab):
-        # TODO:
-        # the figure that will contain the plot
-        fig = plt.Figure(figsize=(10, 3), dpi=100)
-        # data list
-        y = []
-        # adding the subplot
-        plot1 = fig.add_subplot(111)
-        # plotting the graph
-        plot1.plot(y)
+
+        from mpl_toolkits.mplot3d import axes3d
+
+        fig, ax1 = plt.subplots(1, 1, figsize=(14, 7), subplot_kw={'projection': '3d'})
+
+        ax1.set_xlabel("time [ns]")
+        #ax1.set_ylabel("channel")
+        ax1.set_zlabel("counts")
+        ax1.set_title("Spectrum")
+
+        N = 100  # nuber of data points per lifetime line
+        X = np.linspace(1, 10, N)
+
+        nr_ch = 4
+        ax1.set_yticks([int(N/nr_ch)*i for i in range(nr_ch)])
+        ax1.set_yticklabels([f'ch.{j}' for j in range(1, nr_ch+1)])  # note: this will be the amount of channels we are displaying
+
+        for i in range(nr_ch):
+            Y = np.ones(N)*int(N/nr_ch)*i   # which channel we are
+            Z = np.array([10 - np.log(100*j+1) for j in range(N)])     # life time values
+
+            ax1.plot3D(X, Y, Z)
+
+        ax1.set_title("3d lifetime")
 
         plt_frame, canvas = self.pack_plot(tab, fig)
+        return plt_frame
+
+    def plot_seaborn(self, tab):
+
+        sns.set_theme(style="white", rc={"axes.facecolor": (0, 0, 0, 0)})
+
+        # Create the data
+        rs = np.random.RandomState(1979)
+        x = rs.randn(200)
+        g = np.tile(list("1234"), 50)
+        df = pd.DataFrame(dict(x=x, g=g))
+        m = df.g.map(ord)
+        df["x"] += m
+
+        # Initialize the FacetGrid object
+        pal = sns.cubehelix_palette(4, rot=-.25, light=.7)
+        g = sns.FacetGrid(df, row="g", hue="g", aspect=15, height=.5, palette=pal)
+
+        # Draw the densities in a few steps
+        g.map(sns.kdeplot, "x",
+              bw_adjust=.5, clip_on=False,
+              fill=True, alpha=1, linewidth=1.5)
+        g.map(sns.kdeplot, "x", clip_on=False, color="w", lw=2, bw_adjust=.5)
+
+        # passing color=None to refline() uses the hue mapping
+        g.refline(y=0, linewidth=2, linestyle="-", color=None, clip_on=False)
+
+        # Define and use a simple function to label the plot in axes coordinates
+        def label(x, color, label):
+            ax = plt.gca()
+            ax.text(0, .2, label, fontweight="bold", color=color,
+                    ha="left", va="center", transform=ax.transAxes)
+
+        g.map(label, "x")
+
+        # Set the subplots to overlap
+        g.figure.subplots_adjust(hspace=-.25)
+
+        # Remove axes details that don't play well with overlap
+        g.set_titles("")
+        g.set(yticks=[], ylabel="")
+        g.despine(bottom=True, left=True)
+
+        plt_frame, canvas = self.pack_plot(tab, g.figure)
         return plt_frame
 
     def plot_display_info_widget(self, tab, tab_str):
@@ -1391,10 +1537,93 @@ class Demo:
         counts = [raw_counts[gui.temp_counter]]
         return counts
 
-# TODO: look into exceptions, plan for window crashing
+class ETA:
+
+    def __init__(self):
+        pass
+
+    def load_eta(self, recipe, **kwargs):
+        with open(recipe, 'r') as filehandle:
+            recipe_obj = json.load(filehandle)
+
+        eta_engine = etabackend.eta.ETA()
+        eta_engine.load_recipe(recipe_obj)
+
+        # Set parameters in the recipe
+        for arg in kwargs:
+            eta_engine.recipe.set_parameter(arg, str(kwargs[arg]))
+        eta_engine.load_recipe()
+
+        print("Recipe loaded!")
+        return eta_engine
+
+    def eta_lifetime_analysis(self):  # , const):
+
+        # todo: maybe try with:
+        #timetag_file = 'Data/changed_Testing_ch1_negative_pulse_ch2_positive_pulse.timeres'
+        #eta_recipe = "changed_Lifetime_swabian.eta"
+
+        # note: this is temporary, later we might want different recipes and configs
+        const = {'eta_format': 1,   # swabian = 1
+                 'eta_recipe': 'try1_spectrometer_4_ch_lifetime.eta',
+                 'timetag_file': '',
+                 'bins': 10,  # ?
+                 'binsize': 3,  # bin width in ps
+                 # 'pulse duration': 30,  #
+                 }
+
+        # --- LOAD RECIPE ---
+        eta_engine = self.load_eta(const["eta_recipe"], bins=const["bins"], binsize=const["binsize"])  # NOTE: removed for test
+
+        # ------ETA PROCESSING-----
+        cum_countrate_pulses = {'h1': None, 'h2': None, 'h3': None, 'h4': None}  # to save data the same way it comes in (alternative to countrate list with more flexibility)
+
+        pulse_nr = 0
+        pos = 0  # internal ETA tracker (-> maybe tracks position in data list?)
+        context = None  # tracks info about ETA logic, so we can extract and process data with breaks (i.e. in parts)
+        eta_format = const["eta_format"]   # eta_engine.FORMAT_SI_16bytes   # swabian = 1
+        file = Path(const["timetag_file"])
+
+        while pulse_nr < 10:  # note: temp to prevent getting stuck
+            pulse_nr += 1
+
+            # Extract histograms from eta
+            file_clips = eta_engine.clips(filename=file, seek_event=pos, format=eta_format)
+            result, context = eta_engine.run({"timetagger1": file_clips}, resume_task=context, return_task=True, group='qutag', max_autofeed=1)
+
+            # Check if we've run out of data, otherwise update position
+            if result['timetagger1'].get_pos() == pos:  # or (pos is None):
+                print("no remaining data to extract at pulse", pulse_nr)
+                break
+            else:
+                pos = result['timetagger1'].get_pos()
+
+            print('pulse nr x:', result['X'], f'({pulse_nr})')
+            print('result', result)  # should print dictionary
+
+            # Folding histogram counts for each channel
+            for ch in cum_countrate_pulses.keys():  # note: temp only 4, hardcoded for test
+                if cum_countrate_pulses[ch] is None:
+                    cum_countrate_pulses[ch] = np.array(result[ch])
+                else:
+                    cum_countrate_pulses[ch] += np.array(result[ch])   # should add element-wise
+                    # TODO: MAYBE TAKE SOME SORT OF AVERAGE??
+
+            #  -------  PROCESS DATA INTO IMAGE: --------
+            # NOTE: BELOW IS TEMP FOR TESTING:
+            plt.figure(f'histo at pulse {pulse_nr}')
+            plt.title(f'histo at pulse {pulse_nr}')
+            for ch in cum_countrate_pulses.keys():
+                plt.plot(result[ch], label=ch)
+            plt.legend()
+
+        plt.show()
+        print("Complete with ETA.")
 
 #-----
-demo = False
+
+
+demo = True
 gui = GUI()
 try:
     gui.root.after(500, gui.scanning)  # After 1 second, call scanning
@@ -1422,3 +1651,14 @@ finally:
     gui.close()  # Close all external connections
 
 
+"""
+    Value   |   ETA Constant/Name        |      Format for Device
+    -----------------------------------------------------------------
+    0           eta.FORMAT_PQ                   PicoQuant
+    1           eta.FORMAT_SI_16bytes           Swabian Instrument binary
+    2           eta.FORMAT_QT_COMPRESSED        compressed qutools quTAG binary
+    3           eta.FORMAT_QT_RAW               raw qutools quTAG (?)
+    4           eta.FORMAT_QT_BINARY            qutools quTAG 10-byte Binary
+    5           eta.FORMAT_BH_spc_4bytes        Becker & Hickl SPC-134/144/154/830
+    6           eta.FORMAT_ET_A033              Eventech ET A033
+"""
