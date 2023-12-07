@@ -1559,33 +1559,57 @@ class ETA:
 
     def eta_lifetime_analysis(self):  # , const):
 
+        def print_temp():
+            lineplot = False
+            histplot = True
+
+            if lineplot:
+                print(pulse_nr, pos)
+                plt.figure(f'TOT histo at pulse {pulse_nr}')
+                plt.title(f'TOT histo at pulse {pulse_nr}')
+                plt.plot(cum_countrate_pulses['h1'], 'c', label='tot h1')
+                plt.plot(result['h1'], 'b', label='res h1')
+                #plt.plot(cum_countrate_pulses['h2'], 'm', label='tot h2')
+                #plt.plot(result['h2'], 'r', label='res h2')
+                plt.legend()
+            # ------
+
+            if histplot:
+                plt.figure(f'hist TOT histo at pulse {pulse_nr}')
+                plt.title(f'hist TOT histo at pulse {pulse_nr}')
+                N, bins, bars = plt.hist(bins_i[:-2], bins=bins_i, weights=cum_countrate_pulses['h1'], rwidth=0.85, align='right')
+                N, bins, bars = plt.hist(bins_i[:-2], bins=bins_i, weights=result['h1'], rwidth=1, align='right')
+
+            plt.show()
+
         # todo: maybe try with:
         #timetag_file = 'Data/changed_Testing_ch1_negative_pulse_ch2_positive_pulse.timeres'
         #eta_recipe = "changed_Lifetime_swabian.eta"
 
         # note: this is temporary, later we might want different recipes and configs
         const = {'eta_format': 1,   # swabian = 1
-                 'eta_recipe': 'try1_spectrometer_4_ch_lifetime.eta',
-                 'timetag_file': '',
-                 'bins': 10,  # ?
-                 'binsize': 3,  # bin width in ps
-                 # 'pulse duration': 30,  #
+                 'eta_recipe':   'temp_spectrometer_4_ch_lifetime.eta',
+                 'timetag_file': 'ToF_terra_10MHz_det2_10.0ms_[2.1, 2.5, -3.2, -4.8]_100x100_231030.timeres',
+                 'bins':    100,   # 500,  # ??? FIXME
+                 'binsize': 5E7,   # 1E9,  # bin width in ps  ??? FIXME
                  }
+
+        bins_i = np.linspace(0, const['bins']+1, const['bins']+2)  # starting with 8 channels for now
+        bins_i *= const['binsize']
 
         # --- LOAD RECIPE ---
         eta_engine = self.load_eta(const["eta_recipe"], bins=const["bins"], binsize=const["binsize"])  # NOTE: removed for test
 
         # ------ETA PROCESSING-----
-        cum_countrate_pulses = {'h1': None, 'h2': None, 'h3': None, 'h4': None}  # to save data the same way it comes in (alternative to countrate list with more flexibility)
+        cum_countrate_pulses = {'h1': None, 'h2': None}  # , 'h3': None}  # , 'h4': None}  # to save data the same way it comes in (alternative to countrate list with more flexibility)
 
         pulse_nr = 0
-        pos = 0  # internal ETA tracker (-> maybe tracks position in data list?)
+        pos = 0  # 0  # internal ETA tracker (-> maybe tracks position in data list?)
         context = None  # tracks info about ETA logic, so we can extract and process data with breaks (i.e. in parts)
         eta_format = const["eta_format"]   # eta_engine.FORMAT_SI_16bytes   # swabian = 1
         file = Path(const["timetag_file"])
 
-        while pulse_nr < 10:  # note: temp to prevent getting stuck
-            pulse_nr += 1
+        while True:
 
             # Extract histograms from eta
             file_clips = eta_engine.clips(filename=file, seek_event=pos, format=eta_format)
@@ -1593,13 +1617,11 @@ class ETA:
 
             # Check if we've run out of data, otherwise update position
             if result['timetagger1'].get_pos() == pos:  # or (pos is None):
-                print("no remaining data to extract at pulse", pulse_nr)
+                print("no remaining data to extract at pulse", result['X'], f'({pulse_nr}), at pos: {pos}')
                 break
             else:
+                pulse_nr += 1
                 pos = result['timetagger1'].get_pos()
-
-            print('pulse nr x:', result['X'], f'({pulse_nr})')
-            print('result', result)  # should print dictionary
 
             # Folding histogram counts for each channel
             for ch in cum_countrate_pulses.keys():  # note: temp only 4, hardcoded for test
@@ -1611,17 +1633,25 @@ class ETA:
 
             #  -------  PROCESS DATA INTO IMAGE: --------
             # NOTE: BELOW IS TEMP FOR TESTING:
-            plt.figure(f'histo at pulse {pulse_nr}')
-            plt.title(f'histo at pulse {pulse_nr}')
-            for ch in cum_countrate_pulses.keys():
-                plt.plot(result[ch], label=ch)
-            plt.legend()
+            # in the current data set, we only have data at the end
+            if (sum(result['h1']) > 0) or (sum(result['h2']) > 0):
+                print("result found")
+                print_temp()
 
+        print('pulse nr x:', result['X'], f'({pulse_nr})')
+
+        plt.figure("final histo")
+        N, bins, bars = plt.hist(bins_i[:-2], bins=bins_i, weights=cum_countrate_pulses['h1'], rwidth=1, align='right')
         plt.show()
         print("Complete with ETA.")
 
 #-----
 
+
+# FIRST VERSION OF ETA (not yet incorporated into GUI)
+#eta = ETA()
+#eta.eta_lifetime_analysis()
+#exit()
 
 demo = True
 gui = GUI()
