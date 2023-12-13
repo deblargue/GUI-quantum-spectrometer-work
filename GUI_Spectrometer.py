@@ -1559,39 +1559,37 @@ class ETA:
 
     def eta_lifetime_analysis(self):  # , const):
 
-        def print_temp():
-            lineplot = False
+        def plot_temp():
+            lineplot = True
             histplot = True
 
             if lineplot:
-                print(pulse_nr, pos)
-                plt.figure(f'TOT histo at pulse {pulse_nr}')
-                plt.title(f'TOT histo at pulse {pulse_nr}')
-                plt.plot(cum_countrate_pulses['h1'], 'c', label='tot h1')
+                #print(pulse_nr, pos)
+                plt.figure(f'Line: Total folded detections after pulse {pulse_nr}')
+                plt.title(f'Lifetime (after {pulse_nr} pulses)')
+                plt.plot(folded_countrate_pulses['h1'], 'c', label='tot h1')
                 plt.plot(result['h1'], 'b', label='res h1')
-                #plt.plot(cum_countrate_pulses['h2'], 'm', label='tot h2')
-                #plt.plot(result['h2'], 'r', label='res h2')
+                plt.xlabel("time [ps]")
+                plt.ylabel("Cumulative detections")
                 plt.legend()
             # ------
 
             if histplot:
-                plt.figure(f'hist TOT histo at pulse {pulse_nr}')
-                plt.title(f'hist TOT histo at pulse {pulse_nr}')
-                N, bins, bars = plt.hist(bins_i[:-2], bins=bins_i, weights=cum_countrate_pulses['h1'], rwidth=0.85, align='right')
+                plt.figure(f'Histo: Total folded detections after pulse {pulse_nr}')
+                plt.title(f'Lifetime (after {pulse_nr} pulses)')
+                N, bins, bars = plt.hist(bins_i[:-2], bins=bins_i, weights=folded_countrate_pulses['h1'], rwidth=0.85, align='right')
                 N, bins, bars = plt.hist(bins_i[:-2], bins=bins_i, weights=result['h1'], rwidth=1, align='right')
+                plt.xlabel("time [ps]")
+                plt.ylabel("Cumulative detections")
 
             plt.show()
 
-        # todo: maybe try with:
-        #timetag_file = 'Data/changed_Testing_ch1_negative_pulse_ch2_positive_pulse.timeres'
-        #eta_recipe = "changed_Lifetime_swabian.eta"
-
         # note: this is temporary, later we might want different recipes and configs
         const = {'eta_format': 1,   # swabian = 1
-                 'eta_recipe':   'temp_spectrometer_4_ch_lifetime.eta',
+                 'eta_recipe':   'lifetime_new_spectrometer_4_ch_lifetime.eta',
                  'timetag_file': 'ToF_terra_10MHz_det2_10.0ms_[2.1, 2.5, -3.2, -4.8]_100x100_231030.timeres',
-                 'bins':    100,   # 500,  # ??? FIXME
-                 'binsize': 5E7,   # 1E9,  # bin width in ps  ??? FIXME
+                 'bins':    5000,
+                 'binsize': 20,     # bin width in ps
                  }
 
         bins_i = np.linspace(0, const['bins']+1, const['bins']+2)  # starting with 8 channels for now
@@ -1600,8 +1598,10 @@ class ETA:
         # --- LOAD RECIPE ---
         eta_engine = self.load_eta(const["eta_recipe"], bins=const["bins"], binsize=const["binsize"])  # NOTE: removed for test
 
+        #self.signal_count()  # temp to check
+
         # ------ETA PROCESSING-----
-        cum_countrate_pulses = {'h1': None, 'h2': None}  # , 'h3': None}  # , 'h4': None}  # to save data the same way it comes in (alternative to countrate list with more flexibility)
+        folded_countrate_pulses = {'h1': None}  # , 'h3': None}  # , 'h4': None}  # to save data the same way it comes in (alternative to countrate list with more flexibility)
 
         pulse_nr = 0
         pos = 0  # 0  # internal ETA tracker (-> maybe tracks position in data list?)
@@ -1624,34 +1624,118 @@ class ETA:
                 pos = result['timetagger1'].get_pos()
 
             # Folding histogram counts for each channel
-            for ch in cum_countrate_pulses.keys():  # note: temp only 4, hardcoded for test
-                if cum_countrate_pulses[ch] is None:
-                    cum_countrate_pulses[ch] = np.array(result[ch])
+            for ch in folded_countrate_pulses.keys():
+                if folded_countrate_pulses[ch] is None:
+                    folded_countrate_pulses[ch] = np.array(result[ch])   # initialize new ch entry
                 else:
-                    cum_countrate_pulses[ch] += np.array(result[ch])   # should add element-wise
-                    # TODO: MAYBE TAKE SOME SORT OF AVERAGE??
+                    folded_countrate_pulses[ch] += np.array(result[ch])
+                    # TODO: MAYBE TAKE SOME SORT OF AVERAGE/NORMALIZATION??
 
             #  -------  PROCESS DATA INTO IMAGE: --------
             # NOTE: BELOW IS TEMP FOR TESTING:
             # in the current data set, we only have data at the end
-            if (sum(result['h1']) > 0) or (sum(result['h2']) > 0):
-                print("result found")
-                print_temp()
+            if sum(result['h1']) > 0:
+                #print("result found")
+                #plot_temp()   # plots
+                pass
 
         print('pulse nr x:', result['X'], f'({pulse_nr})')
 
-        plt.figure("final histo")
-        N, bins, bars = plt.hist(bins_i[:-2], bins=bins_i, weights=cum_countrate_pulses['h1'], rwidth=1, align='right')
+        plt.figure("Folded lifetime histo")
+        # 2700-2900 good values
+        N, bins, bars = plt.hist(bins_i[:-2][2700:2900], bins=bins_i[2700:2900], weights=folded_countrate_pulses['h1'][2700:2900], rwidth=1, align='right')
+        plt.xlabel("time [ps]")
+
+        plt.figure("222 Folded lifetime histo")
+        # 2700-2900 good values
+        plt.plot(folded_countrate_pulses['h1'][2700:2900])
+        #plt.plot(folded_countrate_pulses['h1'])
+        plt.xlabel("time [ps]")
         plt.show()
+
         print("Complete with ETA.")
+
+    def signal_count(self):
+        # ------IMPORTS-----
+        # Packages for ETA backend
+        import json
+        import etabackend.eta  # Available at: https://github.com/timetag/ETA, https://eta.readthedocs.io/en/latest/
+        from pathlib import Path
+
+        def eta_counter_swab(recipe_file, timetag_file, **kwargs):
+            # Load the recipe from seperate ETA file
+            with open(recipe_file, 'r') as filehandle:
+                recipe_obj = json.load(filehandle)
+
+            eta_engine = etabackend.eta.ETA()
+            eta_engine.load_recipe(recipe_obj)
+
+            # Set parameters in the recipe
+            for arg in kwargs:
+                print("Setting", str(kwargs[arg]), "= ", arg)
+                eta_engine.recipe.set_parameter(arg, str(kwargs[arg]))
+
+            eta_engine.load_recipe()
+
+            file = Path(timetag_file)
+            cutfile = eta_engine.clips(filename=file, format=1)
+            result = eta_engine.run({"timetagger1": cutfile},
+                                    group='qutag')  # Runs the time tagging analysis and generates histograms
+
+            # print(f"{2} : {result['c2']}")
+            # print(f"{3} : {result['c3']}")
+
+            if recipe != 'signal_counter.eta':
+
+                plt.figure('(marker) h3 swabian')
+                plt.plot(result['h3'])
+                plt.title("swab histo: markers")
+
+                plt.figure("both qutag")
+                plt.plot(result['h2'], 'b')
+                plt.plot(result['h3'], 'r*')
+                plt.title("qutag histo: both ")
+            else:
+                signals = {0: 'c0', 1: 'c1', 2: 'c2', 3: 'c3', 4: 'c4',
+                           # 5: 'c5', 6: 'c6', 7: 'c7', 8: 'c8',
+                           # 100: 'c100', 101: 'c101', 102: 'c102', 103: 'c103',
+                           # 1001: 'c1001', 1002: 'c1002',
+                           }
+
+                print(f"\n# : counts\n-------")
+                for s in signals:
+                    print(f"{s} : {result[signals[s]]}")
+
+        recipe = 'signal_counter.eta'
+        # recipe = 'temp2_signal_counter.eta'
+        file = 'Data/231102/nr_6_sineFreq(1)_numFrames(3)_sineAmp(0.3)_stepAmp(0.3)_stepDim(100)_date(231102)_time(10h36m17s).timeres'  # not changed
+        # file = 'Data/231102/nr_6_sineFreq(5)_numFrames(3)_sineAmp(0.3)_stepAmp(0.3)_stepDim(100)_date(231102)_time(10h42m27s).timeres'  # not changed
+        # file = 'Data/231102/nr_6_sineFreq(10)_numFrames(3)_sineAmp(0.3)_stepAmp(0.3)_stepDim(100)_date(231102)_time(10h44m15s).timeres'  # not changed
+        file = 'ToF_terra_10MHz_det2_10.0ms_[2.1, 2.5, -3.2, -4.8]_100x100_231030.timeres'
+
+        freq = 1
+        bins = 20000
+        binsize = int(round((1 / (freq * 1e-12)) / bins))
+        eta_counter_swab(recipe, file, binsize=binsize, bins=bins)
+
+        # recipe = 'temp2_signal_counter.eta'
+        # file = 'Data/230927/digit_6_liquid_lens_20mA_steps_5mm_df_sineFreq(10)_numFrames(10)_sineAmp(0.3)_stepAmp(0.3)_stepDim(100)_date(230927)_time(13h15m26s).timeres'  # not changed
+        # eta_counter_qutag(recipe, file)
+
+        plt.show()
+
+        print("\ndone!")
 
 #-----
 
 
 # FIRST VERSION OF ETA (not yet incorporated into GUI)
-#eta = ETA()
-#eta.eta_lifetime_analysis()
-#exit()
+
+
+eta = ETA()
+
+eta.eta_lifetime_analysis()
+exit()
 
 demo = True
 gui = GUI()
