@@ -402,6 +402,9 @@ class GUI:
     def __init__(self):
         self.temp_counter = 0   # REMOVE LATER USED TO TEST HISTO PLOTTING WITH SAMPLE DATA
 
+        self.bins_i, self.folded_countrate_pulses = eta.eta_lifetime_analysis()  # FIXME TEMP HERE BUT HAVE IT UPDATE LIVE MAYBE OR CALL WITH BUTTON
+        self.bins_i = list(np.array(self.bins_i) / 1000)
+
         print('------')
         self.sq = SQControl()
 
@@ -519,8 +522,10 @@ class GUI:
             # TODO: add widgets
 
             #plt_frame = self.plot_lifetime_widget(plots_lifetime)
-            plt_frame = self.plot_seaborn(plots_lifetime)
+            #plt_frame = self.plot_seaborn(plots_lifetime)
+            plt_frame, butt_frame = self.plot_lifetime_widget(plots_lifetime)
             plt_frame.grid(row=2, column=1, columnspan=1, sticky="news", padx=0, pady=0)
+            butt_frame.grid(row=2, column=2, columnspan=1, sticky="news", padx=0, pady=0)
 
             tabControl.add(plots_lifetime, text='Lifetime Plot')
 
@@ -974,12 +979,14 @@ class GUI:
         for idx, val in enumerate(self.cumulative_ch_counts):
             self.pix_counts_list[idx].config(text=f"{int(val)}")
 
+
     def scanning(self):
 
         if self.running:   # if start button is active
             self.get_counts()  # saves data to self.data. note that live graph updates every second using self.data
             self.save_data(mode="a")
         self.root.after(500, self.scanning)  # After 1 second, call scanning
+
 
     def save_data(self, mode):
         data_str = []
@@ -1288,16 +1295,64 @@ class GUI:
     def plot_lifetime_widget(self, tab):
         # TODO:
         # the figure that will contain the plot
-        fig = plt.Figure(figsize=(10, 3), dpi=100)
-        # data list
-        y = []
-        # adding the subplot
-        plot1 = fig.add_subplot(111)
-        # plotting the graph
-        line_b, = plot1.plot([1,2,3], [1,2,3], 'b')  # , marker='o')
+
+        def make_time_scale_button():
+            butt_frame = tk.Frame(tab, relief=tk.RAISED, bd=2)
+
+            tk.Label(butt_frame, text=f'time min').grid(row=0, column=0, sticky="e")
+            tk.Label(butt_frame, text=f'time max').grid(row=0, column=1, sticky="e")
+            tk.Entry(butt_frame, bd=2, textvariable=time_min, width=6).grid(row=1, column=0, sticky="e", padx=0, pady=0)
+            tk.Entry(butt_frame, bd=2, textvariable=time_max, width=6).grid(row=1, column=1, sticky="e", padx=0, pady=0)
+            tk.Button(butt_frame, text="Update", command=update_plot).grid(row=2, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
+            return butt_frame
+
+        def update_plot():
+            fig.clear()
+            plot1 = fig.add_subplot(111)
+
+            ch = 'h1'
+            plot_all = False   # note plotting too many value and trying to interact causes lag
+
+            if plot_all:
+                N, bins, bars = plot1.hist(self.bins_i[:-2], bins=self.bins_i,
+                                           weights=self.folded_countrate_pulses['h1'], rwidth=1, align='left')
+                line_b, = plot1.plot(self.bins_i[:-2], self.folded_countrate_pulses[ch],
+                                     label='c' + ch)  # 2700-2900 good values
+                plot1.set_xlim([time_min.get(), time_max.get()])
+
+            else:
+                # convert time to index??
+                idx_min = int(1000*time_min.get()/eta.const['binsize'])
+                idx_max = int(1000*time_max.get()/eta.const['binsize'])+1   # note: round in case int would have rounded down
+                if idx_min >= idx_max:
+                    time_min.set(time_max.get() - 1)  # note: to ensure the min < max
+                    idx_min = int(1000*time_min.get() / eta.const['binsize'])
+
+                N, bins, bars = plot1.hist(self.bins_i[:-2][idx_min:idx_max+1], bins=self.bins_i[idx_min:idx_max+1], weights=self.folded_countrate_pulses['h1'][idx_min:idx_max+1], rwidth=1, align='left')
+                line_b, = plot1.plot(self.bins_i[idx_min:idx_max], self.folded_countrate_pulses[ch][idx_min:idx_max], label='c' + ch)  # 2700-2900 good values
+
+            plot1.set_xlabel("time [ns]")
+            plot1.set_title("Lifetime")
+            plot1.legend()
+            fig.canvas.draw_idle()   # updates the canvas immediately?
+
+        time_min = tk.DoubleVar(value=50.0)
+        time_max = tk.DoubleVar(value=60.0)
+        fig = plt.figure(figsize=(10, 5), dpi=100)   #??? todo check difference
+
+        """plot1 = fig.add_subplot(111)
+        ch = 'h1'
+        N, bins, bars = plot1.hist(self.bins_i[:-2][2700:2900], bins=self.bins_i[2700:2900], weights=self.folded_countrate_pulses['h1'][2700:2900], rwidth=1, align='left')
+        line_b, = plot1.plot(self.bins_i[2700:2900], self.folded_countrate_pulses[ch][2700:2900], label='c'+ch)  # 2700-2900 good values
+        plot1.set_xlabel("time [ns]")
+        plot1.set_title("Lifetime")
+        plot1.legend()"""
+        update_plot()
 
         plt_frame, canvas = self.pack_plot(tab, fig)
-        return plt_frame
+
+        butt_frm = make_time_scale_button()
+        return plt_frame, butt_frm
 
     def old_plot_3D_lifetime_widget(self, tab):
         # TODO:
@@ -1365,6 +1420,9 @@ class GUI:
 
         from mpl_toolkits.mplot3d import axes3d
 
+        min_idx = 2500
+        max_idx = 3000
+
         fig, ax1 = plt.subplots(1, 1, figsize=(14, 7), subplot_kw={'projection': '3d'})
 
         ax1.set_xlabel("time [ns]")
@@ -1372,18 +1430,21 @@ class GUI:
         ax1.set_zlabel("counts")
         ax1.set_title("Spectrum")
 
-        N = 100  # nuber of data points per lifetime line
-        X = np.linspace(1, 10, N)
+        X = self.bins_i[min_idx:max_idx]   # note: dividing to get in nanoseconds
+        N = len(X)  # number of data points per lifetime line   # FIXME to equal how many bins we have
 
-        nr_ch = 4
+        chs = ['h1', 'h1', 'h1', 'h1']
+        nr_ch = len(chs)
+
+        for i, ch in enumerate(chs):
+            Y = np.ones(N)*int(N/nr_ch)*i                              # which channel we are
+            Z = self.folded_countrate_pulses[ch][min_idx:max_idx]
+            ax1.plot(X, Y, Z, label='c'+ch)  # ax1.plot3D(X, Y, Z)
+
         ax1.set_yticks([int(N/nr_ch)*i for i in range(nr_ch)])
-        ax1.set_yticklabels([f'ch.{j}' for j in range(1, nr_ch+1)])  # note: this will be the amount of channels we are displaying
+        ax1.set_yticklabels([f'ch.{j[1:]}' for j in chs])  # note: this will be the amount of channels we are displaying
 
-        for i in range(nr_ch):
-            Y = np.ones(N)*int(N/nr_ch)*i   # which channel we are
-            Z = np.array([10 - np.log(100*j+1) for j in range(N)])     # life time values
-
-            ax1.plot3D(X, Y, Z)
+        ax1.legend()
 
         ax1.set_title("3d lifetime")
 
@@ -1540,7 +1601,13 @@ class Demo:
 class ETA:
 
     def __init__(self):
-        pass
+        self.const = {
+            'eta_format':   1,   # swabian = 1
+            'eta_recipe':   'lifetime_new_spectrometer_4_ch_lifetime.eta',
+            'timetag_file': 'ToF_terra_10MHz_det2_10.0ms_[2.1, 2.5, -3.2, -4.8]_100x100_231030.timeres',
+            'bins':         5000,
+            'binsize':      20,     # bin width in ps
+            }
 
     def load_eta(self, recipe, **kwargs):
         with open(recipe, 'r') as filehandle:
@@ -1559,46 +1626,11 @@ class ETA:
 
     def eta_lifetime_analysis(self):  # , const):
 
-        def plot_temp():
-            lineplot = True
-            histplot = True
-
-            if lineplot:
-                #print(pulse_nr, pos)
-                plt.figure(f'Line: Total folded detections after pulse {pulse_nr}')
-                plt.title(f'Lifetime (after {pulse_nr} pulses)')
-                plt.plot(folded_countrate_pulses['h1'], 'c', label='tot h1')
-                plt.plot(result['h1'], 'b', label='res h1')
-                plt.xlabel("time [ps]")
-                plt.ylabel("Cumulative detections")
-                plt.legend()
-            # ------
-
-            if histplot:
-                plt.figure(f'Histo: Total folded detections after pulse {pulse_nr}')
-                plt.title(f'Lifetime (after {pulse_nr} pulses)')
-                N, bins, bars = plt.hist(bins_i[:-2], bins=bins_i, weights=folded_countrate_pulses['h1'], rwidth=0.85, align='right')
-                N, bins, bars = plt.hist(bins_i[:-2], bins=bins_i, weights=result['h1'], rwidth=1, align='right')
-                plt.xlabel("time [ps]")
-                plt.ylabel("Cumulative detections")
-
-            plt.show()
-
-        # note: this is temporary, later we might want different recipes and configs
-        const = {'eta_format': 1,   # swabian = 1
-                 'eta_recipe':   'lifetime_new_spectrometer_4_ch_lifetime.eta',
-                 'timetag_file': 'ToF_terra_10MHz_det2_10.0ms_[2.1, 2.5, -3.2, -4.8]_100x100_231030.timeres',
-                 'bins':    5000,
-                 'binsize': 20,     # bin width in ps
-                 }
-
-        bins_i = np.linspace(0, const['bins']+1, const['bins']+2)  # starting with 8 channels for now
-        bins_i *= const['binsize']
+        bins_i = np.linspace(0, self.const['bins']+1, self.const['bins']+2)  # starting with 8 channels for now
+        bins_i *= self.const['binsize']
 
         # --- LOAD RECIPE ---
-        eta_engine = self.load_eta(const["eta_recipe"], bins=const["bins"], binsize=const["binsize"])  # NOTE: removed for test
-
-        #self.signal_count()  # temp to check
+        eta_engine = self.load_eta(self.const["eta_recipe"], bins=self.const["bins"], binsize=self.const["binsize"])  # NOTE: removed for test
 
         # ------ETA PROCESSING-----
         folded_countrate_pulses = {'h1': None}  # , 'h3': None}  # , 'h4': None}  # to save data the same way it comes in (alternative to countrate list with more flexibility)
@@ -1606,8 +1638,8 @@ class ETA:
         pulse_nr = 0
         pos = 0  # 0  # internal ETA tracker (-> maybe tracks position in data list?)
         context = None  # tracks info about ETA logic, so we can extract and process data with breaks (i.e. in parts)
-        eta_format = const["eta_format"]   # eta_engine.FORMAT_SI_16bytes   # swabian = 1
-        file = Path(const["timetag_file"])
+        eta_format = self.const["eta_format"]   # eta_engine.FORMAT_SI_16bytes   # swabian = 1
+        file = Path(self.const["timetag_file"])
 
         while True:
 
@@ -1639,22 +1671,23 @@ class ETA:
                 #plot_temp()   # plots
                 pass
 
-        print('pulse nr x:', result['X'], f'({pulse_nr})')
+        return bins_i, folded_countrate_pulses
 
-        plt.figure("Folded lifetime histo")
-        # 2700-2900 good values
-        N, bins, bars = plt.hist(bins_i[:-2][2700:2900], bins=bins_i[2700:2900], weights=folded_countrate_pulses['h1'][2700:2900], rwidth=1, align='right')
+    def plot_lifetime(self, bins_i, folded_countrate_pulses):
+
+        plt.figure("Folded lifetime histo-plot")
+        N, bins, bars = plt.hist(bins_i[:-2][2700:2900], bins=bins_i[2700:2900],
+                                 weights=folded_countrate_pulses['h1'][2700:2900], rwidth=1, align='right')
         plt.xlabel("time [ps]")
 
-        plt.figure("222 Folded lifetime histo")
-        # 2700-2900 good values
-        plt.plot(folded_countrate_pulses['h1'][2700:2900])
-        #plt.plot(folded_countrate_pulses['h1'])
+        plt.figure("Folded lifetime line-plot")
+        plt.plot(folded_countrate_pulses['h1'][2700:2900])  # 2700-2900 good values
         plt.xlabel("time [ps]")
         plt.show()
 
         print("Complete with ETA.")
 
+    # help function to check how many counts each channel has in the timeres file
     def signal_count(self):
         # ------IMPORTS-----
         # Packages for ETA backend
@@ -1733,10 +1766,6 @@ class ETA:
 
 
 eta = ETA()
-
-eta.eta_lifetime_analysis()
-exit()
-
 demo = True
 gui = GUI()
 try:
