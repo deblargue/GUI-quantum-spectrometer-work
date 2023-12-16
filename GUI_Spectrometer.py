@@ -403,21 +403,8 @@ class GUI:
         self.temp_counter = 0   # REMOVE LATER USED TO TEST HISTO PLOTTING WITH SAMPLE DATA
 
         # FIXME TEMP HERE BUT HAVE IT UPDATE LIVE MAYBE OR CALL WITH BUTTON
-        self.bins_i, self.folded_countrate_pulses = eta.eta_lifetime_analysis()
-        self.bins_i = list(np.array(self.bins_i) / 1000)
-        #self.folded_countrate_pulses = [np.log(x) for x in self.folded_countrate_pulses]
-
-        # FIXME: TEMP TRYING TO GET OTHER TOF DATA FROM ANOTHER TIMETAG FILE
-        self.bins_i_1, self.folded_countrate_pulses_1 = eta.eta_lifetime_analysis(file='timetag_file1')  # FIXME TEMP HERE BUT HAVE IT UPDATE LIVE MAYBE OR CALL WITH BUTTON
-        self.bins_i_1 = list(np.array(self.bins_i_1) / 1000)
-
-        # FIXME: TEMP TRYING TO GET OTHER TOF DATA FROM ANOTHER TIMETAG FILE
-        self.bins_i_2, self.folded_countrate_pulses_2 = eta.eta_lifetime_analysis(file='timetag_file2')  # FIXME TEMP HERE BUT HAVE IT UPDATE LIVE MAYBE OR CALL WITH BUTTON
-        self.bins_i_2 = list(np.array(self.bins_i_2) / 1000)
-
-        # FIXME: TEMP TRYING TO GET OTHER TOF DATA FROM ANOTHER TIMETAG FILE
-        self.bins_i_3, self.folded_countrate_pulses_3 = eta.eta_lifetime_analysis(file='timetag_file3')  # FIXME TEMP HERE BUT HAVE IT UPDATE LIVE MAYBE OR CALL WITH BUTTON
-        self.bins_i_3 = list(np.array(self.bins_i_3) / 1000)
+        self.bins_ps, self.folded_countrate_pulses = eta.eta_lifetime_analysis()
+        self.bins_ns = list(np.array(self.bins_ps) / 1000)  # changing values from picoseconds to nanoseconds
 
         print('------')
         self.sq = SQControl()
@@ -1307,121 +1294,142 @@ class GUI:
         return plt_frame
 
     def plot_lifetime_widget(self, tab):
-        # TODO:
-        # the figure that will contain the plot
 
         def make_time_scale_button():
             butt_frame = tk.Frame(tab, relief=tk.RAISED, bd=2)
 
-            tk.Label(butt_frame, text=f'time min').grid(row=0, column=0, sticky="e")
-            tk.Label(butt_frame, text=f'time max').grid(row=0, column=1, sticky="e")
-            tk.Entry(butt_frame, bd=2, textvariable=time_min, width=6).grid(row=1, column=0, sticky="e", padx=0, pady=0)
-            tk.Entry(butt_frame, bd=2, textvariable=time_max, width=6).grid(row=1, column=1, sticky="e", padx=0, pady=0)
-            tk.Button(butt_frame, text="Update", command=update_plot).grid(row=2, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
+            butt_frame_t = tk.Frame(butt_frame, bd=2)
 
-            tk.Label(butt_frame, text=f'-----').grid(row=3, column=0, columnspan=2, sticky="e")
-            tk.Label(butt_frame, text=f'Show:').grid(row=4, column=0, columnspan=2, sticky="e")
-            tk.Button(butt_frame, text="ch.1", command=lambda: press_hide('h1')).grid(row=5, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
-            tk.Button(butt_frame, text="ch.2", command=lambda: press_hide('h2')).grid(row=6, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
-            tk.Button(butt_frame, text="ch.3", command=lambda: press_hide('h3')).grid(row=7, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
-            tk.Button(butt_frame, text="ch.4", command=lambda: press_hide('h4')).grid(row=8, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
+            tk.Label(butt_frame_t, text=f'Change x lim:').grid(row=0, column=0, columnspan=2, sticky="ew")
+            tk.Label(butt_frame_t, text=f'time min').grid(row=1, column=0, sticky="ew")
+            tk.Label(butt_frame_t, text=f'time max').grid(row=1, column=1, sticky="ew")
+            tk.Entry(butt_frame_t, bd=2, textvariable=time_min, width=6).grid(row=2, column=0, sticky="ew", padx=0, pady=0)
+            tk.Entry(butt_frame_t, bd=2, textvariable=time_max, width=6).grid(row=2, column=1, sticky="ew", padx=0, pady=0)
+            tk.Button(butt_frame_t, text="Update", command=update_plot).grid(row=3, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
+
+            butt_frame_s = tk.Frame(butt_frame, relief=tk.RAISED, bd=2)
+            tk.Label(butt_frame_s, text=f'Toggle show:').grid(row=0, column=0, columnspan=2, sticky="ew")
+
+            self.show_buttons = [
+                tk.Button(butt_frame_s, text=f"ch.1", highlightbackground='green', command=lambda: press_hide(1)),
+                tk.Button(butt_frame_s, text=f"ch.2", highlightbackground='green', command=lambda: press_hide(2)),
+                tk.Button(butt_frame_s, text=f"ch.3", highlightbackground='green', command=lambda: press_hide(3)),
+                tk.Button(butt_frame_s, text=f"ch.4", highlightbackground='green', command=lambda: press_hide(4))]
+
+            for i in range(1, 5):
+                self.show_buttons[i-1].grid(row=i+1, column=0, columnspan=2, sticky="ew", padx=0, pady=0)
+
+            butt_frame_p = tk.Frame(butt_frame, relief=tk.RAISED, bd=2)
+            tk.Label(butt_frame_p, text=f'Plot scale').grid(row=0, column=0, columnspan=2, sticky="ew")
+            self.scale_buttons = {
+                'linear':       tk.Button(butt_frame_p, text="Linear", highlightbackground='green', command=lambda: press_scale_plot('linear')),
+                'histo':        tk.Button(butt_frame_p, text="Linear (histo)", command=lambda: press_scale_plot('histo')),
+                'log':          tk.Button(butt_frame_p, text="Semi-Log", command=lambda: press_scale_plot('log')),
+                'filtered log': tk.Button(butt_frame_p, text="Filtered Semi-Log", command=lambda: press_scale_plot('filtered log'))
+            }
+
+            for i, thing in enumerate(self.scale_buttons.values()):
+                thing.grid(row=i+1, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
+
+            tk.Label(butt_frame_p, text=f'Data Thresh:').grid(row=5, column=0, sticky="w")
+            tk.Entry(butt_frame_p, bd=2, textvariable=filter_thresh, width=6).grid(row=5, column=1, sticky="e", padx=0, pady=0)
+
+            butt_frame_t.grid(row=0, column=0, sticky="news")
+            butt_frame_s.grid(row=1, column=0, sticky="news")
+            butt_frame_p.grid(row=2, column=0, sticky="news")
+
             return butt_frame
 
         def press_hide(ch):
-            if ch in self.ch_show:
-                self.ch_show.remove(ch)
+            if self.ch_show[f'h{ch}']:
+                self.ch_show[f'h{ch}'] = False
+                c = 'white'
             else:
-                self.ch_show.append(ch)
-            print(self.ch_show)
+                self.ch_show[f'h{ch}'] = True
+                c = 'green'
+
+            self.show_buttons[ch-1].config(highlightbackground=c)
+
             update_plot()
             pass
 
-        def normalize_list(data):
-            max_l = max(data)
-            print(max_l)
-            #return list(np.array(data)/max_l)   # normalized
-            return data
+        def press_scale_plot(scale):
+            for type in self.scale_buttons.keys():
+                if type == scale:
+                    c = 'green'
+                else:
+                    c = 'white'
+                self.scale_buttons[type].config(highlightbackground=c)
 
-        def update_plot():
+            update_plot(scale)
+
+        def update_plot(scale=''):
+
+            if scale == '':
+                scale = plot_mode.get()
+            else:
+                plot_mode.set(scale)
+
             fig.clear()
             plot1 = fig.add_subplot(111)
-            plot_all = True   # note plotting too many value and trying to interact causes lag
-            ch = 'h1'
+            plot_all = False   # note plotting too many value and trying to interact causes lag
 
-            butt_test = True
+            b = self.bins_ns
+            x = b[:-2]
 
-            if butt_test:
-                print(len(self.ch_show), "<= 4 ??")
-                for thing in self.ch_show:
+            if time_min.get() >= time_max.get():
+                time_min.set(time_max.get() - 1)  # note: to ensure the min < max
 
-                    if thing == 'h1':
-                        # N, bins, bars = plot1.hist(self.bins_i[:-2], bins=self.bins_i, weights=self.folded_countrate_pulses['h1'], rwidth=1, align='left')
-                        line_b, = plot1.semilogy(self.bins_i[:-2], normalize_list(self.folded_countrate_pulses['h1']), label='c' + ch)  # 2700-2900 good values
-                    elif thing == 'h2':
-                        # note extra data
-                        # N1, bins1, bars1 = plot1.hist(self.bins_i_1[:-2], bins=self.bins_i_1, weights=self.folded_countrate_pulses_1['h1'], rwidth=1, align='left')
-                        line_b1, = plot1.semilogy(self.bins_i_1[:-2], normalize_list(self.folded_countrate_pulses_1['h1']), label='ch2 (extra)')  # 2700-2900 good values
-                    elif thing == 'h3':
-                        # note extra data
-                        # N1, bins1, bars1 = plot1.hist(self.bins_i_2[:-2], bins=self.bins_i_2, weights=self.folded_countrate_pulses_2['h1'], rwidth=1, align='left')
-                        line_b1, = plot1.semilogy(self.bins_i_2[:-2], normalize_list(self.folded_countrate_pulses_2['h1']), label='ch3 (extra)')  # 2700-2900 good values
-                    elif thing == 'h4':
-                        # note extra data
-                        # N1, bins1, bars1 = plot1.hist(self.bins_i_3[:-2], bins=self.bins_i_3, weights=self.folded_countrate_pulses_3['h1'], rwidth=1, align='left')
-                        line_b1, = plot1.semilogy(self.bins_i_3[:-2], normalize_list(self.folded_countrate_pulses_3['h1']), label='ch4 (extra)')  # 2700-2900
-
-            elif plot_all:
-                #N, bins, bars = plot1.hist(self.bins_i[:-2], bins=self.bins_i, weights=self.folded_countrate_pulses['h1'], rwidth=1, align='left')
-                line_b, = plot1.plot(self.bins_i[:-2], normalize_list(self.folded_countrate_pulses[ch]), label='c' + ch)  # 2700-2900 good values
-
-                # note extra data
-                #N1, bins1, bars1 = plot1.hist(self.bins_i_1[:-2], bins=self.bins_i_1, weights=self.folded_countrate_pulses_1['h1'], rwidth=1, align='left')
-                line_b1, = plot1.plot(self.bins_i_1[:-2], normalize_list(self.folded_countrate_pulses_1[ch]), label='ch2 (extra)')  # 2700-2900 good values
-                # note extra data
-                #N1, bins1, bars1 = plot1.hist(self.bins_i_2[:-2], bins=self.bins_i_2, weights=self.folded_countrate_pulses_2['h1'], rwidth=1, align='left')
-                line_b1, = plot1.plot(self.bins_i_2[:-2], normalize_list(self.folded_countrate_pulses_2[ch]), label='ch3 (extra)')  # 2700-2900 good values
-                # note extra data
-                #N1, bins1, bars1 = plot1.hist(self.bins_i_3[:-2], bins=self.bins_i_3, weights=self.folded_countrate_pulses_3['h1'], rwidth=1, align='left')
-                line_b1, = plot1.plot(self.bins_i_3[:-2], normalize_list(self.folded_countrate_pulses_3[ch]), label='ch4 (extra)')  # 2700-2900 good values
-
-                plot1.set_xlim([time_min.get(), time_max.get()])
-
+            if plot_all:
+                idx_min = 0
+                idx_max = -1
             else:
                 # convert time to index??
                 idx_min = int(1000*time_min.get()/eta.const['binsize'])
                 idx_max = int(1000*time_max.get()/eta.const['binsize'])+1   # note: round in case int would have rounded down
+
                 if idx_min >= idx_max:
                     time_min.set(time_max.get() - 1)  # note: to ensure the min < max
                     idx_min = int(1000*time_min.get() / eta.const['binsize'])
 
-                N, bins, bars = plot1.hist(self.bins_i[:-2][idx_min:idx_max+1], bins=self.bins_i[idx_min:idx_max+1], weights=self.folded_countrate_pulses['h1'][idx_min:idx_max+1], rwidth=1, align='left')
-                line_b, = plot1.plot(self.bins_i[idx_min:idx_max], self.folded_countrate_pulses[ch][idx_min:idx_max], label='c' + ch)  # 2700-2900 good values
+            for i, thing in enumerate(self.ch_show.keys()):
+                if self.ch_show[thing] is False:
+                    continue   # doesn't plot when hidden
 
-                # note extra data
-                N, bins, bars = plot1.hist(self.bins_i_1[:-2][idx_min:idx_max+1], bins=self.bins_i_1[idx_min:idx_max+1], weights=self.folded_countrate_pulses_1['h1'][idx_min:idx_max+1], rwidth=1, align='left')
-                line_b, = plot1.plot(self.bins_i_1[idx_min:idx_max], self.folded_countrate_pulses_1[ch][idx_min:idx_max], label='ch2 (extra)')  # 2700-2900 good values
-                # note extra data
-                #N, bins, bars = plot1.hist(self.bins_i_2[:-2][idx_min:idx_max+1], bins=self.bins_i_2[idx_min:idx_max+1], weights=self.folded_countrate_pulses_2['h1'][idx_min:idx_max+1], rwidth=1, align='left')
-                #line_b, = plot1.plot(self.bins_i_2[idx_min:idx_max], self.folded_countrate_pulses_2[ch][idx_min:idx_max], label='ch3 (extra)')  # 2700-2900 good values
-                # note extra data
-                #N, bins, bars = plot1.hist(self.bins_i_3[:-2][idx_min:idx_max+1], bins=self.bins_i_3[idx_min:idx_max+1], weights=self.folded_countrate_pulses_3['h1'][idx_min:idx_max+1], rwidth=1, align='left')
-                #line_b, = plot1.plot(self.bins_i_3[idx_min:idx_max], self.folded_countrate_pulses_3[ch][idx_min:idx_max], label='ch4 (extra)')  # 2700-2900 good values
+                y = self.folded_countrate_pulses[thing]
 
+                if scale == 'linear':
+                    line_b, = plot1.plot(x[idx_min:idx_max], y[idx_min:idx_max], label='c' + thing, c=['red', 'orange', 'green', 'blue'][i%4])
+                elif scale == 'log':
+                    line_b, = plot1.semilogy(x[idx_min:idx_max], y[idx_min:idx_max], label='c' + thing, c=['red', 'orange', 'green', 'blue'][i%4])
+                elif scale == 'filtered log':
+                    noise = filter_thresh.get()
+                    f_y = np.array(y[idx_min:idx_max])
+                    f_y[f_y < noise] = 1  # filtering noise set at 2000
+                    f_y = list(f_y)
+                    line_b, = plot1.semilogy(x[idx_min:idx_max], f_y, label='c' + thing, c=['red', 'orange', 'green', 'blue'][i%4])
+                elif scale == 'histo':
+                    N, bins, bars = plot1.hist(x[idx_min:idx_max], bins=b[idx_min:idx_max], weights=y[idx_min:idx_max], rwidth=1, align='left')
+
+
+            plot1.set_xlim([time_min.get(), time_max.get()])
             plot1.set_xlabel("time [ns]")
             plot1.set_title("Lifetime")
             plot1.legend()
             fig.canvas.draw_idle()   # updates the canvas immediately?
 
-        self.ch_show = ['h1', 'h2', 'h3', 'h4']
-        time_min = tk.DoubleVar(value=50.0)
+        self.ch_show = {'h1': True, 'h2': True, 'h3': True, 'h4': True}
+        time_min = tk.DoubleVar(value=30.0)
         time_max = tk.DoubleVar(value=60.0)
-        fig = plt.figure(figsize=(10, 5), dpi=100)   #??? todo check difference
+        filter_thresh = tk.DoubleVar(value=2000.0)
+        plot_mode = tk.StringVar(value="linear")
+        self.show_buttons = []
 
+        fig = plt.figure(figsize=(12, 5), dpi=100)   #??? todo check difference
         update_plot()
-
         plt_frame, canvas = self.pack_plot(tab, fig)
-
         butt_frm = make_time_scale_button()
+
         return plt_frame, butt_frm
 
     def old_plot_3D_lifetime_widget(self, tab):
@@ -1500,41 +1508,21 @@ class GUI:
         ax1.set_zlabel("counts")
         ax1.set_title("Spectrum")
 
-        X = self.bins_i[min_idx:max_idx]   # note: dividing to get in nanoseconds
+        # x, bins shared data for all channels
+        b = self.bins_ns
+        x = b[:-2]
+
+        X = x[min_idx:max_idx]   # note: dividing to get in nanoseconds
         N = len(X)  # number of data points per lifetime line   # FIXME to equal how many bins we have
 
         chs = ['h1', 'h2', 'h3', 'h4']
         nr_ch = len(chs)
 
+        Y = np.ones(N) * int(N / nr_ch)
+
         for i, ch in enumerate(chs):   # NOTE: TEMP SOLUTION
-            if ch == 'h1':
-                Y = np.ones(N)*int(N/nr_ch)*i                              # which channel we are
-                Z = self.folded_countrate_pulses[ch][min_idx:max_idx]
-                ax1.plot(X, Y, Z, label='c'+ch)  # ax1.plot3D(X, Y, Z)
-
-            elif ch == 'h2':
-                # NOTE: temporary data from other file
-                X1 = self.bins_i_1[min_idx:max_idx]
-                N1 = len(X1)
-                Y1 = np.ones(N1) * int(N1 / nr_ch) * i  # which channel we are
-                Z1 = self.folded_countrate_pulses_1['h1'][min_idx:max_idx]
-                ax1.plot(X1, Y1, Z1, label='c' + ch)  # ax1.plot3D(X, Y, Z)
-
-            elif ch == 'h3':
-                # NOTE: temporary data from other file
-                X1 = self.bins_i_2[min_idx:max_idx]
-                N1 = len(X1)
-                Y1 = np.ones(N1) * int(N1 / nr_ch) * i  # which channel we are
-                Z1 = self.folded_countrate_pulses_2['h1'][min_idx:max_idx]
-                ax1.plot(X1, Y1, Z1, label='c' + ch)  # ax1.plot3D(X, Y, Z)
-
-            elif ch == 'h4':
-                # NOTE: temporary data from other file
-                X1 = self.bins_i_3[min_idx:max_idx]
-                N1 = len(X1)
-                Y1 = np.ones(N1) * int(N1 / nr_ch) * i  # which channel we are
-                Z1 = self.folded_countrate_pulses_3['h1'][min_idx:max_idx]
-                ax1.plot(X1, Y1, Z1, label='c' + ch)  # ax1.plot3D(X, Y, Z)
+            Z = self.folded_countrate_pulses[ch][min_idx:max_idx]
+            ax1.plot(X, Y*i, Z, label='c'+ch)  # ax1.plot3D(X, Y, Z)
 
         ax1.set_yticks([int(N/nr_ch)*i for i in range(nr_ch)])
         ax1.set_yticklabels([f'ch.{j[1:]}' for j in chs])  # note: this will be the amount of channels we are displaying
@@ -1699,10 +1687,12 @@ class ETA:
         self.const = {
             'eta_format':   1,   # swabian = 1
             'eta_recipe':   'lifetime_new_spectrometer_4_ch_lifetime.eta',
-            'timetag_file':  'ToF_terra_10MHz_det2_10.0ms_[2.1, 2.5, -3.2, -4.8]_100x100_231030.timeres',
-            'timetag_file1': 'ToF_terra_10MHz_det1_5.0ms_[2.1, 2, -3.2, -4.8]_100x100_231027.timeres',   # NOTE: temp second datafile for testing # FIXME
-            'timetag_file2': 'ToF_terra_10MHz_det2_1.0ms_[2.1, 3.9, -3.2, -4.8]_100x100_231102.timeres',
-            'timetag_file3': 'ToF_terra_10MHz_det2_0.1ms_[2.1, 3.9, -3.2, -4.8]_100x100_231102.timeres',
+            'timetag_file':  ['ToF_terra_10MHz_det2_10.0ms_[2.1, 2.5, -3.2, -4.8]_100x100_231030.timeres',
+                              'ToF_terra_10MHz_det1_5.0ms_[2.1, 2, -3.2, -4.8]_100x100_231027.timeres',
+                              'ToF_terra_10MHz_det2_1.0ms_[2.1, 3.9, -3.2, -4.8]_100x100_231102.timeres',
+                              'ToF_terra_10MHz_det2_0.5ms_[2.1, 3.9, -3.2, -4.8]_100x100_231102.timeres',
+                              #'ToF_terra_10MHz_det2_0.1ms_[2.1, 3.9, -3.2, -4.8]_100x100_231102.timeres'
+                              ],   # NOTE: temporary while we have diff data files
             'bins':         5000,
             'binsize':      20,     # bin width in ps
             }
@@ -1722,52 +1712,50 @@ class ETA:
         print("\nRecipe loaded!")
         return eta_engine
 
-    def eta_lifetime_analysis(self, file='timetag_file'):  # , const):
-
-        bins_i = np.linspace(0, self.const['bins']+1, self.const['bins']+2)  # starting with 8 channels for now
-        bins_i *= self.const['binsize']
+    def eta_lifetime_analysis(self):  # , const):
 
         # --- LOAD RECIPE ---
         eta_engine = self.load_eta(self.const["eta_recipe"], bins=self.const["bins"], binsize=self.const["binsize"])  # NOTE: removed for test
 
-        # ------ETA PROCESSING-----
-        folded_countrate_pulses = {'h1': None}  # , 'h3': None}  # , 'h4': None}  # to save data the same way it comes in (alternative to countrate list with more flexibility)
+        # note: bins will be the same for all data channels
+        bins_i = np.linspace(0, self.const['bins']+1, self.const['bins']+2)  # starting with 8 channels for now
+        bins_i *= self.const['binsize']
 
-        pulse_nr = 0
-        pos = 0  # 0  # internal ETA tracker (-> maybe tracks position in data list?)
-        context = None  # tracks info about ETA logic, so we can extract and process data with breaks (i.e. in parts)
-        eta_format = self.const["eta_format"]   # eta_engine.FORMAT_SI_16bytes   # swabian = 1
-        file = Path(self.const[file])
+        channels = ['h1', 'h2', 'h3', 'h4']
+        # fixme: we need to make sure that the channels matches what we have in the result dict
+        folded_countrate_pulses = dict([(c, np.zeros(self.const['bins'])) for c in channels])
 
-        while True:
+        for i, ch in enumerate(channels):  # note temp have to do it separately
 
-            # Extract histograms from eta
-            file_clips = eta_engine.clips(filename=file, seek_event=pos, format=eta_format)
-            result, context = eta_engine.run({"timetagger1": file_clips}, resume_task=context, return_task=True, group='qutag', max_autofeed=1)
+            # ------ETA PROCESSING OF ONE TIMERES FILE-----
 
-            # Check if we've run out of data, otherwise update position
-            if result['timetagger1'].get_pos() == pos:  # or (pos is None):
-                print("no remaining data to extract at pulse", result['X'], f'({pulse_nr}), at pos: {pos}')
-                break
-            else:
-                pulse_nr += 1
-                pos = result['timetagger1'].get_pos()
+            pulse_nr = 0
+            pos = 0  # 0  # internal ETA tracker (-> maybe tracks position in data list?)
+            context = None  # tracks info about ETA logic, so we can extract and process data with breaks (i.e. in parts)
+            eta_format = self.const["eta_format"]   # eta_engine.FORMAT_SI_16bytes   # swabian = 1
+            file = Path(self.const['timetag_file'][i])
 
-            # Folding histogram counts for each channel
-            for ch in folded_countrate_pulses.keys():
-                if folded_countrate_pulses[ch] is None:
-                    folded_countrate_pulses[ch] = np.array(result[ch])   # initialize new ch entry
+            while True:
+
+                # Extract histograms from eta
+                file_clips = eta_engine.clips(filename=file, seek_event=pos, format=eta_format)
+                result, context = eta_engine.run({"timetagger1": file_clips}, resume_task=context, return_task=True, group='qutag', max_autofeed=1)
+
+                # Check if we've run out of data, otherwise update position
+                if result['timetagger1'].get_pos() == pos:  # or (pos is None):
+                    #print("no remaining data to extract at pulse", result['X'], f'({pulse_nr}), at pos: {pos}')
+                    break
                 else:
-                    folded_countrate_pulses[ch] += np.array(result[ch])
-                    # TODO: MAYBE TAKE SOME SORT OF AVERAGE/NORMALIZATION??
+                    pulse_nr += 1
+                    pos = result['timetagger1'].get_pos()
 
-            #  -------  PROCESS DATA INTO IMAGE: --------
-            # NOTE: BELOW IS TEMP FOR TESTING:
-            # in the current data set, we only have data at the end
-            if sum(result['h1']) > 0:
-                #print("result found")
-                #plot_temp()   # plots
-                pass
+                # Folding histogram counts for each channel:
+
+                #for ch in folded_countrate_pulses.keys():  # <--- NOTE: this is when we have a single data file with multiple channels
+                    #folded_countrate_pulses[channel] += np.array(result[channel])
+
+                # NOTE: TEMP WHILE WE ONLY HAVE ONE CHANNEL PER DATA FILE (remove later and use above lines)
+                folded_countrate_pulses[ch] += np.array(result['h1'])
 
         return bins_i, folded_countrate_pulses
 
