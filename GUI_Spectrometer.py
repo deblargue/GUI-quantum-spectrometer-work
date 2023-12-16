@@ -405,6 +405,7 @@ class GUI:
         # FIXME TEMP HERE BUT HAVE IT UPDATE LIVE MAYBE OR CALL WITH BUTTON
         self.bins_i, self.folded_countrate_pulses = eta.eta_lifetime_analysis()
         self.bins_i = list(np.array(self.bins_i) / 1000)
+        #self.folded_countrate_pulses = [np.log(x) for x in self.folded_countrate_pulses]
 
         # FIXME: TEMP TRYING TO GET OTHER TOF DATA FROM ANOTHER TIMETAG FILE
         self.bins_i_1, self.folded_countrate_pulses_1 = eta.eta_lifetime_analysis(file='timetag_file1')  # FIXME TEMP HERE BUT HAVE IT UPDATE LIVE MAYBE OR CALL WITH BUTTON
@@ -1317,7 +1318,23 @@ class GUI:
             tk.Entry(butt_frame, bd=2, textvariable=time_min, width=6).grid(row=1, column=0, sticky="e", padx=0, pady=0)
             tk.Entry(butt_frame, bd=2, textvariable=time_max, width=6).grid(row=1, column=1, sticky="e", padx=0, pady=0)
             tk.Button(butt_frame, text="Update", command=update_plot).grid(row=2, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
+
+            tk.Label(butt_frame, text=f'-----').grid(row=3, column=0, columnspan=2, sticky="e")
+            tk.Label(butt_frame, text=f'Show:').grid(row=4, column=0, columnspan=2, sticky="e")
+            tk.Button(butt_frame, text="ch.1", command=lambda: press_hide('h1')).grid(row=5, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
+            tk.Button(butt_frame, text="ch.2", command=lambda: press_hide('h2')).grid(row=6, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
+            tk.Button(butt_frame, text="ch.3", command=lambda: press_hide('h3')).grid(row=7, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
+            tk.Button(butt_frame, text="ch.4", command=lambda: press_hide('h4')).grid(row=8, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
             return butt_frame
+
+        def press_hide(ch):
+            if ch in self.ch_show:
+                self.ch_show.remove(ch)
+            else:
+                self.ch_show.append(ch)
+            print(self.ch_show)
+            update_plot()
+            pass
 
         def normalize_list(data):
             max_l = max(data)
@@ -1331,7 +1348,29 @@ class GUI:
             plot_all = True   # note plotting too many value and trying to interact causes lag
             ch = 'h1'
 
-            if plot_all:
+            butt_test = True
+
+            if butt_test:
+                print(len(self.ch_show), "<= 4 ??")
+                for thing in self.ch_show:
+
+                    if thing == 'h1':
+                        # N, bins, bars = plot1.hist(self.bins_i[:-2], bins=self.bins_i, weights=self.folded_countrate_pulses['h1'], rwidth=1, align='left')
+                        line_b, = plot1.semilogy(self.bins_i[:-2], normalize_list(self.folded_countrate_pulses['h1']), label='c' + ch)  # 2700-2900 good values
+                    elif thing == 'h2':
+                        # note extra data
+                        # N1, bins1, bars1 = plot1.hist(self.bins_i_1[:-2], bins=self.bins_i_1, weights=self.folded_countrate_pulses_1['h1'], rwidth=1, align='left')
+                        line_b1, = plot1.semilogy(self.bins_i_1[:-2], normalize_list(self.folded_countrate_pulses_1['h1']), label='ch2 (extra)')  # 2700-2900 good values
+                    elif thing == 'h3':
+                        # note extra data
+                        # N1, bins1, bars1 = plot1.hist(self.bins_i_2[:-2], bins=self.bins_i_2, weights=self.folded_countrate_pulses_2['h1'], rwidth=1, align='left')
+                        line_b1, = plot1.semilogy(self.bins_i_2[:-2], normalize_list(self.folded_countrate_pulses_2['h1']), label='ch3 (extra)')  # 2700-2900 good values
+                    elif thing == 'h4':
+                        # note extra data
+                        # N1, bins1, bars1 = plot1.hist(self.bins_i_3[:-2], bins=self.bins_i_3, weights=self.folded_countrate_pulses_3['h1'], rwidth=1, align='left')
+                        line_b1, = plot1.semilogy(self.bins_i_3[:-2], normalize_list(self.folded_countrate_pulses_3['h1']), label='ch4 (extra)')  # 2700-2900
+
+            elif plot_all:
                 #N, bins, bars = plot1.hist(self.bins_i[:-2], bins=self.bins_i, weights=self.folded_countrate_pulses['h1'], rwidth=1, align='left')
                 line_b, = plot1.plot(self.bins_i[:-2], normalize_list(self.folded_countrate_pulses[ch]), label='c' + ch)  # 2700-2900 good values
 
@@ -1373,6 +1412,7 @@ class GUI:
             plot1.legend()
             fig.canvas.draw_idle()   # updates the canvas immediately?
 
+        self.ch_show = ['h1', 'h2', 'h3', 'h4']
         time_min = tk.DoubleVar(value=50.0)
         time_max = tk.DoubleVar(value=60.0)
         fig = plt.figure(figsize=(10, 5), dpi=100)   #??? todo check difference
@@ -1450,7 +1490,7 @@ class GUI:
 
         from mpl_toolkits.mplot3d import axes3d
 
-        min_idx = 500
+        min_idx = 1000
         max_idx = 3000
 
         fig, ax1 = plt.subplots(1, 1, figsize=(14, 7), subplot_kw={'projection': '3d'})
