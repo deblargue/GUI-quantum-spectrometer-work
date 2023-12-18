@@ -1313,9 +1313,13 @@ class GUI:
                 tk.Button(butt_frame_s, text=f"ch.1", highlightbackground='green', command=lambda: press_hide(1)),
                 tk.Button(butt_frame_s, text=f"ch.2", highlightbackground='green', command=lambda: press_hide(2)),
                 tk.Button(butt_frame_s, text=f"ch.3", highlightbackground='green', command=lambda: press_hide(3)),
-                tk.Button(butt_frame_s, text=f"ch.4", highlightbackground='green', command=lambda: press_hide(4))]
+                tk.Button(butt_frame_s, text=f"ch.4", highlightbackground='green', command=lambda: press_hide(4)),
+                tk.Label(butt_frame_s, text="Range:"),
+                tk.Entry(butt_frame_s, bd=2, textvariable=range_list, width=6),
+                tk.Button(butt_frame_s, text=f"Update range", highlightbackground='white', command=range_show),
+            ]
 
-            for i in range(1, 5):
+            for i in range(1, 8):
                 self.show_buttons[i-1].grid(row=i+1, column=0, columnspan=2, sticky="ew", padx=0, pady=0)
 
             butt_frame_p = tk.Frame(butt_frame, relief=tk.RAISED, bd=2)
@@ -1333,8 +1337,6 @@ class GUI:
                 else:
                     thing.grid(row=i+1, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
 
-            #tk.Label(butt_frame_p, text=f'y min (semilog):').grid(row=5, column=0, sticky="w")
-            #tk.Entry(butt_frame_p, bd=2, textvariable=filter_thresh, width=6).grid(row=5, column=1, sticky="e", padx=0, pady=0)
             tk.Entry(butt_frame_p, bd=2, textvariable=filter_thresh, width=6).grid(row=4, column=1, sticky="e", padx=0, pady=0)
 
             butt_frame_t.grid(row=0, column=0, sticky="news")
@@ -1355,6 +1357,66 @@ class GUI:
 
             update_plot()
             pass
+
+        def range_show():
+
+            range_is_ok_bool = True
+
+            range_str = range_list.get()
+            range_str_list = range_str.split(sep=',')
+            range_str_list_list = [x.split('-') for x in range_str_list]
+            range_list_int = [[eval(x.strip(' ')) for x in pair] for pair in range_str_list_list]
+            print("final range list", range_list_int)
+
+            for i in range(len(range_list_int)-1):
+
+                if len(range_list_int[i]) < 2:
+                    print("note single value")
+                    continue
+                # check if ranges overlap:    1-6, 4-8, 9-99
+                elif range_list_int[i][1] >= range_list_int[i+1][0]:
+                    print(f"Error: overlap, {range_list_int[i][1]} >= {range_list_int[i + 1][0]}")
+                    range_is_ok_bool = False
+                else:
+                    pass
+                    #print(f"OK i={i}, {range_list_int[i][1]} < {range_list_int[i + 1][0]}")
+
+            # check if any channels are invalid
+            min_ch = 1
+            max_ch = 4
+            for i in range(len(range_list_int)):
+                if len(range_list_int[i]) == 0:
+                    range_is_ok_bool = False
+                elif len(range_list_int[i]) < 2:
+                    print("note single value")
+                    if (range_list_int[i][0] < min_ch) or (range_list_int[i][0] > max_ch):
+                        range_is_ok_bool = False
+                elif range_list_int[i][0] >= range_list_int[i][1]:
+                    print("error: not increasing range")
+                    range_is_ok_bool = False
+                elif (range_list_int[i][0] < min_ch) or (range_list_int[i][1] > max_ch):
+                    print("error: channel in range is out of range")
+                    range_is_ok_bool = False
+
+            if range_is_ok_bool:  # if not errors!
+                print("Range if good, ok to plot")
+
+                # start by setting all to false
+                for key in self.ch_show.keys():
+                    self.ch_show[key] = False
+
+                # set true for channels given in range
+                for pair in range_list_int:
+                    if len(pair) == 1:
+                        self.ch_show[f'h{pair[0]}'] = True
+                    elif len(pair) == 2:
+                        for idx in range(pair[0], pair[1]+1):
+                            self.ch_show[f'h{idx}'] = True
+                print("SHOW DICT: ", self.ch_show)
+                update_plot()
+
+
+
 
         def press_scale_plot(scale):
             for type in self.scale_buttons.keys():
@@ -1423,6 +1485,7 @@ class GUI:
         time_min = tk.DoubleVar(value=30.0)
         time_max = tk.DoubleVar(value=60.0)
         filter_thresh = tk.DoubleVar(value=1000.0)
+        range_list = tk.StringVar(value="1-4")
         plot_mode = tk.StringVar(value="linear")
         self.show_buttons = []
 
@@ -1768,6 +1831,10 @@ class ETA:
                     folded_countrate_pulses[ch] += np.array(result['h1'])/10  # note temp, this is because this data was too large
                 else:
                     folded_countrate_pulses[ch] += np.array(result['h1'])
+                    #folded_countrate_pulses['h1'] += np.array(result['h1'])
+                    #folded_countrate_pulses['h2'] += np.array(result['h2'])
+                    #folded_countrate_pulses['h3'] += np.array(result['h3'])
+                    #folded_countrate_pulses['h4'] += np.array(result['h4'])
 
         return bins_i, folded_countrate_pulses
 
