@@ -1300,9 +1300,8 @@ class GUI:
 
             butt_frame_t = tk.Frame(butt_frame, bd=2)
 
-            tk.Label(butt_frame_t, text=f'Change x lim:').grid(row=0, column=0, columnspan=2, sticky="ew")
-            tk.Label(butt_frame_t, text=f'time min').grid(row=1, column=0, sticky="ew")
-            tk.Label(butt_frame_t, text=f'time max').grid(row=1, column=1, sticky="ew")
+            tk.Label(butt_frame_t, text=f'x min').grid(row=1, column=0, sticky="ew")
+            tk.Label(butt_frame_t, text=f'x max').grid(row=1, column=1, sticky="ew")
             tk.Entry(butt_frame_t, bd=2, textvariable=time_min, width=6).grid(row=2, column=0, sticky="ew", padx=0, pady=0)
             tk.Entry(butt_frame_t, bd=2, textvariable=time_max, width=6).grid(row=2, column=1, sticky="ew", padx=0, pady=0)
             tk.Button(butt_frame_t, text="Update", command=update_plot).grid(row=3, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
@@ -1325,14 +1324,18 @@ class GUI:
                 'linear':       tk.Button(butt_frame_p, text="Linear", highlightbackground='green', command=lambda: press_scale_plot('linear')),
                 'histo':        tk.Button(butt_frame_p, text="Linear (histo)", command=lambda: press_scale_plot('histo')),
                 'log':          tk.Button(butt_frame_p, text="Semi-Log", command=lambda: press_scale_plot('log')),
-                'filtered log': tk.Button(butt_frame_p, text="Filtered Semi-Log", command=lambda: press_scale_plot('filtered log'))
+                'filtered log': tk.Button(butt_frame_p, text="Semi-Log. ymin=", command=lambda: press_scale_plot('filtered log'))
             }
 
             for i, thing in enumerate(self.scale_buttons.values()):
-                thing.grid(row=i+1, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
+                if i == 3:  # filtered semilog
+                    thing.grid(row=i + 1, column=0, sticky="ew", padx=0, pady=0)
+                else:
+                    thing.grid(row=i+1, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
 
-            tk.Label(butt_frame_p, text=f'Data Thresh:').grid(row=5, column=0, sticky="w")
-            tk.Entry(butt_frame_p, bd=2, textvariable=filter_thresh, width=6).grid(row=5, column=1, sticky="e", padx=0, pady=0)
+            #tk.Label(butt_frame_p, text=f'y min (semilog):').grid(row=5, column=0, sticky="w")
+            #tk.Entry(butt_frame_p, bd=2, textvariable=filter_thresh, width=6).grid(row=5, column=1, sticky="e", padx=0, pady=0)
+            tk.Entry(butt_frame_p, bd=2, textvariable=filter_thresh, width=6).grid(row=4, column=1, sticky="e", padx=0, pady=0)
 
             butt_frame_t.grid(row=0, column=0, sticky="news")
             butt_frame_s.grid(row=1, column=0, sticky="news")
@@ -1403,17 +1406,15 @@ class GUI:
                 elif scale == 'log':
                     line_b, = plot1.semilogy(x[idx_min:idx_max], y[idx_min:idx_max], label='c' + thing, c=['red', 'orange', 'green', 'blue'][i%4])
                 elif scale == 'filtered log':
-                    noise = filter_thresh.get()
-                    f_y = np.array(y[idx_min:idx_max])
-                    f_y[f_y < noise] = 1  # filtering noise set at 2000
-                    f_y = list(f_y)
-                    line_b, = plot1.semilogy(x[idx_min:idx_max], f_y, label='c' + thing, c=['red', 'orange', 'green', 'blue'][i%4])
+                    #f_y[f_y < filter_thresh.get()] = 1  # filtering noise set at 2000
+                    #f_y = list(f_y)
+                    line_b, = plot1.semilogy(x[idx_min:idx_max], y[idx_min:idx_max], label='c' + thing, c=['red', 'orange', 'green', 'blue'][i%4])
+                    plot1.set_ylim(bottom=filter_thresh.get())
                 elif scale == 'histo':
                     N, bins, bars = plot1.hist(x[idx_min:idx_max], bins=b[idx_min:idx_max], weights=y[idx_min:idx_max], rwidth=1, align='left')
 
-
             plot1.set_xlim([time_min.get(), time_max.get()])
-            plot1.set_xlabel("time [ns]")
+            plot1.set_xlabel("lifetime [ns]")
             plot1.set_title("Lifetime")
             plot1.legend()
             fig.canvas.draw_idle()   # updates the canvas immediately?
@@ -1421,7 +1422,7 @@ class GUI:
         self.ch_show = {'h1': True, 'h2': True, 'h3': True, 'h4': True}
         time_min = tk.DoubleVar(value=30.0)
         time_max = tk.DoubleVar(value=60.0)
-        filter_thresh = tk.DoubleVar(value=2000.0)
+        filter_thresh = tk.DoubleVar(value=1000.0)
         plot_mode = tk.StringVar(value="linear")
         self.show_buttons = []
 
@@ -1687,11 +1688,13 @@ class ETA:
         self.const = {
             'eta_format':   1,   # swabian = 1
             'eta_recipe':   'lifetime_new_spectrometer_4_ch_lifetime.eta',
+            'eta_recipe2':   'lifetime_det1_spectrometer_tof.eta',
             'timetag_file':  ['ToF_terra_10MHz_det2_10.0ms_[2.1, 2.5, -3.2, -4.8]_100x100_231030.timeres',
-                              'ToF_terra_10MHz_det1_5.0ms_[2.1, 2, -3.2, -4.8]_100x100_231027.timeres',
                               'ToF_terra_10MHz_det2_1.0ms_[2.1, 3.9, -3.2, -4.8]_100x100_231102.timeres',
                               'ToF_terra_10MHz_det2_0.5ms_[2.1, 3.9, -3.2, -4.8]_100x100_231102.timeres',
+                              'ToF_terra_10MHz_det1_5.0ms_[2.1, 2, -3.2, -4.8]_100x100_231027.timeres',
                               #'ToF_terra_10MHz_det2_0.1ms_[2.1, 3.9, -3.2, -4.8]_100x100_231102.timeres'
+                              # 'ToF_terra_10MHz_det2_0.1ms_[2.1, 3.9, -3.2, -4.8]_400x400_231102.timeres',
                               ],   # NOTE: temporary while we have diff data files
             'bins':         5000,
             'binsize':      20,     # bin width in ps
@@ -1725,7 +1728,13 @@ class ETA:
         # fixme: we need to make sure that the channels matches what we have in the result dict
         folded_countrate_pulses = dict([(c, np.zeros(self.const['bins'])) for c in channels])
 
+
         for i, ch in enumerate(channels):  # note temp have to do it separately
+            # NOTE: TRYING SOMETHING
+            if 'det1' in self.const['timetag_file'][i]:
+                print("OTHER RECIPE USED")
+                #'ToF_terra_10MHz_det1_5.0ms_[2.1, 2, -3.2, -4.8]_100x100_231027.timeres'
+                eta_engine = self.load_eta(self.const["eta_recipe2"], bins=self.const["bins"], binsize=self.const["binsize"])  # NOTE: removed for test
 
             # ------ETA PROCESSING OF ONE TIMERES FILE-----
 
@@ -1755,7 +1764,10 @@ class ETA:
                     #folded_countrate_pulses[channel] += np.array(result[channel])
 
                 # NOTE: TEMP WHILE WE ONLY HAVE ONE CHANNEL PER DATA FILE (remove later and use above lines)
-                folded_countrate_pulses[ch] += np.array(result['h1'])
+                if 'det1' in self.const['timetag_file'][i]:
+                    folded_countrate_pulses[ch] += np.array(result['h1'])/10  # note temp, this is because this data was too large
+                else:
+                    folded_countrate_pulses[ch] += np.array(result['h1'])
 
         return bins_i, folded_countrate_pulses
 
