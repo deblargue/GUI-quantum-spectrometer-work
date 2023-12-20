@@ -554,6 +554,13 @@ class GUI:
         tabControl = ttk.Notebook(self.root)
         # Create and add tabs to notebook:
 
+        # NOTE: TEMP LIDAR:
+        #plots_lidar_3d, plots_lidar = lid.plot_lidar_tab(tab=tabControl)
+        #tabControl.add(plots_lidar_3d, text='3D Lidar Plot')
+        #tabControl.add(plots_lidar, text='Lidar Plots')
+
+        # ---- END TEMP LIDAR-----
+
         plot_lifetime_tab()   # note: temp moved to front for testing
         plot_3d_lifetime_tab()
 
@@ -1300,27 +1307,24 @@ class GUI:
 
             butt_frame_t = tk.Frame(butt_frame, bd=2)
 
-            tk.Label(butt_frame_t, text=f'x min').grid(row=1, column=0, sticky="ew")
-            tk.Label(butt_frame_t, text=f'x max').grid(row=1, column=1, sticky="ew")
-            tk.Entry(butt_frame_t, bd=2, textvariable=time_min, width=6).grid(row=2, column=0, sticky="ew", padx=0, pady=0)
-            tk.Entry(butt_frame_t, bd=2, textvariable=time_max, width=6).grid(row=2, column=1, sticky="ew", padx=0, pady=0)
-            tk.Button(butt_frame_t, text="Update", command=update_plot).grid(row=3, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
+            tk.Label(butt_frame_t, text=f'min').grid(row=1, column=1, sticky="ew")
+            tk.Label(butt_frame_t, text=f'max').grid(row=1, column=2, sticky="ew")
+
+            tk.Label(butt_frame_t, text=f'X').grid(row=2, column=0, sticky="ew")
+            tk.Entry(butt_frame_t, bd=2, textvariable=time_min, width=6).grid(row=2, column=1, sticky="ew", padx=0, pady=0)
+            tk.Entry(butt_frame_t, bd=2, textvariable=time_max, width=6).grid(row=2, column=2, sticky="ew", padx=0, pady=0)
+
+            tk.Label(butt_frame_t, text=f'Y').grid(row=3, column=0, sticky="ew")
+            tk.Entry(butt_frame_t, bd=2, textvariable=cnt_min, width=6).grid(row=3, column=1, sticky="ew", padx=0, pady=0)
+            tk.Entry(butt_frame_t, bd=2, textvariable=cnt_max, width=6).grid(row=3, column=2, sticky="ew", padx=0, pady=0)
+
+            tk.Button(butt_frame_t, text="Update", command=update_plot).grid(row=4, column=0, columnspan=3, sticky="ew", padx=0,  pady=0)
 
             butt_frame_s = tk.Frame(butt_frame, relief=tk.RAISED, bd=2)
-            tk.Label(butt_frame_s, text=f'Toggle show:').grid(row=0, column=0, columnspan=2, sticky="ew")
 
-            self.show_buttons = [
-                tk.Button(butt_frame_s, text=f"ch.1", highlightbackground='green', command=lambda: press_hide(1)),
-                tk.Button(butt_frame_s, text=f"ch.2", highlightbackground='green', command=lambda: press_hide(2)),
-                tk.Button(butt_frame_s, text=f"ch.3", highlightbackground='green', command=lambda: press_hide(3)),
-                tk.Button(butt_frame_s, text=f"ch.4", highlightbackground='green', command=lambda: press_hide(4)),
-                tk.Label(butt_frame_s, text="Range:"),
-                tk.Entry(butt_frame_s, bd=2, textvariable=range_list, width=6),
-                tk.Button(butt_frame_s, text=f"Update range", highlightbackground='white', command=range_show),
-            ]
-
-            for i in range(1, 8):
-                self.show_buttons[i-1].grid(row=i+1, column=0, columnspan=2, sticky="ew", padx=0, pady=0)
+            tk.Label(butt_frame_s, text="Show Channels:").grid(row=2, column=0, columnspan=2, sticky="ew", padx=0, pady=0)
+            tk.Entry(butt_frame_s, bd=2, textvariable=range_list, width=6).grid(row=3, column=0, columnspan=1, sticky="ew", padx=0, pady=0)
+            tk.Button(butt_frame_s, text=f"Update range", highlightbackground='white', command=range_show).grid(row=3, column=1, columnspan=1, sticky="ew", padx=0, pady=0)
 
             butt_frame_p = tk.Frame(butt_frame, relief=tk.RAISED, bd=2)
             tk.Label(butt_frame_p, text=f'Plot scale').grid(row=0, column=0, columnspan=2, sticky="ew")
@@ -1328,7 +1332,6 @@ class GUI:
                 'linear':       tk.Button(butt_frame_p, text="Linear", highlightbackground='green', command=lambda: press_scale_plot('linear')),
                 'histo':        tk.Button(butt_frame_p, text="Linear (histo)", command=lambda: press_scale_plot('histo')),
                 'log':          tk.Button(butt_frame_p, text="Semi-Log", command=lambda: press_scale_plot('log')),
-                'filtered log': tk.Button(butt_frame_p, text="Semi-Log. ymin=", command=lambda: press_scale_plot('filtered log'))
             }
 
             for i, thing in enumerate(self.scale_buttons.values()):
@@ -1337,26 +1340,11 @@ class GUI:
                 else:
                     thing.grid(row=i+1, column=0, columnspan=2, sticky="ew", padx=0,  pady=0)
 
-            tk.Entry(butt_frame_p, bd=2, textvariable=filter_thresh, width=6).grid(row=4, column=1, sticky="e", padx=0, pady=0)
-
             butt_frame_t.grid(row=0, column=0, sticky="news")
             butt_frame_s.grid(row=1, column=0, sticky="news")
             butt_frame_p.grid(row=2, column=0, sticky="news")
 
             return butt_frame
-
-        def press_hide(ch):
-            if self.ch_show[f'h{ch}']:
-                self.ch_show[f'h{ch}'] = False
-                c = 'white'
-            else:
-                self.ch_show[f'h{ch}'] = True
-                c = 'green'
-
-            self.show_buttons[ch-1].config(highlightbackground=c)
-
-            update_plot()
-            pass
 
         def range_show():
 
@@ -1415,9 +1403,6 @@ class GUI:
                 print("SHOW DICT: ", self.ch_show)
                 update_plot()
 
-
-
-
         def press_scale_plot(scale):
             for type in self.scale_buttons.keys():
                 if type == scale:
@@ -1468,24 +1453,28 @@ class GUI:
                 elif scale == 'log':
                     line_b, = plot1.semilogy(x[idx_min:idx_max], y[idx_min:idx_max], label='c' + thing, c=['red', 'orange', 'green', 'blue'][i%4])
                 elif scale == 'filtered log':
-                    #f_y[f_y < filter_thresh.get()] = 1  # filtering noise set at 2000
-                    #f_y = list(f_y)
+                    #y[y < 0] = np.nan  # bumping up all 0's to avoid negative inf at 0 counts
+                    #y = list(y)
+                    cnt_min.set(1.0)
                     line_b, = plot1.semilogy(x[idx_min:idx_max], y[idx_min:idx_max], label='c' + thing, c=['red', 'orange', 'green', 'blue'][i%4])
-                    plot1.set_ylim(bottom=filter_thresh.get())
                 elif scale == 'histo':
                     N, bins, bars = plot1.hist(x[idx_min:idx_max], bins=b[idx_min:idx_max], weights=y[idx_min:idx_max], rwidth=1, align='left')
 
             plot1.set_xlim([time_min.get(), time_max.get()])
+            plot1.set_ylim([cnt_min.get(), cnt_max.get()])
             plot1.set_xlabel("lifetime [ns]")
             plot1.set_title("Lifetime")
+
             plot1.legend()
             fig.canvas.draw_idle()   # updates the canvas immediately?
 
         self.ch_show = {'h1': True, 'h2': True, 'h3': True, 'h4': True}
         time_min = tk.DoubleVar(value=30.0)
-        time_max = tk.DoubleVar(value=60.0)
-        filter_thresh = tk.DoubleVar(value=1000.0)
-        range_list = tk.StringVar(value="1-4")
+        time_max = tk.DoubleVar(value=100.0)
+        cnt_min = tk.DoubleVar(value=0.0)
+        cnt_max = tk.DoubleVar(value=6000.0)
+
+        range_list = tk.StringVar(value="2, 3")
         plot_mode = tk.StringVar(value="linear")
         self.show_buttons = []
 
@@ -1749,18 +1738,11 @@ class ETA:
 
     def __init__(self):
         self.const = {
-            'eta_format':   1,   # swabian = 1
-            'eta_recipe':   'lifetime_new_spectrometer_4_ch_lifetime.eta',
-            'eta_recipe2':   'lifetime_det1_spectrometer_tof.eta',
-            'timetag_file':  ['ToF_terra_10MHz_det2_10.0ms_[2.1, 2.5, -3.2, -4.8]_100x100_231030.timeres',
-                              'ToF_terra_10MHz_det2_1.0ms_[2.1, 3.9, -3.2, -4.8]_100x100_231102.timeres',
-                              'ToF_terra_10MHz_det2_0.5ms_[2.1, 3.9, -3.2, -4.8]_100x100_231102.timeres',
-                              'ToF_terra_10MHz_det1_5.0ms_[2.1, 2, -3.2, -4.8]_100x100_231027.timeres',
-                              #'ToF_terra_10MHz_det2_0.1ms_[2.1, 3.9, -3.2, -4.8]_100x100_231102.timeres'
-                              # 'ToF_terra_10MHz_det2_0.1ms_[2.1, 3.9, -3.2, -4.8]_400x400_231102.timeres',
-                              ],   # NOTE: temporary while we have diff data files
-            'bins':         5000,
-            'binsize':      20,     # bin width in ps
+            'eta_format':    1,      # swabian = 1
+            'eta_recipe':   'THEO_CODE/3D_2_channels_tof_swabian_marker_ch4.eta',   # 'lifetime_new_spectrometer_4_ch_lifetime.eta',
+            'timetag_file': 'ToF_Duck_10MHz_det1_det2_5.0ms_[2.1, 3.9, -3.2, -4.8]_100x100_231220.timeres',
+            'bins':          5000,
+            'binsize':       20,     # bin width in ps
             }
 
     def load_eta(self, recipe, **kwargs):
@@ -1785,72 +1767,37 @@ class ETA:
 
         # note: bins will be the same for all data channels
         bins_i = np.linspace(0, self.const['bins']+1, self.const['bins']+2)  # starting with 8 channels for now
-        bins_i *= self.const['binsize']
+        times_i = bins_i * self.const['binsize']   # time list in ps  (for one histogram)
 
         channels = ['h1', 'h2', 'h3', 'h4']
         # fixme: we need to make sure that the channels matches what we have in the result dict
         folded_countrate_pulses = dict([(c, np.zeros(self.const['bins'])) for c in channels])
 
+        # ------ETA PROCESSING OF ONE TIMERES FILE-----
 
-        for i, ch in enumerate(channels):  # note temp have to do it separately
-            # NOTE: TRYING SOMETHING
-            if 'det1' in self.const['timetag_file'][i]:
-                print("OTHER RECIPE USED")
-                #'ToF_terra_10MHz_det1_5.0ms_[2.1, 2, -3.2, -4.8]_100x100_231027.timeres'
-                eta_engine = self.load_eta(self.const["eta_recipe2"], bins=self.const["bins"], binsize=self.const["binsize"])  # NOTE: removed for test
+        pulse_nr = 0
+        pos = 0  # 0  # internal ETA tracker (-> maybe tracks position in data list?)
+        context = None  # tracks info about ETA logic, so we can extract and process data with breaks (i.e. in parts)
+        eta_format = self.const["eta_format"]   # eta_engine.FORMAT_SI_16bytes   # swabian = 1
+        file = Path(self.const['timetag_file'])
 
-            # ------ETA PROCESSING OF ONE TIMERES FILE-----
+        while True:
+            # Extract histograms from eta
+            file_clips = eta_engine.clips(filename=file, seek_event=pos, format=eta_format)
+            result, context = eta_engine.run({"timetagger1": file_clips}, resume_task=context, return_task=True, group='quTAG', max_autofeed=1)
 
-            pulse_nr = 0
-            pos = 0  # 0  # internal ETA tracker (-> maybe tracks position in data list?)
-            context = None  # tracks info about ETA logic, so we can extract and process data with breaks (i.e. in parts)
-            eta_format = self.const["eta_format"]   # eta_engine.FORMAT_SI_16bytes   # swabian = 1
-            file = Path(self.const['timetag_file'][i])
+            # Check if we've run out of data, otherwise update position
+            if result['timetagger1'].get_pos() == pos:  # or (pos is None):
+                break
+            else:
+                pulse_nr += 1
+                pos = result['timetagger1'].get_pos()
 
-            while True:
+            # Folding histogram counts for each channel:
+            for c in channels:
+                folded_countrate_pulses[c] += np.array(result[c])
 
-                # Extract histograms from eta
-                file_clips = eta_engine.clips(filename=file, seek_event=pos, format=eta_format)
-                result, context = eta_engine.run({"timetagger1": file_clips}, resume_task=context, return_task=True, group='qutag', max_autofeed=1)
-
-                # Check if we've run out of data, otherwise update position
-                if result['timetagger1'].get_pos() == pos:  # or (pos is None):
-                    #print("no remaining data to extract at pulse", result['X'], f'({pulse_nr}), at pos: {pos}')
-                    break
-                else:
-                    pulse_nr += 1
-                    pos = result['timetagger1'].get_pos()
-
-                # Folding histogram counts for each channel:
-
-                #for ch in folded_countrate_pulses.keys():  # <--- NOTE: this is when we have a single data file with multiple channels
-                    #folded_countrate_pulses[channel] += np.array(result[channel])
-
-                # NOTE: TEMP WHILE WE ONLY HAVE ONE CHANNEL PER DATA FILE (remove later and use above lines)
-                if 'det1' in self.const['timetag_file'][i]:
-                    folded_countrate_pulses[ch] += np.array(result['h1'])/10  # note temp, this is because this data was too large
-                else:
-                    folded_countrate_pulses[ch] += np.array(result['h1'])
-                    #folded_countrate_pulses['h1'] += np.array(result['h1'])
-                    #folded_countrate_pulses['h2'] += np.array(result['h2'])
-                    #folded_countrate_pulses['h3'] += np.array(result['h3'])
-                    #folded_countrate_pulses['h4'] += np.array(result['h4'])
-
-        return bins_i, folded_countrate_pulses
-
-    def plot_lifetime(self, bins_i, folded_countrate_pulses):
-
-        plt.figure("Folded lifetime histo-plot")
-        N, bins, bars = plt.hist(bins_i[:-2][2700:2900], bins=bins_i[2700:2900],
-                                 weights=folded_countrate_pulses['h1'][2700:2900], rwidth=1, align='right')
-        plt.xlabel("time [ps]")
-
-        plt.figure("Folded lifetime line-plot")
-        plt.plot(folded_countrate_pulses['h1'][2700:2900])  # 2700-2900 good values
-        plt.xlabel("time [ps]")
-        plt.show()
-
-        print("Complete with ETA.")
+        return times_i, folded_countrate_pulses
 
     # help function to check how many counts each channel has in the timeres file
     def signal_count(self):
@@ -1930,6 +1877,8 @@ class ETA:
 # FIRST VERSION OF ETA (not yet incorporated into GUI)
 
 
+# ----- temp testing 3d lidar -----
+
 eta = ETA()
 demo = True
 gui = GUI()
@@ -1939,7 +1888,7 @@ try:
 
 except KeyboardInterrupt:
     print("ERROR: PROGRAM INTERRUPTED EARLY.")
-    #gui.close()  # Close all external connections
+    # gui.close()  # Close all external connections
     raise
 
 except SystemExit:
@@ -1959,6 +1908,7 @@ finally:
     gui.close()  # Close all external connections
 
 
+
 """
     Value   |   ETA Constant/Name        |      Format for Device
     -----------------------------------------------------------------
@@ -1970,3 +1920,10 @@ finally:
     5           eta.FORMAT_BH_spc_4bytes        Becker & Hickl SPC-134/144/154/830
     6           eta.FORMAT_ET_A033              Eventech ET A033
 """
+
+
+
+
+
+
+
