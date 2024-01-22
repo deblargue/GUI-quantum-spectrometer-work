@@ -456,6 +456,15 @@ class GUI:
             'folder_name': {'var': tk.StringVar(),       'type': 'str entry', 'default': '',  'value': ['~/Desktop/GUI/Data1', '~/Desktop/GUI/Data2', '~/Desktop/GUI/Data3']},
             'eta_recipe':  {'var': tk.StringVar(),       'type': 'str entry', 'default': '',  'value': ['~/Desktop/GUI/Recipe/gui_recipe_1.eta', '~/Desktop/GUI/Recipe/gui_recipe_2.eta', '~/Desktop/GUI/Recipe/gui_recipe_3.eta']},
         }
+        self.load_params = {
+            'grating':     {'var': tk.IntVar(value=1),   'type': 'radio',     'default': 1,   'value': [1, 2, 3]},
+            'nm':          {'var': tk.IntVar(value=600), 'type': 'int entry', 'default': 350, 'value': [350, 650, 750]},
+            'width_nm':    {'var': tk.IntVar(value=1),   'type': 'int entry', 'default': 10,  'value': [5, 15, 30]},
+            'slit':        {'var': tk.IntVar(value=10),  'type': 'int entry', 'default': 10,  'value': [10, 20, 30]},
+            'nr_pixels':   {'var': tk.IntVar(value=8),   'type': 'int entry', 'default': 8,   'value': [3, 8, 12]},
+            'file_name':   {'var': tk.StringVar(value="..."), 'type': 'str entry', 'default': '...',  'value': ['butterfly.timeres', 'frog.timeres', 'sheep.timeres']},
+            'eta_recipe':  {'var': tk.StringVar(value="..."), 'type': 'str entry', 'default': '...',  'value': ['~/Desktop/GUI/Recipe/gui_recipe_1.eta', '~/Desktop/GUI/Recipe/gui_recipe_2.eta', '~/Desktop/GUI/Recipe/gui_recipe_3.eta']},
+        }
         self.ch_bias_list = []
         self.ch_trig_list = []
         self.ch_nm_bin_edges = []  # TODO
@@ -470,8 +479,8 @@ class GUI:
 
     def init_fill_tabs(self):
 
-        def scan_tab():
-            new_scan_tab = ttk.Frame(tabControl)
+        def scan_tab(new_scan_tab):
+            #new_scan_tab = ttk.Frame(tab)
 
             # ---- Start new scan TAB ----  NOTE this should include settings and prep
             start_tab = tk.Frame(new_scan_tab, relief=tk.RAISED, bd=2)   # frame to gather things to communicate with devices
@@ -494,10 +503,30 @@ class GUI:
             self.widgets['send_conf_button'].grid(row=1, column=1, sticky="news", padx=0, pady=0)  # in sub frame
             self.widgets['start_scan_button'].grid(row=1, column=2, sticky="news", padx=0, pady=0)  # in sub frame
 
-            tabControl.add(new_scan_tab, text='New Scan')
+            #tabControl.add(new_scan_tab, text='New Scan')
 
-        def plot_spectrum_tab():
-            plots_spectrum = ttk.Frame(tabControl)
+        def loadscan_tab(new_scan_tab):
+
+            # ---- Start new scan TAB ----  NOTE this should include settings and prep
+            start_tab = tk.Frame(new_scan_tab, relief=tk.RAISED, bd=2)   # frame to gather things to communicate with devices
+            start_tab.grid(row=0, column=1, columnspan=1, sticky="news", padx=0, pady=0)
+
+            self.widgets['load_live_spectrum'], button_frame = self.plot_live_histo(new_scan_tab)
+            self.widgets['load_live_spectrum'].grid(row=2, column=1, columnspan=1, sticky="news", padx=0, pady=0)
+            button_frame.grid(row=2, column=2, columnspan=1, sticky="news", padx=0, pady=0)
+
+            # sub frame:
+            self.widgets['load_file_config'] = self.choose_file_load_configs_widget(start_tab)
+            self.widgets['load_file_config'].grid(row=1, column=0, sticky="news", padx=0, pady=0)  # in sub frame
+
+            self.widgets['load_start_scan_button'] = self.start_scan_widget(start_tab)  # button to send cofigs
+            self.widgets['load_start_scan_button'].grid(row=1, column=2, sticky="news", padx=0, pady=0)  # in sub frame
+
+            tk.Label(start_tab, text='Settings', font=('', 15)).grid(row=0, column=0, columnspan=4, sticky="news", padx=0, pady=0)
+
+
+        def plot_spectrum_tab(tab):
+            plots_spectrum = ttk.Frame(tab)
 
             plt_frame, button_frame = self.plot_spectrum_widget(plots_spectrum)
             self.widgets['plot_spectrum_1'] = plt_frame
@@ -511,13 +540,15 @@ class GUI:
 
             tabControl.add(plots_spectrum, text='Spectrum Plot')
 
-        def plot_correlation_tab():
-            plots_correlation = ttk.Frame(tabControl)
+        def plot_correlation_tab(plots_correlation):
+            #plots_correlation = ttk.Frame(tab)
             # TODO: add widgets
-            tabControl.add(plots_correlation, text='Correlation Plot')
+            pass
+            #tabControl.add(plots_correlation, text='Correlation Plot')
 
-        def plot_lifetime_tab():
-            plots_lifetime = ttk.Frame(tabControl)
+        def plot_lifetime_tab(plots_lifetime):
+            #plots_lifetime = ttk.Frame(tab)
+            #tabControl.add(plots_lifetime, text='Lifetime Plot')
             # TODO: add widgets
 
             #plt_frame = self.plot_lifetime_widget(plots_lifetime)
@@ -526,31 +557,96 @@ class GUI:
             plt_frame.grid(row=2, column=1, columnspan=1, sticky="news", padx=0, pady=0)
             butt_frame.grid(row=2, column=2, columnspan=1, sticky="news", padx=0, pady=0)
 
-            tabControl.add(plots_lifetime, text='Lifetime Plot')
-
-        def plot_3d_lifetime_tab():
-            plots_3d_lifetime = ttk.Frame(tabControl)
+        def plot_3d_lifetime_tab(plots_3d_lifetime):
+            #plots_3d_lifetime = ttk.Frame(tab)
+            #tabControl.add(plots_3d_lifetime, text='3D Lifetime Plot')
             # TODO: add widgets
 
             plt_frame = self.plot_3D_lifetime_widget(plots_3d_lifetime)
             plt_frame.grid(row=2, column=1, columnspan=1, sticky="news", padx=0, pady=0)
 
-            tabControl.add(plots_3d_lifetime, text='3D Lifetime Plot')
+        def try_newscan():
+            term = ttk.Frame(tabControl)  # create frame widget to go in program nb
+            tabControl.add(term, text='New Scan')  # add the newly created frame widget to the program notebook
+            nbName = ttk.Notebook(term)  # Create the notebooks to go in each of the terms frames
+            nbName.pack(anchor='w')  # pack the notebook
+
+            course = ttk.Frame(nbName)  # Create a course frame for the newly created term frame for each iter
+            nbName.add(course, text=f'  Acquisition')
+
+            course = ttk.Frame(nbName)  # Create a course frame for the newly created term frame for each iter
+            nbName.add(course, text=f'  Lifetime')
+
+            course = ttk.Frame(nbName)  # Create a course frame for the newly created term frame for each iter
+            nbName.add(course, text=f'  3D Lifetime')
+
+            course = ttk.Frame(nbName)  # Create a course frame for the newly created term frame for each iter
+            nbName.add(course, text=f'  Correlation')
+
+        def try_loadscan():
+
+            term = ttk.Frame(tabControl)  # create frame widget to go in program nb
+            tabControl.add(term, text='Load Scan')  # add the newly created frame widget to the program notebook
+            nbName = ttk.Notebook(term)  # Create the notebooks to go in each of the terms frames
+            nbName.pack(anchor='w')  # pack the notebook
+
+            course = ttk.Frame(nbName)  # Create a course frame for the newly created term frame for each iter
+            nbName.add(course, text=f'Acquisition')
+            loadscan_tab(course)
+
+            course = ttk.Frame(nbName)  # Create a course frame for the newly created term frame for each iter
+            nbName.add(course, text=f'Lifetime')
+            plot_lifetime_tab(course)   # note: temp moved to front for testing
+
+            course = ttk.Frame(nbName)  # Create a course frame for the newly created term frame for each iter
+            nbName.add(course, text=f'3D Lifetime')
+            plot_3d_lifetime_tab(course)
+
+            course = ttk.Frame(nbName)  # Create a course frame for the newly created term frame for each iter
+            nbName.add(course, text=f'Correlation')
+            plot_correlation_tab(course)
+
+            #course = ttk.Frame(nbName)  # Create a course frame for the newly created term frame for each iter
+            #nbName.add(course, text=f'* Spectrum')
+            #plot_spectrum_tab(course)   # note: currently hiding this unless we want to being it back
 
         def settings_tab():  # FIXME
             settings_tab = ttk.Frame(tabControl)
             # TODO: add widgets
             tabControl.add(settings_tab, text='Settings')
 
+        #col_not_selected = '#cedfe8'
+        #col_selected = "#6da0bb"
+
+        white = '#e7e7e9'
+        lilac = '#bebed6'
+        coral = '#ecdedb'
+        skyblue = '#d5ddea'
+
         style1 = ttk.Style()
         style1.theme_create("style1", parent="alt", settings={
-            "TNotebook": {"configure": {"tabmargins": [0, 0, 0, 0]}},
-            "TNotebook.Tab": {"configure": {"padding": [10, 10], "font": ('garamond', '11', 'bold')}, }})
+            "TNotebook":
+                {"configure": {"tabmargins": [0, 0, 0, 0]}},
+
+            "TNotebook.Tab":
+                {
+                    "configure": {
+                        "padding": [10, 10],
+                        "background": white,
+                        "font": ('garamond', '11', 'bold')},
+                    "map":  {
+                        "background": [("selected", lilac), ('!active', white), ('active', coral)],
+                        "expand": [("selected", [1, 1, 1, 0])]}}})
+
         style1.theme_use("style1")
 
         # Create notebook for multi tab window:
         tabControl = ttk.Notebook(self.root)
-        # Create and add tabs to notebook:
+        tabControl.pack(expand=1, fill="both")
+
+        try_loadscan()
+        try_newscan()
+        settings_tab()
 
         # NOTE: TEMP LIDAR:
         #plots_lidar_3d, plots_lidar = lid.plot_lidar_tab(tab=tabControl)
@@ -558,18 +654,6 @@ class GUI:
         #tabControl.add(plots_lidar, text='Lidar Plots')
 
         # ---- END TEMP LIDAR-----
-
-        plot_lifetime_tab()   # note: temp moved to front for testing
-        plot_3d_lifetime_tab()
-
-        scan_tab()
-        # plot_spectrum_tab()   # note: currently hiding this unless we want to being it back
-        plot_correlation_tab()
-        settings_tab()
-
-        # Pack all tabs in notebook to window:
-        tabControl.pack(expand=1, fill="both")
-
     @staticmethod
     def add_to_grid(widg, rows, cols, sticky, columnspan=None):
         for i in range(len(widg)):
@@ -785,6 +869,7 @@ class GUI:
         return frm_test
 
     def suggest_filename(self, entry):
+        entry.delete(0, tk.END)
         currDate = date.today().strftime("%y%m%d")
         currTime = time.strftime("%Hh%Mm%Ss", time.localtime())
         temp = f"slit({self.params['slit']['var'].get()})_" \
@@ -793,23 +878,22 @@ class GUI:
                f"pixels({self.params['nr_pixels']['var'].get()})_" \
                f"date({currDate})_time({currTime}).timeres"
         self.params['file_name']['var'].set(temp)
-        entry.delete(0, tk.END)
         entry.insert(0, temp)
 
     def choose_file_configs_widget(self, tab):
 
-        def get_recipe():
-            self.params['eta_recipe']['var'].set(askopenfilename(filetypes=[("ETA recipe", "*.eta")]) )
-            file_entry[2].delete(0, tk.END)
-            file_entry[2].insert(0, self.params['eta_recipe']['var'].get())
-
-        def get_folder():
-            self.params['folder_name']['var'].set(askdirectory())
-            file_entry[1].delete(0, tk.END)
-            file_entry[1].insert(0, self.params['folder_name']['var'].get())
-
         def suggest_name():
             self.suggest_filename(file_entry[0])
+
+        def get_folder():
+            file_entry[1].delete(0, tk.END)
+            self.params['folder_name']['var'].set(askdirectory())
+            file_entry[1].insert(0, self.params['folder_name']['var'].get())
+
+        def get_recipe():
+            file_entry[2].delete(0, tk.END)
+            self.params['eta_recipe']['var'].set(askopenfilename(filetypes=[("ETA recipe", "*.eta")]) )
+            file_entry[2].insert(0, self.params['eta_recipe']['var'].get())
 
         frm_misc = tk.Frame(tab, relief=tk.RAISED, bd=2)
 
@@ -829,6 +913,38 @@ class GUI:
         self.add_to_grid(widg=file_lab_parts, rows=[1,2,3], cols=[0,0,0], sticky=["ew","ew","ew","ew"])
         self.add_to_grid(widg=file_entry, rows=[1,2,3], cols=[1,1,1], sticky=["ew", "ew", "ew"])
         self.add_to_grid(widg=file_buts, rows=[1,2,3], cols=[2,2,2], sticky=["ew", "ew", "ew"])
+
+        return frm_misc
+
+    def choose_file_load_configs_widget(self, tab):
+
+        def get_file():
+            file_entry.delete(0, tk.END)
+            self.load_params['file_name']['var'].set(askopenfilename(filetypes=[("Timeres datafile", "*.timeres")]))
+            file_entry.insert(0, self.load_params['file_name']['var'].get())
+
+        def get_recipe():
+            recipe_entry.delete(0, tk.END)
+            self.load_params['eta_recipe']['var'].set(askopenfilename(filetypes=[("ETA recipe", "*.eta")]))
+            recipe_entry.insert(0, self.load_params['eta_recipe']['var'].get())
+
+        frm_misc = tk.Frame(tab, relief=tk.RAISED, bd=2)
+
+        file_lab_parts = [
+            tk.Label(frm_misc, text='Datafile'),
+            tk.Label(frm_misc, text='ETA recipe')]
+
+        file_entry = tk.Entry(frm_misc, bd=2, textvariable=self.load_params['file_name']['var'], width=20)
+        recipe_entry = tk.Entry(frm_misc, bd=2, textvariable=self.load_params['eta_recipe']['var'], width=20)
+
+        file_buts = [
+            tk.Button(frm_misc, text="Choose File", command=get_file, activeforeground='blue', highlightbackground=self.button_color),
+            tk.Button(frm_misc, text="Choose File", command=get_recipe, activeforeground='blue', highlightbackground=self.button_color)]
+
+        tk.Label(frm_misc, text="Analysis Configs").grid(row=0, column=0, columnspan=2, sticky="ew", padx=0, pady=0)
+        self.add_to_grid(widg=file_lab_parts, rows=[1,2], cols=[0,0], sticky=["ew","ew"])
+        self.add_to_grid(widg=[file_entry, recipe_entry], rows=[1,2], cols=[1,1], sticky=["ew", "ew"])
+        self.add_to_grid(widg=file_buts, rows=[1,2], cols=[2,2], sticky=["ew", "ew"])
 
         return frm_misc
 
@@ -985,14 +1101,12 @@ class GUI:
         for idx, val in enumerate(self.cumulative_ch_counts):
             self.pix_counts_list[idx].config(text=f"{int(val)}")
 
-
     def scanning(self):
 
         if self.running:   # if start button is active
             self.get_counts()  # saves data to self.data. note that live graph updates every second using self.data
             self.save_data(mode="a")
         self.root.after(500, self.scanning)  # After 1 second, call scanning
-
 
     def save_data(self, mode):
         data_str = []
@@ -1825,6 +1939,7 @@ class ETA:
 #-----
 
 demo = True
+gui = None
 
 try:
     eta = ETA()
@@ -1852,7 +1967,8 @@ except serial.SerialException:
 
 finally:
     print('------\nExiting...')
-    gui.close()  # Close all external connections
+    if gui:
+        gui.close()  # Close all external connections
 
 
 
