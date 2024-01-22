@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter.filedialog import askopenfilename, askdirectory
-import time
 import serial
 from serial.tools import list_ports
 from datetime import date
@@ -13,10 +12,9 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 # from matplotlib import style
 # from matplotlib.backend_bases import key_press_handler
 
-from test_data import *
 from WebSQControl import WebSQControl
-import pandas as pd
-import seaborn as sns
+
+from test_data import example_data_blue, example_data_red
 
 # Packages for ETA backend
 import json
@@ -1530,9 +1528,6 @@ class GUI:
                       [0, 1, 0, 0, 2, 0, 0, 0],
                       [0, 1, 0, 0, 2, 0, 0, 0]])
 
-        # Get the test data
-        #X, Y, Z = axes3d.get_test_data(0.5)
-
         print("x", X, type(X))
         print("y", Y, type(Y))
         print("z", Z, type(Z))
@@ -1585,50 +1580,6 @@ class GUI:
         ax1.set_title("3d lifetime")
 
         plt_frame, canvas = self.pack_plot(tab, fig)
-        return plt_frame
-
-    def plot_seaborn(self, tab):
-
-        sns.set_theme(style="white", rc={"axes.facecolor": (0, 0, 0, 0)})
-
-        # Create the data
-        rs = np.random.RandomState(1979)
-        x = rs.randn(200)
-        g = np.tile(list("1234"), 50)
-        df = pd.DataFrame(dict(x=x, g=g))
-        m = df.g.map(ord)
-        df["x"] += m
-
-        # Initialize the FacetGrid object
-        pal = sns.cubehelix_palette(4, rot=-.25, light=.7)
-        g = sns.FacetGrid(df, row="g", hue="g", aspect=15, height=.5, palette=pal)
-
-        # Draw the densities in a few steps
-        g.map(sns.kdeplot, "x",
-              bw_adjust=.5, clip_on=False,
-              fill=True, alpha=1, linewidth=1.5)
-        g.map(sns.kdeplot, "x", clip_on=False, color="w", lw=2, bw_adjust=.5)
-
-        # passing color=None to refline() uses the hue mapping
-        g.refline(y=0, linewidth=2, linestyle="-", color=None, clip_on=False)
-
-        # Define and use a simple function to label the plot in axes coordinates
-        def label(x, color, label):
-            ax = plt.gca()
-            ax.text(0, .2, label, fontweight="bold", color=color,
-                    ha="left", va="center", transform=ax.transAxes)
-
-        g.map(label, "x")
-
-        # Set the subplots to overlap
-        g.figure.subplots_adjust(hspace=-.25)
-
-        # Remove axes details that don't play well with overlap
-        g.set_titles("")
-        g.set(yticks=[], ylabel="")
-        g.despine(bottom=True, left=True)
-
-        plt_frame, canvas = self.pack_plot(tab, g.figure)
         return plt_frame
 
     def plot_display_info_widget(self, tab, tab_str):
@@ -1739,8 +1690,8 @@ class ETA:
     def __init__(self):
         self.const = {
             'eta_format':    1,      # swabian = 1
-            'eta_recipe':   'THEO_CODE/3D_2_channels_tof_swabian_marker_ch4.eta',   # 'lifetime_new_spectrometer_4_ch_lifetime.eta',
-            'timetag_file': 'ToF_Duck_10MHz_det1_det2_5.0ms_[2.1, 3.9, -3.2, -4.8]_100x100_231220.timeres',
+            'eta_recipe':   '3D_2_channels_tof_swabian_marker_ch4.eta',   # 'lifetime_new_spectrometer_4_ch_lifetime.eta',
+            'timetag_file': 'Data/ToF_Duck_10MHz_det1_det2_5.0ms_[2.1, 3.9, -3.2, -4.8]_100x100_231220.timeres',
             'bins':          5000,
             'binsize':       20,     # bin width in ps
             }
@@ -1873,16 +1824,12 @@ class ETA:
 
 #-----
 
-
-# FIRST VERSION OF ETA (not yet incorporated into GUI)
-
-
-# ----- temp testing 3d lidar -----
-
-eta = ETA()
 demo = True
-gui = GUI()
+
 try:
+    eta = ETA()
+
+    gui = GUI()
     gui.root.after(500, gui.scanning)  # After 1 second, call scanning
     gui.root.mainloop()
 
@@ -1920,10 +1867,6 @@ finally:
     5           eta.FORMAT_BH_spc_4bytes        Becker & Hickl SPC-134/144/154/830
     6           eta.FORMAT_ET_A033              Eventech ET A033
 """
-
-
-
-
 
 
 
