@@ -20,6 +20,80 @@ import time
 from pathlib import Path
 from ttkthemes import ThemedTk
 
+import platform  # for scrollable class
+
+
+class ScrollFrame(tk.Frame):
+    # SOURCE: https://gist.github.com/mp035/9f2027c3ef9172264532fcd6262f3b01
+    # ************************
+    # Scrollable Frame Class
+    # ************************
+    # This Source Code Form is subject to the terms of the Mozilla Public
+    # License, v. 2.0. If a copy of the MPL was not distributed with this
+    # file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+    def __init__(self, parent):
+        super().__init__(parent)  # create a frame (self)
+
+        self.canvas = tk.Canvas(self, background="#ffffff", height=0, highlightthickness=0)  # place canvas on self
+        self.viewPort = tk.Frame(self.canvas, background="#ffffff")  # place a frame on the canvas, this frame will hold the child widgets
+        self.vsb = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)  # place a scrollbar on self
+        self.canvas.configure(yscrollcommand=self.vsb.set)  # attach scrollbar action to scroll of canvas
+
+        self.vsb.pack(side="right", fill="y")  # pack scrollbar to right of self
+        self.canvas.pack(side="left", fill="both", expand=True)  # pack canvas to left of self and expand to fil
+        self.canvas_window = self.canvas.create_window((1, 1), window=self.viewPort, anchor="nw", tags="self.viewPort")  # add view port frame to canvas
+
+        self.viewPort.bind("<Configure>", self.onFrameConfigure)  # bind an event whenever the size of the viewPort frame changes.
+        self.canvas.bind("<Configure>", self.onCanvasConfigure)  # bind an event whenever the size of the canvas frame changes.
+        self.viewPort.bind('<Enter>', self.onEnter)  # bind wheel events when the cursor enters the control
+        self.viewPort.bind('<Leave>', self.onLeave)  # unbind wheel events when the cursorl leaves the control
+
+        self.onFrameConfigure(None)  # perform an initial stretch on render, otherwise the scroll region has a tiny border until the first resize
+
+    def onFrameConfigure(self, event):
+        '''Reset the scroll region to encompass the inner frame'''
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))  # whenever the size of the frame changes, alter the scroll region respectively.
+
+    def onCanvasConfigure(self, event):
+        '''Reset the canvas window to encompass inner frame when required'''
+        canvas_width = event.width
+        self.canvas.itemconfig(self.canvas_window, width=canvas_width)  # whenever the size of the canvas changes alter the window region respectively.
+
+    def onMouseWheel(self, event):  # cross platform scroll wheel event
+        if platform.system() == 'Windows':
+            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        elif platform.system() == 'Darwin':
+            self.canvas.yview_scroll(int(-1 * event.delta), "units")
+        else:
+            if event.num == 4:
+                self.canvas.yview_scroll(-1, "units")
+            elif event.num == 5:
+                self.canvas.yview_scroll(1, "units")
+
+    def onEnter(self, event):  # bind wheel events when the cursor enters the control
+        if platform.system() == 'Linux':
+            self.canvas.bind_all("<Button-4>", self.onMouseWheel)
+            self.canvas.bind_all("<Button-5>", self.onMouseWheel)
+        else:
+            self.canvas.bind_all("<MouseWheel>", self.onMouseWheel)
+
+    def onLeave(self, event):  # unbind wheel events when the cursorl leaves the control
+        if platform.system() == 'Linux':
+            self.canvas.unbind_all("<Button-4>")
+            self.canvas.unbind_all("<Button-5>")
+        else:
+            self.canvas.unbind_all("<MouseWheel>")
+
+class CreateScrollFrame(tk.Frame):
+    def __init__(self, root):
+        tk.Frame.__init__(self, root)
+        self.scrollFrame = ScrollFrame(self)  # add a new scrollable frame.
+        self.scrollFrame.grid(row=1, column=0, columnspan=10)
+
+#    Example(root).pack(side="top", fill="both", expand=True)
+
+# --------------
 
 class Plotting:
     def __init__(self, parent):
@@ -72,7 +146,6 @@ class Plotting:
 
         self.x_label.set('λ [nm]')
         # the figure that will contain the plot
-        fig = plt.Figure(figsize=(10, 6), dpi=50)
         xar_b = []
         yar_b = []
         xar_r = []
@@ -106,13 +179,13 @@ class Plotting:
         plt_frame, canvas = gui.pack_plot(tab, fig)
 
         # BUTTONS:
-        butt_frame = tk.Frame(tab, relief=tk.FLAT, bd=2)
+        butt_frame = ttk.Frame(tab, relief=tk.FLAT)
 
         tk.Label(butt_frame, text=f'Change X-axis to:').grid(row=0, column=0, sticky="nsew")
-        tk.Radiobutton(butt_frame, text="wavelength [nm]", value='λ [nm]', variable=self.x_label, command=pressed_xlabel).grid(row=1, column=0, sticky="ew")
-        tk.Radiobutton(butt_frame, text="frequency [Hz]", value='f [Hz]', variable=self.x_label, command=pressed_xlabel).grid(row=2, column=0, sticky="ew")
-        tk.Radiobutton(butt_frame, text="photon energy [eV]", value='E [eV]', variable=self.x_label, command=pressed_xlabel).grid(row=3, column=0, sticky="ew")
-        tk.Radiobutton(butt_frame, text="wave number [cm^{-1}]", value='v [1/cm]', variable=self.x_label, command=pressed_xlabel).grid(row=4, column=0, sticky="ew")
+        ttk.Radiobutton(butt_frame, text="wavelength [nm]", value='λ [nm]', variable=self.x_label, command=pressed_xlabel).grid(row=1, column=0, sticky="ew")
+        ttk.Radiobutton(butt_frame, text="frequency [Hz]", value='f [Hz]', variable=self.x_label, command=pressed_xlabel).grid(row=2, column=0, sticky="ew")
+        ttk.Radiobutton(butt_frame, text="photon energy [eV]", value='E [eV]', variable=self.x_label, command=pressed_xlabel).grid(row=3, column=0, sticky="ew")
+        ttk.Radiobutton(butt_frame, text="wave number [cm^{-1}]", value='v [1/cm]', variable=self.x_label, command=pressed_xlabel).grid(row=4, column=0, sticky="ew")
 
         plt_frame.grid(row=0, rowspan=4, column=0, sticky="nsew")
         butt_frame.grid(row=3, column=1, sticky="nsew")
@@ -121,7 +194,7 @@ class Plotting:
     def plot_correlation_widget(self, tab):
         # TODO:
         # the figure that will contain the plot
-        fig = plt.Figure(figsize=(10, 3), dpi=100)
+        fig = plt.Figure(figsize=(9, 5), dpi=100)  # 10 3
         # data list
         y = []
         # adding the subplot
@@ -156,13 +229,13 @@ class Plotting:
 
             tk.Label(butt_frame_s, text="Show Channels:").grid(row=2, column=0, columnspan=2, sticky="ew")
             tk.Entry(butt_frame_s, bd=2, textvariable=range_list, width=6).grid(row=3, column=0, columnspan=1, sticky="ew")
-            tk.Button(butt_frame_s, text=f"Update range", highlightbackground='white', command=range_show).grid(row=3, column=1, columnspan=1, sticky="ew")
+            tk.Button(butt_frame_s, text=f"Update range", command=range_show).grid(row=3, column=1, columnspan=1, sticky="ew")
 
             butt_frame_p = tk.Frame(butt_frame, relief=tk.FLAT, bd=2)
             tk.Label(butt_frame_p, text=f'Plot scale').grid(row=0, column=0, columnspan=2, sticky="ew")
             self.scale_buttons = {
                 'linear':       tk.Button(butt_frame_p, text="  Linear  ", highlightbackground='green', command=lambda: press_scale_plot('linear')),
-                #'histo':        tk.Button(butt_frame_p, text="Linear (histo)", command=lambda: press_scale_plot('histo')),
+                #'histo':      tk.Button(butt_frame_p, text="Linear (histo)", command=lambda: press_scale_plot('histo')),
                 'log':          tk.Button(butt_frame_p, text=" Semi-Log ", command=lambda: press_scale_plot('log')),
             }
 
@@ -343,7 +416,7 @@ class Plotting:
 
             tk.Label(butt_frame_s, text="Show Channels:").grid(row=2, column=0, columnspan=2, sticky="ew")
             tk.Entry(butt_frame_s, bd=2, textvariable=range_list, width=6).grid(row=3, column=0, columnspan=1, sticky="ew")
-            tk.Button(butt_frame_s, text=f"Update range", highlightbackground='white', command=range_show).grid(row=3, column=1, columnspan=1, sticky="ew")
+            tk.Button(butt_frame_s, text=f"Update range", command=range_show).grid(row=3, column=1, columnspan=1, sticky="ew")
 
             butt_frame_p = tk.Frame(butt_frame, relief=tk.FLAT, bd=2)
             tk.Label(butt_frame_p, text=f'Plot scale').grid(row=0, column=0, columnspan=2, sticky="ew")
@@ -632,7 +705,7 @@ class Plotting:
 """
     def plot_display_info_widget(self, tab, tab_str):
 
-        frm_info = tk.Frame(tab, relief=tk.FLAT, bd=2)
+        frm_info = tk.Frame(tab, relief=tk.FLAT)
 
         # TODO: add text or variables depending on which graph tab we have
         if tab_str == "tab 1 plots":
@@ -647,17 +720,16 @@ class Plotting:
             pass
 
         tk.Label(frm_info, text=f'{tab_str}').grid(row=0, column=0, sticky="nsew")
-        tk.Label(frm_info, text=f'                    ').grid(row=0, column=1, sticky="nsew")
-
         tk.Label(frm_info, text=f'info').grid(row=1, column=0, sticky="nsew")
         tk.Label(frm_info, text=f'info').grid(row=2, column=0, sticky="nsew")
         tk.Label(frm_info, text=f'info').grid(row=3, column=0, sticky="nsew")
         tk.Label(frm_info, text=f'info').grid(row=4, column=0, sticky="nsew")
 
-        tk.Label(frm_info, text=f'.......').grid(row=1, column=1, sticky="nsew")
-        tk.Label(frm_info, text=f'.......').grid(row=2, column=1, sticky="nsew")
-        tk.Label(frm_info, text=f'.......').grid(row=3, column=1, sticky="nsew")
-        tk.Label(frm_info, text=f'.......').grid(row=4, column=1, sticky="nsew")
+        tk.Label(frm_info, text=f'  ').grid(row=0, column=1, sticky="nsew")
+        tk.Label(frm_info, text=f'...').grid(row=1, column=1, sticky="nsew")
+        tk.Label(frm_info, text=f'...').grid(row=2, column=1, sticky="nsew")
+        tk.Label(frm_info, text=f'...').grid(row=3, column=1, sticky="nsew")
+        tk.Label(frm_info, text=f'...').grid(row=4, column=1, sticky="nsew")
 
         return frm_info
 
@@ -667,9 +739,16 @@ class GUI:
     def __init__(self):
         # Create and configure the main GUI window
         #self.root = tk.Tk()
-        self.root = ThemedTk(theme="yaru")  # arc
+
+        theme_list = ['scidpurple', 'arc', 'equilux', 'yaru', 'radiance', 'plastik', 'default',
+                      'scidpink', 'black', 'adapta', 'scidgreen', 'keramik', 'scidgrey', 'itft1',
+                      'aqua', 'elegance', 'breeze', 'kroc', 'smog', 'blue', 'clam', 'scidmint',
+                      'scidblue', 'alt', 'aquativo', 'classic', 'clearlooks', 'ubuntu', 'winxpblue', 'scidsand']
+        i = 0
+        self.root = ThemedTk(theme=theme_list[i])  # yaru is good i think
+        print("Using theme:", theme_list[i])
         self.root.title("Quantum Spectrometer GUI - Ghostly matters")   # *Ghostly matters*
-        self.root.geometry('1200x800')
+        self.root.geometry('1080x800')
 
         self.tabs = {
             'Load' : {
@@ -698,7 +777,6 @@ class GUI:
         self.tabs['Load']['tab'] = self.add_tab(parent_nb=self.root_nb, tab_name='Load Scan')
         self.tabs['New']['tab'] = self.add_tab(parent_nb=self.root_nb, tab_name='New Scan')
         self.tabs['Settings']['tab'] = self.add_tab(parent_nb=self.root_nb, tab_name='Settings')
-
 
     @staticmethod
     def pack_plot(tab, fig):
@@ -761,6 +839,7 @@ class GUI:
         # --------
         new_nb = self.add_notebook(parent_tab=self.tabs['New']['tab'], anchor='w', side='top')
         newScanClass.acquisition_newscan_tab(new_nb)
+        newScanClass.analysis_newscan_tab(new_nb)
         # Create sub-notebooks for each tab and pack, then add children
         self.tabs['New']['notebook'] = self.add_notebook(parent_tab=self.tabs['New']['tab'], anchor='w', side='top')
         self.tabs['New']['children']['Plot1'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Plot1')
@@ -782,6 +861,7 @@ class GUI:
         self.plot_3d_lifetime_tab(self.tabs[parent_name]['children']['Lifetime 3D'], parent_class)  # note: temp moved to front for testing
         self.plot_correlation_tab(self.tabs[parent_name]['children']['Correlation'], parent_class)  # note: temp moved to front for testing
 
+
     # **
     def plot_lifetime_tab(self, plots_lifetime, parent):
         parent.plotting_class.plot_lifetime_widget(plots_lifetime)
@@ -795,7 +875,7 @@ class GUI:
     def plot_spectrum_tab(self, plots_spectrum, parent):
         parent.plotting_class.plot_spectrum_widget(plots_spectrum)
         info_frm = parent.plotting_class.plot_display_info_widget(plots_spectrum, "Spectrum plot info")
-        info_frm.grid(row=0, rowspan=3, column=1, sticky="nsew" )
+        info_frm.grid(row=0, rowspan=1, column=1, sticky="nsew")
 
 
     # **
@@ -821,6 +901,13 @@ class NewScanGroup:
         #self.plotting_class = Plotting(self)
 
         # class instances when connected
+        self.eta_class = ETA(self)
+        self.plotting_class = Plotting(self)
+        self.loading = False
+        self.cancel = False
+
+        # -----
+
         self.sq = None
         self.sp = None
 
@@ -832,7 +919,7 @@ class NewScanGroup:
             'nr_pixels':   {'var': tk.IntVar(value=8),   'type': 'int entry', 'default': 8,   'value': [3, 8, 12]},
             'file_name':   {'var': tk.StringVar(),       'type': 'str entry', 'default': '',  'value': ['butterfly.timeres', 'frog.timeres', 'sheep.timeres']},
             'folder_name': {'var': tk.StringVar(),       'type': 'str entry', 'default': '',  'value': ['~/Desktop/GUI/Data1', '~/Desktop/GUI/Data2', '~/Desktop/GUI/Data3']},
-            'eta_recipe':  {'var': tk.StringVar(),       'type': 'str entry', 'default': '',  'value': ['~/Desktop/GUI/Recipe/gui_recipe_1.eta', '~/Desktop/GUI/Recipe/gui_recipe_2.eta', '~/Desktop/GUI/Recipe/gui_recipe_3.eta']},
+            'eta_recipe':  {'var': tk.StringVar(value='3D_2_channels_tof_swabian_marker_ch4.eta'), 'type': 'str entry', 'default': '',  'value': ['~/Desktop/GUI/Recipe/gui_recipe_1.eta', '~/Desktop/GUI/Recipe/gui_recipe_2.eta', '~/Desktop/GUI/Recipe/gui_recipe_3.eta']},
         }
 
         #self.data = []
@@ -841,13 +928,15 @@ class NewScanGroup:
 
         self.device_grating = 1
         self.device_wavelength = 600
-        self.port = tk.StringVar()     # note maybe change later when implemented
+        self.port = tk.StringVar(value="")     # note maybe change later when implemented
 
         self.running = False  # this tracks if we are running a scan (collecting counts from detector)
         self.demo_connect = False  # temp for demo to check if we've actually connected to device
         self.config_success = None   # None if not tried to configure yet
         self.checked_configs = False
         self.live_mode = True
+        self.available_ports = {}
+        self.port_list = []
 
         self.ok_to_send_list = []
         self.grating_lvl = {   # TODO: make this configurable?   # TODO fill in correct width (based on grating)
@@ -863,37 +952,143 @@ class NewScanGroup:
     def acquisition_newscan_tab(self, new_scan_tab):
 
         # Param config
-        newScanClass.choose_param_configs_widget(new_scan_tab).grid(row=0, column=0, sticky="news")
-
-        separator = ttk.Separator(new_scan_tab, orient='horizontal')
-        separator.grid(row=1, column=0, sticky="news")
-
+        self.choose_param_configs_widget(new_scan_tab)
 
         # TODO: Move live histo to new tab FIXME
         #live_plt, button_frame = parent.plotting_class.plot_live_histo(new_scan_tab)
         #live_plt.grid(row=2, column=1, columnspan=1, sticky="news")
         #button_frame.grid(row=2, column=2, columnspan=1, sticky="news")
 
-        #start_tab = tk.Frame(new_scan_tab, relief=tk.FLAT, bd=2)   # frame to gather things to communicate with devices
-        #start_tab.grid(row=0, column=1, columnspan=1, sticky="news")
+        start_tab = tk.Frame(new_scan_tab, relief=tk.FLAT, bd=2)   # frame to gather things to communicate with devices
+        start_tab.grid(row=0, column=1, columnspan=1, sticky="news")
         #tk.Label(start_tab, text='Device Communication', font=('', 15)).grid(row=0, column=0, columnspan=4, sticky="news")
         #newScanClass.choose_file_configs_widget(start_tab).grid(row=1, column=0, sticky="news")  # in sub frame
         #newScanClass.send_param_configs_widget(start_tab).grid(row=1, column=1, sticky="news")  # in sub frame
-        #newScanClass.start_scan_widget(start_tab).grid(row=1, column=2, sticky="news")  # in sub frame
+        self.start_scan_widget(new_scan_tab).grid(row=9, column=0, sticky="news")  # in sub frame
+
+    # TODO: FIXME BELOW (make sure it connects and does right)
+    def start_scan_widget(self, tab):
+
+        def press_start():
+            print(self.sp.sp_handle)
+            print(self.sq.websq_handle)
+            if (not self.sp.sp_handle) or (not self.sq.websq_handle):
+                print("Can not start scan if we are not connected")
+                self.running = False
+                return
+
+            #self.save_data(mode="w")   # TODO: maybe only have this once per new measurement (so that we can pause and start again)
+            # True:     if we have successfully configured the device
+            # False:    failed to do all configs to device, should not start scan
+            # None:     did not send new configs, will check but can start scan anyway (maybe??)
+            outcome = {True : 'green', False : 'red', None : 'grey'}
+            #self.mark_done(btn_start, highlight=outcome[self.config_success], type='button')
+            #self.mark_done(btn_stop, highlight=self.button_color, type='button')
+            self.running = True
+
+        def press_stop():
+            self.running = False
+            #self.mark_done(btn_start, highlight=self.button_color, type='button')
+            #self.mark_done(btn_stop, highlight='red', type='button')
+
+        frm_send = tk.Frame(tab, relief=tk.FLAT, bd=2)
+        btn_start = tk.Button(frm_send, text="Start Scan", command=press_start)
+        btn_stop = tk.Button(frm_send, text="Stop", command=press_stop)
+        self.prog_bar = ttk.Progressbar(frm_send, style='bar.Horizontal.TProgressbar', orient='horizontal', mode='determinate', length=500)  # progressbar
+
+        btn_start.grid(row=0, column=0, sticky="nsew")
+        btn_stop.grid(row=0, column=1, sticky="nsew")
+        self.prog_bar.grid(row=0, column=2, sticky="ew")
+
+        return frm_send
 
     def choose_param_configs_widget(self, tab):
 
+        def get_ports():  # TODO: find our device port and connect automatically
+            """
+            device:          COM4
+            name:            COM4
+            description:     USB Serial Port (COM4)
+            hwid:            USB VID:PID=0403:6015 SER=FT5Z6FVRA
+            vid:             1027
+            pid:             24597
+            serial_number:   FT5Z6FVRA
+            location:        None
+            manufacturer:    FTDI
+            product:         None
+            interface:       None
+            """
+            self.available_ports = {}
+            self.port_list = []
+            for i, port in enumerate(serial.tools.list_ports.comports()):
+                self.available_ports[i] = {
+                    'device'          : port.device       ,   # !
+                    'name'            : port.name         ,   # !
+                    'description'     : port.description  ,   # !
+                    'hwid'            : port.hwid         ,
+                    'vid'             : port.vid          ,
+                    'pid'             : port.pid          ,
+                    'serial_number'   : port.serial_number,   # !
+                    'location'        : port.location     ,
+                    'manufacturer'    : port.manufacturer ,   # !
+                    'product'         : port.product      ,
+                    'interface'       : port.interface    ,
+                }
+                self.port_list.append(f'{port.name}') # (S/N:{port.serial_number})')
+
+                #if (port.serial_number == self.acton_serial) and (port.manufacturer == 'FTDI'):
+                #    # print(f"FOUND ACTON DEVICE ON PORT {port.device}")
+                #    return port.device
+
+                """print(f'---------\n'
+                      f'device:          {port.device       }'
+                      f'\nname:            {port.name         }'
+                      f'\ndescription:     {port.description  }'
+                      f'\nhwid:            {port.hwid         }'
+                      f'\nvid:             {port.vid          }'
+                      f'\npid:             {port.pid          }'
+                      f'\nserial_number:   {port.serial_number}'
+                      f'\nlocation:        {port.location     }'
+                      f'\nmanufacturer:    {port.manufacturer }'
+                      f'\nproduct:         {port.product      }'
+                      f'\ninterface:       {port.interface    }'
+                      f'\n---------')"""
+
+        def refresh_ports():
+            self.port.set("Select...")
+            port_parts['connect'].config(state='disabled')
+            get_ports()
+
+        def select_port(port):
+            if port_parts['disconnect']['state'] == 'normal':
+                print("Please disconnect first")
+                return
+            # Update chosen port and allow connection (if not connected^)
+            self.port.set(port)
+            port_parts['connect'].config(state='normal')
+
+        # TODO:
         def press_connect():  # TODO
             # self.running = False  # TODO CHECK: need to stop scanning i think???
+            if self.port.get() == "Select...":
+                print("MUST SELECT PORT FIRST")
+
             print("pressed connect. fixme for real")
+            print("connecting to port", self.port.get())
 
-            """
-            if demo:
-                Demo.d_connect(port_parts[2])
-                self.sp.sp_handle = True
-                return
+            #if demo:
+            #    Demo.d_connect(port_parts['connect'])  # changes color of button to green
+            #    self.sp.sp_handle = True
+            #    return
 
-            if self.sp is None:
+            # TODO CONNECTION....
+            # if connect successful:
+            port_parts['label'].config(text=f'Connected to {self.port.get()}')
+            port_parts['disconnect'].config(state='normal')
+            port_parts['connect'].config(state='disabled')
+            port_parts['refresh'].config(state='disabled')
+
+            """if self.sp is None:
                 self.init_sp()
 
             self.sp.acton_disconnect()
@@ -901,12 +1096,31 @@ class NewScanGroup:
 
             self.sp.sp_handle.write(b'NO-ECHO\r')
             self.sp.wait_for_read()  # b'  ok\r\n'
-            port_parts[1].config(text=f'{self.sp.port}')
+            port_parts['label'].config(text=f'{self.sp.port}')
 
             if self.sp.sp_handle.isOpen():
-                gui.mark_done(port_parts[2], highlight="green", text_color='black', type='button')
+                gui.mark_done(port_parts['connect'], highlight="green", text_color='black', type='button')
             else:
-                gui.mark_done(port_parts[2], highlight="red", text_color='black', type='button')"""
+                gui.mark_done(port_parts['connect'], highlight="red", text_color='black', type='button')"""
+
+        # TODO:
+        def press_disconnect():  # TODO
+            # self.running = False  # TODO CHECK: need to stop scanning i think???
+            print("pressed disconnect. fixme for real")
+            print("disconnecting from port", self.port.get())
+
+            # TODO DO DISCONNECT....
+
+            # if successful:
+            port_parts['label'].config(text='')
+            port_parts['connect'].config(state='normal')
+            port_parts['disconnect'].config(state='disabled')
+            port_parts['refresh'].config(state='normal')
+
+            """if self.sp is None:
+                self.init_sp()
+            self.sp.acton_disconnect()   # ????
+            """
 
         def select_grating():
             # FIXME OR REMOVE
@@ -922,45 +1136,47 @@ class NewScanGroup:
             self.params['nr_pixels']['var'].set(nr_pixels)
 
             # removes previously shown channels (in case we want to decrease in amount)
-            for j, widget in enumerate(
-                    frm['ch'].winfo_children()):  # FIXME NOTE TODO: USE THIS LATER TO ACCESS BUTTONS FOR MARKING DONE
-                if j > 2:
-                    widget.destroy()
+            for j, widget in enumerate(frm['ch'].winfo_children()):  # FIXME NOTE TODO: USE THIS LATER TO ACCESS BUTTONS FOR MARKING DONE
+                if j == 0:
+                    pass #print(widget)
+                print(j, widget)
+                print(widget.winfo_children())
 
             # Connecting to other/new WebSQ server
-            self.sq.websq_disconnect()
-            self.sq.websq_connect(nr_pixels)
-            self.plotting_class.reset_histo_bins()
+            #
+            #self.sq.websq_disconnect()
+            #self.sq.websq_connect(nr_pixels)
+            #self.plotting_class.reset_histo_bins()
             fill_ch()
 
         def fill_ch():
+            chosen_frm = scroll_frm.scrollFrame.viewPort
             self.ch_bias_list = []
             self.pix_counts_list = []
 
             demo = True
             if demo:
-                return
-
-            device_bias = self.sq.get_curr_bias()
-            device_trigger = self.sq.get_curr_trigger()
+                device_bias = []
+                device_trigger = []
+                self.params['nr_pixels']['var'].set(16)
+                for ci in range(self.params['nr_pixels']['var'].get()):
+                    device_bias.append(0)
+                    device_trigger.append(100)
+            else:
+                device_bias = self.sq.get_curr_bias()
+                device_trigger = self.sq.get_curr_trigger()
 
             for pix in range(self.params['nr_pixels']['var'].get()):
-                self.ch_bias_list.append(
-                    tk.IntVar(value=device_bias[pix]))  # FIXME we are only displaying, not setting anything
-                self.ch_trig_list.append(
-                    tk.IntVar(value=device_trigger[pix]))  # FIXME we are only displaying, not setting anything
+                self.ch_bias_list.append(tk.IntVar(value=device_bias[pix]))  # FIXME we are only displaying, not setting anything
+                self.ch_trig_list.append(tk.IntVar(value=device_trigger[pix]))  # FIXME we are only displaying, not setting anything
 
-                tk.Label(frm['ch'], text=f"{pix + 1}").grid(row=pix + 2, column=0, sticky="ew", padx=0, pady=0)
-                tk.Entry(frm['ch'], bd=2, textvariable=self.ch_bias_list[pix], width=6).grid(row=pix + 2, column=1,
-                                                                                             sticky="ew", padx=0,
-                                                                                             pady=0)
-                tk.Entry(frm['ch'], bd=2, textvariable=self.ch_trig_list[pix], width=6).grid(row=pix + 2, column=2,
-                                                                                             sticky="ew", padx=0,
-                                                                                             pady=0)
+                tk.Label(chosen_frm, text=f"{pix + 1}").grid(row=pix + 2, column=0, sticky="ew", padx=6)
+                tk.Entry(chosen_frm, bd=2, textvariable=self.ch_bias_list[pix], width=6).grid(row=pix + 2, column=1, sticky="ew", padx=8)
+                tk.Entry(chosen_frm, bd=2, textvariable=self.ch_trig_list[pix], width=8).grid(row=pix + 2, column=2, sticky="ew", padx=7)
 
                 # tk.Label(frm['ch'], text=f"0").grid(row=pix + 2, column=3, sticky="ew", padx=0, pady=0)  # counts
-                c_temp = tk.Label(frm['ch'], text=f"0")
-                c_temp.grid(row=pix + 2, column=3, sticky="ew", padx=0, pady=0)  # counts
+                c_temp = tk.Label(chosen_frm, text=f"0")
+                c_temp.grid(row=pix + 2, column=3, sticky="ew", padx=9)  # counts
                 self.pix_counts_list.append(c_temp)
 
         # ---------------
@@ -968,17 +1184,21 @@ class NewScanGroup:
 
         # FRAMES
         frm_test = tk.Frame(tab, relief=tk.FLAT, bd=2)
-        frm = {}
-        for name in ['default', 'port', 'slit', 'grating', 'detect', 'ch']:
-            frm[name] = tk.Frame(frm_test, relief=tk.FLAT, bd=2)
+        frm_test.grid(row=0, column=0, sticky="news")
+
+        frm = {
+            'port'    : tk.Frame(frm_test, relief=tk.GROOVE, bd=2) ,
+            'slit'    : tk.Frame(frm_test, relief=tk.GROOVE, bd=2) ,
+            'grating' : tk.Frame(frm_test, relief=tk.GROOVE, bd=2) ,
+            'detect'  : tk.Frame(frm_test, relief=tk.GROOVE, bd=2) ,
+            'ch'      : tk.Frame(frm_test, relief=tk.GROOVE, bd=2)  ,
+        }
+
+        scroll_frm = CreateScrollFrame(frm['ch'])
+        scroll_frm.grid(row=1, column=0, columnspan=10)
+        fill_ch()
 
         # WIDGETS
-
-        #  -- Port:
-        port_parts = [tk.Label(frm['port'], text='USB Port'),
-                      # port_entry = tk.Entry(frm_port, bd=2, textvariable=self.port, width=5)   # FIXME later
-                      tk.Label(frm['port'], text=f'{self.port.get()}'),
-                      tk.Button(frm['port'], text="Connect Device", command=press_connect)]
 
         #  -- Slit:
         slt_parts = [tk.Label(frm['slit'], text='Slit width'),
@@ -1015,43 +1235,120 @@ class NewScanGroup:
         ch_parts = [
             tk.Label(frm['ch'], text='Pixel'),
             tk.Label(frm['ch'], text='Bias (uA)'),
-            tk.Label(frm['ch'], text='Trigger (mV)'),
-            tk.Label(frm['ch'], text='Counts')]
+            tk.Label(frm['ch'], text='    Trigger (mV)'),
+            tk.Label(frm['ch'], text='  Counts')]
+
+        #  -- Port:
+        get_ports()
+        port_parts = { 'refresh'        : tk.Button(frm['port'], text="Refresh Devices", command=refresh_ports),
+                       'option'         : ttk.OptionMenu(frm['port'], variable=self.port, default="Select..."),
+                       'connect'        : tk.Button(frm['port'], text="Connect", command=press_connect, state='disabled'),
+                       'disconnect'     : tk.Button(frm['port'], text="Disconnect", command=press_disconnect, state='disabled'),
+                       'label': tk.Label(frm['port'], text=f''),
+                       }
+
+        # Populate the dropdown menu with the list of options
+        for port_name in self.port_list:
+            port_parts['option']['menu'].add_command(label=f"{port_name}", command=lambda opt=port_name: select_port(opt))
 
         # GRID
         # -- Port
-        gui.add_to_grid(widg=port_parts, rows=[0, 0, 0], cols=[0, 1, 2], sticky=["", "", ""])
+        port_parts['refresh'].grid(row=0, column=0, sticky='ew')
+        port_parts['option'].grid(row=1, column=0, columnspan=2, sticky='ew')
+        port_parts['connect'].grid(row=2, column=0, sticky='ew')
+        port_parts['disconnect'].grid(row=2, column=1, sticky='ew')
+        port_parts['label'].grid(row=3, column=0, columnspan=4,  sticky='ew')
+        #gui.add_to_grid(widg=list(port_parts.values()), rows=[0, 1, 2], cols=[0, 0, 0], sticky=["", "", ""])
+
         # -- Slit
-        gui.add_to_grid(widg=slt_parts, rows=[0, 0, 0], cols=[0, 1, 2], sticky=["", "", ""])
+        gui.add_to_grid(widg=slt_parts, rows=[0, 1, 1], cols=[0, 0, 1], sticky=["", "", ""])
         # -- Grating
-        gui.add_to_grid(widg=grating_widget_dict['radio_b'], rows=[3, 4, 5], cols=[0, 0, 0],
-                         sticky=["", "s", "s", "s"])
-        gui.add_to_grid(widg=grating_widget_dict['grt_txt'], rows=[2, 3, 4, 5], cols=[1, 1, 1, 1],
-                         sticky=["", "s", "s", "s"])
-        gui.add_to_grid(widg=grating_widget_dict['blz_txt'], rows=[2, 3, 4, 5], cols=[2, 2, 2, 2],
-                         sticky=["", "s", "s", "s"])
-        gui.add_to_grid(widg=grating_widget_dict['wid_txt'], rows=[2, 3, 4, 5], cols=[3, 3, 3, 3],
-                         sticky=["", "s", "s", "s"])
+        gui.add_to_grid(widg=grating_widget_dict['radio_b'], rows=[3, 4, 5],    cols=[0, 0, 0],    sticky=["", "s", "s", "s"])
+        gui.add_to_grid(widg=grating_widget_dict['grt_txt'], rows=[2, 3, 4, 5], cols=[1, 1, 1, 1], sticky=["", "s", "s", "s"])
+        gui.add_to_grid(widg=grating_widget_dict['blz_txt'], rows=[2, 3, 4, 5], cols=[2, 2, 2, 2], sticky=["", "s", "s", "s"])
+        gui.add_to_grid(widg=grating_widget_dict['wid_txt'], rows=[2, 3, 4, 5], cols=[3, 3, 3, 3], sticky=["", "s", "s", "s"])
 
         # -- Detector
-        gui.add_to_grid(widg=[tk.Label(frm['detect'], text="Detector")], rows=[0], cols=[0],
-                         sticky=["ew"])  # , columnspan=[2])
+        gui.add_to_grid(widg=[tk.Label(frm['detect'], text="Detector")], rows=[0], cols=[0], sticky=["ew"])  # , columnspan=[2])
         gui.add_to_grid(widg=det_parts, rows=[1, 1, 1], cols=[0, 1, 2], sticky=["ew", "ew", "ew"])
         # gui.add_to_grid(widg=wid_parts, rows=[2,2,2], cols=[0,1,2], sticky=["ew", "ew", "ew"])
         gui.add_to_grid(widg=det_no_parts, rows=[3, 3, 3], cols=[0, 1, 2], sticky=["ew", "ew", "ew"])
 
         # -- Channels
         gui.add_to_grid(widg=ch_parts, rows=[0, 0, 0, 0, 0], cols=[0, 1, 2, 3, 4], sticky=["ew", "ew", "ew", "ew"])
-        fill_ch()  # Updates channels displayed
 
-        # ------------- COMBINING INTO TEST FRAME --------------
+        #fill_ch()  # Updates channels displayed
 
-        tk.Label(frm_test, text='Settings', font=('', 15)).grid(row=0, column=0, sticky="ew", padx=0, pady=0)
-        gui.add_to_grid(widg=[frm['default'], frm['port'], frm['slit'], frm['grating'], frm['detect']],
-                         rows=[1, 2, 3, 4, 5], cols=[0, 0, 0, 0, 0], sticky=["ew", "ew", "ew", "ew", "ew"])
-        frm['ch'].grid(row=6, column=0, rowspan=100, sticky="ew", padx=0, pady=0)
-
+        # ------------- GRID FRAMES --------------
+        gui.add_to_grid(widg=[frm['port'], frm['grating'], frm['slit'], frm['detect'], frm['ch']],
+                        cols=[1, 2, 3, 4, 5], rows=[0, 0, 0, 0, 0],
+                        sticky=["news", "news", "news", "news", "news"])
         return frm_test
+
+    def analysis_newscan_tab(self, tab):
+
+        def press_analyze():
+            try:
+                self.cancel = False
+                self.loading = True
+                analyze_btn.config(state='disabled')
+
+                self.eta_class.eta_lifetime_analysis()
+                analyze_btn.config(state='normal')
+                self.loading = False
+
+                if not self.cancel:
+                    gui.add_plot_tabs(parent_class=self, parent_name='Load')
+                    analyzed_file_label.config(text=f"Analyzed file: {self.params['file_name']['var'].get()}")
+                else:
+                    self.cancel = False
+
+            except:
+                print("Failed to analyze")
+                raise
+
+        def press_cancel():
+            if self.loading:
+                self.cancel = True
+                self.eta_class.pb['value'] = 0
+
+        def get_recipe():
+            new_reci = askopenfilename(filetypes=[("ETA recipe", "*.eta")])
+            if new_reci:
+                self.params['eta_recipe']['var'].set(new_reci)
+
+        def suggest_filename():
+            currDate = date.today().strftime("%y%m%d")
+            currTime = time.strftime("%Hh%Mm%Ss", time.localtime())
+            temp = f"slit({self.params['slit']['var'].get()})_" \
+                   f"grating({self.params['grating']['var'].get()})_" \
+                   f"lamda({self.params['nm']['var'].get()})_" \
+                   f"pixels({self.params['nr_pixels']['var'].get()})_" \
+                   f"date({currDate})_time({currTime}).timeres"
+            self.params['file_name']['var'].set(temp)
+
+        frm_misc = tk.Frame(tab)
+        frm_misc.grid(row=10, column=0, sticky="ew", columnspan=10)
+
+        # shows which file we have analysed:
+        analyzed_file_label = ttk.Label(frm_misc, text='', font="Helvetica 10 normal italic", background='#ffffff')
+        analyzed_file_label.grid(row=10, column=0, columnspan=10, sticky='ew')
+        # ----
+        tk.Button(frm_misc, text="Datafile  ", command=suggest_filename).grid(row=1, column=0, sticky="ew")
+        tk.Button(frm_misc, text="ETA recipe", command=get_recipe).grid(row=2, column=0, sticky="ew")
+
+        file_entry = tk.Entry(frm_misc, bd=2, textvariable=self.params['file_name']['var'], width=100)
+        reci_entry = tk.Entry(frm_misc, bd=2, textvariable=self.params['eta_recipe']['var'], width=100)
+        file_entry.grid(row=1, column=1, columnspan=10, sticky="ew")
+        reci_entry.grid(row=2, column=1, columnspan=10, sticky="ew")
+
+        analyze_btn = tk.Button(frm_misc, text="Analyze", command=press_analyze)
+        cancel_btn = tk.Button(frm_misc, text="Cancel", command=press_cancel)
+        analyze_btn.grid(row=3, column=0, sticky="ew")
+        cancel_btn.grid(row=3, column=1, sticky="ew")
+
+        self.eta_class.pb = ttk.Progressbar(frm_misc, style='bar.Horizontal.TProgressbar', orient='horizontal', mode='determinate', length=500)  # progressbar
+        self.eta_class.pb.grid(row=3, column=2, sticky="ew")
 
 class LoadScanGroup:
     def __init__(self):
@@ -1082,6 +1379,7 @@ class LoadScanGroup:
 
                 if not self.cancel:
                     gui.add_plot_tabs(parent_class=self, parent_name='Load')
+                    analyzed_file_label.config(text=f"Analyzed file: {self.params['file_name']['var'].get()}")
                 else:
                     self.cancel = False
 
@@ -1097,7 +1395,6 @@ class LoadScanGroup:
         def get_file():
             new_file = askopenfilename(filetypes=[("Timeres datafile", "*.timeres")])
             if new_file:
-                #file_entry.delete(0, tk.END)
                 self.params['file_name']['var'].set(new_file)
 
         def get_recipe():
@@ -1109,7 +1406,11 @@ class LoadScanGroup:
         frm_misc = tk.Frame(tab)
         frm_misc.grid(row=0, column=0)
 
-        tk.Button(frm_misc, text="Datafile  ", command=get_file).grid(row=1, column=0, sticky="ew")
+        # shows which file we have analysed:
+        analyzed_file_label = ttk.Label(frm_misc, text='', font="Helvetica 10 normal italic", background='#ffffff')
+        analyzed_file_label.grid(row=10, column=0, columnspan=10, sticky='ew')
+        # ----
+        tk.Button(frm_misc, text="Datafile", command=get_file).grid(row=1, column=0, sticky="ew")
         tk.Button(frm_misc, text="ETA recipe", command=get_recipe).grid(row=2, column=0, sticky="ew")
 
         file_entry = tk.Entry(frm_misc, bd=2, textvariable=self.params['file_name']['var'], width=100)
@@ -1120,7 +1421,7 @@ class LoadScanGroup:
         start_btn = tk.Button(frm_misc, text="Analyze", command=press_start)
         start_btn.grid(row=3, column=0, columnspan=2, sticky="ew")
 
-        self.eta_class.pb = ttk.Progressbar(frm_misc, style='bar.Horizontal.TProgressbar', orient='horizontal', mode='determinate', length=300)  # progressbar
+        self.eta_class.pb = ttk.Progressbar(frm_misc, style='bar.Horizontal.TProgressbar', orient='horizontal', mode='determinate', length=500)  # progressbar
         self.eta_class.pb.grid(row=3, column=2, sticky="ew")
 
         stop_btn = tk.Button(frm_misc, text="Cancel", command=press_stop)
