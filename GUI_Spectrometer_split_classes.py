@@ -35,8 +35,9 @@ class ScrollFrame(tk.Frame):
     def __init__(self, parent):
         super().__init__(parent)  # create a frame (self)
 
-        self.canvas = tk.Canvas(self, background="#ffffff", height=0, highlightthickness=0)  # place canvas on self
-        self.viewPort = tk.Frame(self.canvas, background="#ffffff")  # place a frame on the canvas, this frame will hold the child widgets
+        #self.canvas = tk.Canvas(self, background="#ffffff", height=0, highlightthickness=0)  # place canvas on self
+        self.canvas = tk.Canvas(self, height=0, highlightthickness=0)  # place canvas on self
+        self.viewPort = ttk.Frame(self.canvas)  # background="#ffffff"  # place a frame on the canvas, this frame will hold the child widgets
         self.vsb = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)  # place a scrollbar on self
         self.canvas.configure(yscrollcommand=self.vsb.set)  # attach scrollbar action to scroll of canvas
 
@@ -181,7 +182,7 @@ class Plotting:
         # BUTTONS:
         butt_frame = ttk.Frame(tab, relief=tk.FLAT)
 
-        tk.Label(butt_frame, text=f'Change X-axis to:').grid(row=0, column=0, sticky="nsew")
+        ttk.Label(butt_frame, text=f'Change X-axis to:').grid(row=0, column=0, sticky="nsew")
         ttk.Radiobutton(butt_frame, text="wavelength [nm]", value='λ [nm]', variable=self.x_label, command=pressed_xlabel).grid(row=1, column=0, sticky="ew")
         ttk.Radiobutton(butt_frame, text="frequency [Hz]", value='f [Hz]', variable=self.x_label, command=pressed_xlabel).grid(row=2, column=0, sticky="ew")
         ttk.Radiobutton(butt_frame, text="photon energy [eV]", value='E [eV]', variable=self.x_label, command=pressed_xlabel).grid(row=3, column=0, sticky="ew")
@@ -208,35 +209,36 @@ class Plotting:
     def plot_lifetime_widget(self, tab):
 
         def make_time_scale_button():
-            butt_frame = tk.Frame(tab, relief=tk.FLAT, bd=2)
+            butt_frame = ttk.Frame(tab, relief=tk.FLAT)
 
-            butt_frame_t = tk.Frame(butt_frame, bd=2)
+            butt_frame_t = ttk.Frame(butt_frame)
 
-            tk.Label(butt_frame_t, text=f'min').grid(row=1, column=1, sticky="ew")
-            tk.Label(butt_frame_t, text=f'max').grid(row=1, column=2, sticky="ew")
+            ttk.Label(butt_frame_t, text=f'min').grid(row=1, column=1, sticky="ew")
+            ttk.Label(butt_frame_t, text=f'max').grid(row=1, column=2, sticky="ew")
 
-            tk.Label(butt_frame_t, text=f'X').grid(row=2, column=0, sticky="ew")
-            tk.Entry(butt_frame_t, bd=2, textvariable=time_min, width=6).grid(row=2, column=1, sticky="ew")
-            tk.Entry(butt_frame_t, bd=2, textvariable=time_max, width=6).grid(row=2, column=2, sticky="ew")
+            ttk.Label(butt_frame_t, text=f'X').grid(row=2, column=0, sticky="ew")
+            ttk.Entry(butt_frame_t, textvariable=time_min, width=6).grid(row=2, column=1, sticky="ew")
+            ttk.Entry(butt_frame_t, textvariable=time_max, width=6).grid(row=2, column=2, sticky="ew")
 
-            tk.Label(butt_frame_t, text=f'Y').grid(row=3, column=0, sticky="ew")
-            tk.Entry(butt_frame_t, bd=2, textvariable=cnt_min, width=6).grid(row=3, column=1, sticky="ew")
-            tk.Entry(butt_frame_t, bd=2, textvariable=cnt_max, width=6).grid(row=3, column=2, sticky="ew")
+            ttk.Label(butt_frame_t, text=f'Y').grid(row=3, column=0, sticky="ew")
+            ttk.Entry(butt_frame_t, textvariable=cnt_min, width=6).grid(row=3, column=1, sticky="ew")
+            ttk.Entry(butt_frame_t, textvariable=cnt_max, width=6).grid(row=3, column=2, sticky="ew")
 
-            tk.Button(butt_frame_t, text="Update", command=update_plot).grid(row=4, column=0, columnspan=3, sticky="ew", padx=0,  pady=0)
+            ttk.Button(butt_frame_t, text="Update", command=update_plot).grid(row=4, column=0, columnspan=3, sticky="ew", padx=0,  pady=0)
 
-            butt_frame_s = tk.Frame(butt_frame, relief=tk.FLAT, bd=2)
+            butt_frame_s = ttk.Frame(butt_frame, relief=tk.FLAT)
 
-            tk.Label(butt_frame_s, text="Show Channels:").grid(row=2, column=0, columnspan=2, sticky="ew")
-            tk.Entry(butt_frame_s, bd=2, textvariable=range_list, width=6).grid(row=3, column=0, columnspan=1, sticky="ew")
-            tk.Button(butt_frame_s, text=f"Update range", command=range_show).grid(row=3, column=1, columnspan=1, sticky="ew")
+            ttk.Label(butt_frame_s, text="Show Channels:").grid(row=2, column=0, columnspan=2, sticky="ew")
+            ttk.Entry(butt_frame_s, textvariable=range_list, width=6).grid(row=3, column=0, columnspan=1, sticky="ew")
+            ttk.Button(butt_frame_s, text=f"Update range", command=range_show).grid(row=3, column=1, columnspan=1, sticky="ew")
 
-            butt_frame_p = tk.Frame(butt_frame, relief=tk.FLAT, bd=2)
-            tk.Label(butt_frame_p, text=f'Plot scale').grid(row=0, column=0, columnspan=2, sticky="ew")
+            butt_frame_p = ttk.Frame(butt_frame, relief=tk.FLAT)
+            ttk.Label(butt_frame_p, text=f'Plot scale').grid(row=0, column=0, columnspan=2, sticky="ew")
             self.scale_buttons = {
-                'linear':       tk.Button(butt_frame_p, text="  Linear  ", highlightbackground='green', command=lambda: press_scale_plot('linear')),
-                #'histo':      tk.Button(butt_frame_p, text="Linear (histo)", command=lambda: press_scale_plot('histo')),
-                'log':          tk.Button(butt_frame_p, text=" Semi-Log ", command=lambda: press_scale_plot('log')),
+                #'linear':       tk.Button(butt_frame_p, text="  Linear  ", highlightbackground='green', command=lambda: press_scale_plot('linear')),
+                'linear':       ttk.Button(butt_frame_p, text="  Linear  ", command=lambda: press_scale_plot('linear')),
+                #'histo':      ttk.Button(butt_frame_p, text="Linear (histo)", command=lambda: press_scale_plot('histo')),
+                'log':          ttk.Button(butt_frame_p, text=" Semi-Log ", command=lambda: press_scale_plot('log')),
             }
 
             for i, thing in enumerate(self.scale_buttons.values()):
@@ -312,7 +314,7 @@ class Plotting:
                     c = 'green'
                 else:
                     c = 'white'
-                self.scale_buttons[type].config(highlightbackground=c)
+                #self.scale_buttons[type].config(highlightbackground=c)
 
             update_plot(scale)
 
@@ -395,35 +397,36 @@ class Plotting:
     def plot_3D_lifetime_widget(self, tab):
 
         def make_time_scale_button():
-            butt_frame = tk.Frame(tab, relief=tk.FLAT, bd=2)
+            butt_frame = ttk.Frame(tab, relief=tk.FLAT)
 
-            butt_frame_t = tk.Frame(butt_frame, bd=2)
+            butt_frame_t = ttk.Frame(butt_frame)
 
-            tk.Label(butt_frame_t, text=f'min').grid(row=1, column=1, sticky="ew")
-            tk.Label(butt_frame_t, text=f'max').grid(row=1, column=2, sticky="ew")
+            ttk.Label(butt_frame_t, text=f'min').grid(row=1, column=1, sticky="ew")
+            ttk.Label(butt_frame_t, text=f'max').grid(row=1, column=2, sticky="ew")
 
-            tk.Label(butt_frame_t, text=f'X').grid(row=2, column=0, sticky="ew")
-            tk.Entry(butt_frame_t, bd=2, textvariable=time_min, width=6).grid(row=2, column=1, sticky="ew")
-            tk.Entry(butt_frame_t, bd=2, textvariable=time_max, width=6).grid(row=2, column=2, sticky="ew")
+            ttk.Label(butt_frame_t, text=f'X').grid(row=2, column=0, sticky="ew")
+            ttk.Entry(butt_frame_t, textvariable=time_min, width=6).grid(row=2, column=1, sticky="ew")
+            ttk.Entry(butt_frame_t, textvariable=time_max, width=6).grid(row=2, column=2, sticky="ew")
 
-            tk.Label(butt_frame_t, text=f'Y').grid(row=3, column=0, sticky="ew")
-            tk.Entry(butt_frame_t, bd=2, textvariable=cnt_min, width=6).grid(row=3, column=1, sticky="ew")
-            tk.Entry(butt_frame_t, bd=2, textvariable=cnt_max, width=6).grid(row=3, column=2, sticky="ew")
+            ttk.Label(butt_frame_t, text=f'Y').grid(row=3, column=0, sticky="ew")
+            ttk.Entry(butt_frame_t, textvariable=cnt_min, width=6).grid(row=3, column=1, sticky="ew")
+            ttk.Entry(butt_frame_t, textvariable=cnt_max, width=6).grid(row=3, column=2, sticky="ew")
 
-            tk.Button(butt_frame_t, text="Update", command=update_plot).grid(row=4, column=0, columnspan=3, sticky="ew", padx=0,  pady=0)
+            ttk.Button(butt_frame_t, text="Update", command=update_plot).grid(row=4, column=0, columnspan=3, sticky="ew", padx=0,  pady=0)
 
-            butt_frame_s = tk.Frame(butt_frame, relief=tk.FLAT, bd=2)
+            butt_frame_s = ttk.Frame(butt_frame, relief=tk.FLAT)
 
-            tk.Label(butt_frame_s, text="Show Channels:").grid(row=2, column=0, columnspan=2, sticky="ew")
-            tk.Entry(butt_frame_s, bd=2, textvariable=range_list, width=6).grid(row=3, column=0, columnspan=1, sticky="ew")
-            tk.Button(butt_frame_s, text=f"Update range", command=range_show).grid(row=3, column=1, columnspan=1, sticky="ew")
+            ttk.Label(butt_frame_s, text="Show Channels:").grid(row=2, column=0, columnspan=2, sticky="ew")
+            ttk.Entry(butt_frame_s, textvariable=range_list, width=6).grid(row=3, column=0, columnspan=1, sticky="ew")
+            ttk.Button(butt_frame_s, text=f"Update range", command=range_show).grid(row=3, column=1, columnspan=1, sticky="ew")
 
-            butt_frame_p = tk.Frame(butt_frame, relief=tk.FLAT, bd=2)
-            tk.Label(butt_frame_p, text=f'Plot scale').grid(row=0, column=0, columnspan=2, sticky="ew")
+            butt_frame_p = ttk.Frame(butt_frame, relief=tk.FLAT)
+            ttk.Label(butt_frame_p, text=f'Plot scale').grid(row=0, column=0, columnspan=2, sticky="ew")
             self.scale_buttons_3D = {
-                'linear':       tk.Button(butt_frame_p, text="  Linear  ", highlightbackground='green', command=lambda: press_scale_plot('linear')),
-                #'histo':        tk.Button(butt_frame_p, text="Linear (histo)", command=lambda: press_scale_plot('histo')),
-                #'log':          tk.Button(butt_frame_p, text=" Semi-Log ", command=lambda: press_scale_plot('log')),
+                #'linear':       tk.Button(butt_frame_p, text="  Linear  ", highlightbackground='green', command=lambda: press_scale_plot('linear')),
+                'linear':       ttk.Button(butt_frame_p, text="  Linear  ", command=lambda: press_scale_plot('linear')),
+                #'histo':        ttk.Button(butt_frame_p, text="Linear (histo)", command=lambda: press_scale_plot('histo')),
+                #'log':          ttk.Button(butt_frame_p, text=" Semi-Log ", command=lambda: press_scale_plot('log')),
             }
 
             for i, thing in enumerate(self.scale_buttons_3D.values()):
@@ -705,7 +708,7 @@ class Plotting:
 """
     def plot_display_info_widget(self, tab, tab_str):
 
-        frm_info = tk.Frame(tab, relief=tk.FLAT)
+        frm_info = ttk.Frame(tab, relief=tk.FLAT)
 
         # TODO: add text or variables depending on which graph tab we have
         if tab_str == "tab 1 plots":
@@ -719,17 +722,17 @@ class Plotting:
         elif tab_str == "tab all plots":
             pass
 
-        tk.Label(frm_info, text=f'{tab_str}').grid(row=0, column=0, sticky="nsew")
-        tk.Label(frm_info, text=f'info').grid(row=1, column=0, sticky="nsew")
-        tk.Label(frm_info, text=f'info').grid(row=2, column=0, sticky="nsew")
-        tk.Label(frm_info, text=f'info').grid(row=3, column=0, sticky="nsew")
-        tk.Label(frm_info, text=f'info').grid(row=4, column=0, sticky="nsew")
+        ttk.Label(frm_info, text=f'{tab_str}').grid(row=0, column=0, sticky="nsew")
+        ttk.Label(frm_info, text=f'info').grid(row=1, column=0, sticky="nsew")
+        ttk.Label(frm_info, text=f'info').grid(row=2, column=0, sticky="nsew")
+        ttk.Label(frm_info, text=f'info').grid(row=3, column=0, sticky="nsew")
+        ttk.Label(frm_info, text=f'info').grid(row=4, column=0, sticky="nsew")
 
-        tk.Label(frm_info, text=f'  ').grid(row=0, column=1, sticky="nsew")
-        tk.Label(frm_info, text=f'...').grid(row=1, column=1, sticky="nsew")
-        tk.Label(frm_info, text=f'...').grid(row=2, column=1, sticky="nsew")
-        tk.Label(frm_info, text=f'...').grid(row=3, column=1, sticky="nsew")
-        tk.Label(frm_info, text=f'...').grid(row=4, column=1, sticky="nsew")
+        ttk.Label(frm_info, text=f'  ').grid(row=0, column=1, sticky="nsew")
+        ttk.Label(frm_info, text=f'...').grid(row=1, column=1, sticky="nsew")
+        ttk.Label(frm_info, text=f'...').grid(row=2, column=1, sticky="nsew")
+        ttk.Label(frm_info, text=f'...').grid(row=3, column=1, sticky="nsew")
+        ttk.Label(frm_info, text=f'...').grid(row=4, column=1, sticky="nsew")
 
         return frm_info
 
@@ -739,16 +742,31 @@ class GUI:
     def __init__(self):
         # Create and configure the main GUI window
         #self.root = tk.Tk()
-
-        theme_list = ['scidpurple', 'arc', 'equilux', 'yaru', 'radiance', 'plastik', 'default',
-                      'scidpink', 'black', 'adapta', 'scidgreen', 'keramik', 'scidgrey', 'itft1',
+        # 0
+        self.theme_list = theme_list = ['scidpurple',  # white purple nice
+                      'arc',  # not great, too pale
+                      'equilux', # nice grey/darkmode
+                      'yaru', # nice and light, but buttons too big
+                      'radiance', # reminds me of linux, soft beige
+                      'plastik',  # nice, light grey/blue but looks a bit old
+                      'default',  # very box-y and old
+                      'scidpink',
+                      'black',
+                      'adapta',
+                      'scidgreen',
+                      'keramik',
+                      'scidgrey',
+                      'itft1',
                       'aqua', 'elegance', 'breeze', 'kroc', 'smog', 'blue', 'clam', 'scidmint',
                       'scidblue', 'alt', 'aquativo', 'classic', 'clearlooks', 'ubuntu', 'winxpblue', 'scidsand']
-        i = 0
-        self.root = ThemedTk(theme=theme_list[i])  # yaru is good i think
-        print("Using theme:", theme_list[i])
+
+
+        self.root = ThemedTk(theme='radiance')  # yaru is good i think
+
         self.root.title("Quantum Spectrometer GUI - Ghostly matters")   # *Ghostly matters*
-        self.root.geometry('1080x800')
+        self.root.geometry('1070x730')
+        #self.root.geometry('1080x800')
+        self.root.resizable(True, True)
 
         self.tabs = {
             'Load' : {
@@ -771,18 +789,20 @@ class GUI:
         }
 
         # Create root notebook
-        self.root_nb = self.add_notebook(parent_tab=self.root, expand=1, fill="both")
+        #self.root_nb = self.add_notebook(parent_tab=self.root,  expand=1, fill="both")
+        self.root_nb = self.add_notebook(parent_tab=self.root,  expand=1, fill="both", side='right')
 
         # Create parent tabs and pack into root notebook
         self.tabs['Load']['tab'] = self.add_tab(parent_nb=self.root_nb, tab_name='Load Scan')
         self.tabs['New']['tab'] = self.add_tab(parent_nb=self.root_nb, tab_name='New Scan')
         self.tabs['Settings']['tab'] = self.add_tab(parent_nb=self.root_nb, tab_name='Settings')
+        self.create_theme_sel()
 
     @staticmethod
     def pack_plot(tab, fig):
 
         # creating the Tkinter canvas containing the Matplotlib figure
-        plt_frame = tk.Frame(tab, relief=tk.FLAT, bd=2)
+        plt_frame = ttk.Frame(tab, relief=tk.FLAT)
         canvas = FigureCanvasTkAgg(fig, master=plt_frame)  # self.root)
         canvas.draw()
         # placing the canvas on the Tkinter window
@@ -794,22 +814,6 @@ class GUI:
         canvas.get_tk_widget().pack()
 
         return plt_frame, canvas
-
-    @staticmethod
-    def add_scrollbar_v(parent_frame, widget):
-        # create a scrollbar widget and set its command to the text widget
-        scrollbar = ttk.Scrollbar(parent_frame, orient='vertical', command=widget.yview)
-        scrollbar.grid(row=0, column=1, sticky=tk.NS)
-        #  communicate back to the scrollbar
-        widget['yscrollcommand'] = scrollbar.set
-
-    @staticmethod
-    def add_scrollbar_h(parent_frame, widget):
-        # create a scrollbar widget and set its command to the text widget
-        scrollbar = ttk.Scrollbar(parent_frame, orient='horizontal', command=widget.xview)
-        scrollbar.grid(row=1, column=0, sticky=tk.EW)
-        #  communicate back to the scrollbar
-        widget['xscrollcommand'] = scrollbar.set
 
     @staticmethod
     def add_tab(parent_nb, tab_name):
@@ -850,6 +854,25 @@ class GUI:
         # --------
         self.tabs['Settings']['notebook'] = self.add_notebook(parent_tab=self.tabs['Settings']['tab'], anchor='w')
 
+        # ---- CHOOSING THEME ----
+        #self.theme_var = tk.StringVar(value='yaru')
+        #option_thm = ttk.OptionMenu(self.tabs['Settings']['notebook'], variable=self.theme_var, default="yaru")
+        #option_thm.grid(row=0, column=0)
+        #for theme in self.theme_list:
+        #    option_thm['menu'].add_command(label=f"{theme}", command=lambda thm=theme: self.change_theme(thm))
+
+    def create_theme_sel(self):
+        def change_theme(new_thm):
+            print("changed to theme:", new_thm)
+            self.root.set_theme(new_thm)
+            thm_var.set(new_thm)
+
+        thm_var = tk.StringVar(value="yaru")
+        option_thm = ttk.OptionMenu(self.root_nb, variable=thm_var, default="radiance")
+        option_thm.pack(expand=1, anchor='ne')
+        for theme in self.theme_list:
+            option_thm['menu'].add_command(label=f"{theme}", command=lambda thm=theme: change_theme(thm))
+
     def add_plot_tabs(self, parent_class, parent_name):
         # NOTE: CREATE NEW TAB THAT DOESN'T EXIST WITH:
         #child_tab = self.tabs[parent_name]['children']['example_plot1'] = self.add_tab(parent_nb=self.tabs[parent_name]['notebook'], tab_name='example_plot1')
@@ -860,7 +883,6 @@ class GUI:
         self.plot_lifetime_tab(self.tabs[parent_name]['children']['Lifetime'], parent_class)  # note: temp moved to front for testing
         self.plot_3d_lifetime_tab(self.tabs[parent_name]['children']['Lifetime 3D'], parent_class)  # note: temp moved to front for testing
         self.plot_correlation_tab(self.tabs[parent_name]['children']['Correlation'], parent_class)  # note: temp moved to front for testing
-
 
     # **
     def plot_lifetime_tab(self, plots_lifetime, parent):
@@ -881,16 +903,16 @@ class GUI:
     # **
     def plot_correlation_tab(self, plots_correlation, parent):
         # TODO: add widgets
-        tk.Label(plots_correlation, text='\nNOTHING TO SHOW YET. WORK IN PROGRESS...', font=('', 15)).grid(row=0, column=0, columnspan=4, sticky="news")
+        ttk.Label(plots_correlation, text='\nNOTHING TO SHOW YET. WORK IN PROGRESS...', font=('', 15)).grid(row=0, column=0, columnspan=4, sticky="news")
 
 
     @staticmethod
     def add_to_grid(widg, rows, cols, sticky, columnspan=None):
         for i in range(len(widg)):
             if columnspan:
-                widg[i].grid(row=rows[i], column=cols[i], sticky=sticky[i], padx=0, pady=0, columnspan=columnspan[i])
+                widg[i].grid(row=rows[i], column=cols[i], sticky=sticky[i], ipadx=5, ipady=0, columnspan=columnspan[i])
             else:
-                widg[i].grid(row=rows[i], column=cols[i], sticky=sticky[i], padx=0, pady=0)
+                widg[i].grid(row=rows[i], column=cols[i], sticky=sticky[i], ipadx=2, ipady=0, padx=1, pady=1)
 
     # -------
 
@@ -959,7 +981,7 @@ class NewScanGroup:
         #live_plt.grid(row=2, column=1, columnspan=1, sticky="news")
         #button_frame.grid(row=2, column=2, columnspan=1, sticky="news")
 
-        start_tab = tk.Frame(new_scan_tab, relief=tk.FLAT, bd=2)   # frame to gather things to communicate with devices
+        start_tab = ttk.Frame(new_scan_tab, relief=tk.FLAT)   # frame to gather things to communicate with devices
         start_tab.grid(row=0, column=1, columnspan=1, sticky="news")
         #tk.Label(start_tab, text='Device Communication', font=('', 15)).grid(row=0, column=0, columnspan=4, sticky="news")
         #newScanClass.choose_file_configs_widget(start_tab).grid(row=1, column=0, sticky="news")  # in sub frame
@@ -991,9 +1013,9 @@ class NewScanGroup:
             #self.mark_done(btn_start, highlight=self.button_color, type='button')
             #self.mark_done(btn_stop, highlight='red', type='button')
 
-        frm_send = tk.Frame(tab, relief=tk.FLAT, bd=2)
-        btn_start = tk.Button(frm_send, text="Start Scan", command=press_start)
-        btn_stop = tk.Button(frm_send, text="Stop", command=press_stop)
+        frm_send = ttk.Frame(tab, relief=tk.FLAT)
+        btn_start = ttk.Button(frm_send, text="Start Scan", command=press_start)
+        btn_stop = ttk.Button(frm_send, text="Stop", command=press_stop)
         self.prog_bar = ttk.Progressbar(frm_send, style='bar.Horizontal.TProgressbar', orient='horizontal', mode='determinate', length=500)  # progressbar
 
         btn_start.grid(row=0, column=0, sticky="nsew")
@@ -1135,6 +1157,7 @@ class NewScanGroup:
 
             self.params['nr_pixels']['var'].set(nr_pixels)
 
+            # TODO: FIXME
             # removes previously shown channels (in case we want to decrease in amount)
             for j, widget in enumerate(frm['ch'].winfo_children()):  # FIXME NOTE TODO: USE THIS LATER TO ACCESS BUTTONS FOR MARKING DONE
                 if j == 0:
@@ -1170,12 +1193,12 @@ class NewScanGroup:
                 self.ch_bias_list.append(tk.IntVar(value=device_bias[pix]))  # FIXME we are only displaying, not setting anything
                 self.ch_trig_list.append(tk.IntVar(value=device_trigger[pix]))  # FIXME we are only displaying, not setting anything
 
-                tk.Label(chosen_frm, text=f"{pix + 1}").grid(row=pix + 2, column=0, sticky="ew", padx=6)
-                tk.Entry(chosen_frm, bd=2, textvariable=self.ch_bias_list[pix], width=6).grid(row=pix + 2, column=1, sticky="ew", padx=8)
-                tk.Entry(chosen_frm, bd=2, textvariable=self.ch_trig_list[pix], width=8).grid(row=pix + 2, column=2, sticky="ew", padx=7)
+                ttk.Label(chosen_frm, text=f"{pix + 1}").grid(row=pix + 2, column=0, sticky="ew", padx=6)
+                ttk.Entry(chosen_frm, textvariable=self.ch_bias_list[pix], width=6).grid(row=pix + 2, column=1, sticky="ew", padx=8)
+                ttk.Entry(chosen_frm, textvariable=self.ch_trig_list[pix], width=8).grid(row=pix + 2, column=2, sticky="ew", padx=7)
 
-                # tk.Label(frm['ch'], text=f"0").grid(row=pix + 2, column=3, sticky="ew", padx=0, pady=0)  # counts
-                c_temp = tk.Label(chosen_frm, text=f"0")
+                # ttk.Label(frm['ch'], text=f"0").grid(row=pix + 2, column=3, sticky="ew", padx=0, pady=0)  # counts
+                c_temp = ttk.Label(chosen_frm, text=f"0")
                 c_temp.grid(row=pix + 2, column=3, sticky="ew", padx=9)  # counts
                 self.pix_counts_list.append(c_temp)
 
@@ -1183,15 +1206,15 @@ class NewScanGroup:
         #self.port.set(self.sp.port)  # note maybe change later when implemented
 
         # FRAMES
-        frm_test = tk.Frame(tab, relief=tk.FLAT, bd=2)
+        frm_test = ttk.Frame(tab, relief=tk.FLAT)
         frm_test.grid(row=0, column=0, sticky="news")
 
         frm = {
-            'port'    : tk.Frame(frm_test, relief=tk.GROOVE, bd=2) ,
-            'slit'    : tk.Frame(frm_test, relief=tk.GROOVE, bd=2) ,
-            'grating' : tk.Frame(frm_test, relief=tk.GROOVE, bd=2) ,
-            'detect'  : tk.Frame(frm_test, relief=tk.GROOVE, bd=2) ,
-            'ch'      : tk.Frame(frm_test, relief=tk.GROOVE, bd=2)  ,
+            'port'    : ttk.Frame(frm_test, relief=tk.GROOVE) ,
+            'slit'    : ttk.Frame(frm_test, relief=tk.GROOVE) ,
+            'grating' : ttk.Frame(frm_test, relief=tk.GROOVE) ,
+            'detect'  : ttk.Frame(frm_test, relief=tk.GROOVE) ,
+            'ch'      : ttk.Frame(frm_test, relief=tk.GROOVE)  ,
         }
 
         scroll_frm = CreateScrollFrame(frm['ch'])
@@ -1201,50 +1224,50 @@ class NewScanGroup:
         # WIDGETS
 
         #  -- Slit:
-        slt_parts = [tk.Label(frm['slit'], text='Slit width'),
-                     tk.Entry(frm['slit'], bd=2, textvariable=self.params['slit']['var'], width=5),
-                     tk.Label(frm['slit'], text='[um]')]
+        slt_parts = [ttk.Label(frm['slit'], text='Slit width'),
+                     ttk.Entry(frm['slit'], textvariable=self.params['slit']['var'], width=5),
+                     ttk.Label(frm['slit'], text='[um]')]
 
         #  -- Grating:
         grating_widget_dict = {
             'radio_b': [],
-            'grt_txt': [tk.Label(frm['grating'], text='Grating')],
-            'blz_txt': [tk.Label(frm['grating'], text='Blaze')],
-            'wid_txt': [tk.Label(frm['grating'], text='Width')],
+            'grt_txt': [ttk.Label(frm['grating'], text='Grating')],
+            'blz_txt': [ttk.Label(frm['grating'], text='Blaze')],
+            'wid_txt': [ttk.Label(frm['grating'], text='Width')],
         }
         for c in range(3):
-            grating_widget_dict['radio_b'].append(tk.Radiobutton(frm['grating'], text="", variable=self.params['grating']['var'], value=c + 1, command=select_grating))
-            grating_widget_dict['grt_txt'].append(tk.Label(frm['grating'], text=f"  {self.grating_lvl[c + 1]['grating']}  [gr/mm]"))
-            grating_widget_dict['blz_txt'].append(tk.Label(frm['grating'], text=f"  {self.grating_lvl[c + 1]['blz']}"))
-            grating_widget_dict['wid_txt'].append(tk.Label(frm['grating'], text=f"  {self.grating_lvl[c + 1]['width']}"))
+            grating_widget_dict['radio_b'].append(ttk.Radiobutton(frm['grating'], text="", variable=self.params['grating']['var'], value=c + 1, command=select_grating))
+            grating_widget_dict['grt_txt'].append(ttk.Label(frm['grating'], text=f"  {self.grating_lvl[c + 1]['grating']}  [gr/mm]"))
+            grating_widget_dict['blz_txt'].append(ttk.Label(frm['grating'], text=f"  {self.grating_lvl[c + 1]['blz']}"))
+            grating_widget_dict['wid_txt'].append(ttk.Label(frm['grating'], text=f"  {self.grating_lvl[c + 1]['width']}"))
 
         #  -- Detector:
-        det_parts = [tk.Label(frm['detect'], text="Center λ"),
-                     tk.Entry(frm['detect'], bd=2, textvariable=self.params['nm']['var'], width=4),
-                     tk.Label(frm['detect'], text='[nm]', width=4)]
+        det_parts = [ttk.Label(frm['detect'], text="Center λ"),
+                     ttk.Entry(frm['detect'], textvariable=self.params['nm']['var'], width=4),
+                     ttk.Label(frm['detect'], text='[nm]', width=4)]
 
-        wid_parts = [tk.Label(frm['detect'], text="Pixel width"),
-                     tk.Entry(frm['detect'], bd=2, textvariable=self.params['width_nm']['var'], width=6),
-                     tk.Label(frm['detect'], text='[nm]')]
+        wid_parts = [ttk.Label(frm['detect'], text="Pixel width"),
+                     ttk.Entry(frm['detect'], textvariable=self.params['width_nm']['var'], width=6),
+                     ttk.Label(frm['detect'], text='[nm]')]
 
-        det_no_parts = [tk.Label(frm['detect'], text="Nr. of pixels"),
-                        tk.Button(frm['detect'], text="4", command=lambda: update_ch(4)),
-                        tk.Button(frm['detect'], text="8", command=lambda: update_ch(8))]
+        det_no_parts = [ttk.Label(frm['detect'], text="Nr. of pixels"),
+                        ttk.Button(frm['detect'], text="4", command=lambda: update_ch(4)),
+                        ttk.Button(frm['detect'], text="8", command=lambda: update_ch(8))]
 
         # -- Channels:
         ch_parts = [
-            tk.Label(frm['ch'], text='Pixel'),
-            tk.Label(frm['ch'], text='Bias (uA)'),
-            tk.Label(frm['ch'], text='    Trigger (mV)'),
-            tk.Label(frm['ch'], text='  Counts')]
+            ttk.Label(frm['ch'], text='Pixel'),
+            ttk.Label(frm['ch'], text='Bias (uA)'),
+            ttk.Label(frm['ch'], text='    Trigger (mV)'),
+            ttk.Label(frm['ch'], text='  Counts')]
 
         #  -- Port:
         get_ports()
-        port_parts = { 'refresh'        : tk.Button(frm['port'], text="Refresh Devices", command=refresh_ports),
+        port_parts = { 'refresh'        : ttk.Button(frm['port'], text="Refresh Devices", command=refresh_ports),
                        'option'         : ttk.OptionMenu(frm['port'], variable=self.port, default="Select..."),
-                       'connect'        : tk.Button(frm['port'], text="Connect", command=press_connect, state='disabled'),
-                       'disconnect'     : tk.Button(frm['port'], text="Disconnect", command=press_disconnect, state='disabled'),
-                       'label': tk.Label(frm['port'], text=f''),
+                       'connect'        : ttk.Button(frm['port'], text="Connect", command=press_connect, state='disabled'),
+                       'disconnect'     : ttk.Button(frm['port'], text="Disconnect", command=press_disconnect, state='disabled'),
+                       'label': ttk.Label(frm['port'], text=f''),
                        }
 
         # Populate the dropdown menu with the list of options
@@ -1263,13 +1286,13 @@ class NewScanGroup:
         # -- Slit
         gui.add_to_grid(widg=slt_parts, rows=[0, 1, 1], cols=[0, 0, 1], sticky=["", "", ""])
         # -- Grating
-        gui.add_to_grid(widg=grating_widget_dict['radio_b'], rows=[3, 4, 5],    cols=[0, 0, 0],    sticky=["", "s", "s", "s"])
+        gui.add_to_grid(widg=grating_widget_dict['radio_b'], rows=[3, 4, 5],    cols=[0, 0, 0],    sticky=["s", "s", "s"])
         gui.add_to_grid(widg=grating_widget_dict['grt_txt'], rows=[2, 3, 4, 5], cols=[1, 1, 1, 1], sticky=["", "s", "s", "s"])
         gui.add_to_grid(widg=grating_widget_dict['blz_txt'], rows=[2, 3, 4, 5], cols=[2, 2, 2, 2], sticky=["", "s", "s", "s"])
         gui.add_to_grid(widg=grating_widget_dict['wid_txt'], rows=[2, 3, 4, 5], cols=[3, 3, 3, 3], sticky=["", "s", "s", "s"])
 
         # -- Detector
-        gui.add_to_grid(widg=[tk.Label(frm['detect'], text="Detector")], rows=[0], cols=[0], sticky=["ew"])  # , columnspan=[2])
+        gui.add_to_grid(widg=[ttk.Label(frm['detect'], text="Detector")], rows=[0], cols=[0], sticky=["ew"])  # , columnspan=[2])
         gui.add_to_grid(widg=det_parts, rows=[1, 1, 1], cols=[0, 1, 2], sticky=["ew", "ew", "ew"])
         # gui.add_to_grid(widg=wid_parts, rows=[2,2,2], cols=[0,1,2], sticky=["ew", "ew", "ew"])
         gui.add_to_grid(widg=det_no_parts, rows=[3, 3, 3], cols=[0, 1, 2], sticky=["ew", "ew", "ew"])
@@ -1327,23 +1350,23 @@ class NewScanGroup:
                    f"date({currDate})_time({currTime}).timeres"
             self.params['file_name']['var'].set(temp)
 
-        frm_misc = tk.Frame(tab)
+        frm_misc = ttk.Frame(tab)
         frm_misc.grid(row=10, column=0, sticky="ew", columnspan=10)
 
         # shows which file we have analysed:
-        analyzed_file_label = ttk.Label(frm_misc, text='', font="Helvetica 10 normal italic", background='#ffffff')
+        analyzed_file_label = ttk.Label(frm_misc, text='', font="Helvetica 10 normal italic")
         analyzed_file_label.grid(row=10, column=0, columnspan=10, sticky='ew')
         # ----
-        tk.Button(frm_misc, text="Datafile  ", command=suggest_filename).grid(row=1, column=0, sticky="ew")
-        tk.Button(frm_misc, text="ETA recipe", command=get_recipe).grid(row=2, column=0, sticky="ew")
+        ttk.Button(frm_misc, text="Datafile  ", command=suggest_filename).grid(row=1, column=0, sticky="ew")
+        ttk.Button(frm_misc, text="ETA recipe", command=get_recipe).grid(row=2, column=0, sticky="ew")
 
-        file_entry = tk.Entry(frm_misc, bd=2, textvariable=self.params['file_name']['var'], width=100)
-        reci_entry = tk.Entry(frm_misc, bd=2, textvariable=self.params['eta_recipe']['var'], width=100)
+        file_entry = ttk.Entry(frm_misc, textvariable=self.params['file_name']['var'], width=100)
+        reci_entry = ttk.Entry(frm_misc, textvariable=self.params['eta_recipe']['var'], width=100)
         file_entry.grid(row=1, column=1, columnspan=10, sticky="ew")
         reci_entry.grid(row=2, column=1, columnspan=10, sticky="ew")
 
-        analyze_btn = tk.Button(frm_misc, text="Analyze", command=press_analyze)
-        cancel_btn = tk.Button(frm_misc, text="Cancel", command=press_cancel)
+        analyze_btn = ttk.Button(frm_misc, text="Analyze", command=press_analyze)
+        cancel_btn = ttk.Button(frm_misc, text="Cancel", command=press_cancel)
         analyze_btn.grid(row=3, column=0, sticky="ew")
         cancel_btn.grid(row=3, column=1, sticky="ew")
 
@@ -1403,28 +1426,28 @@ class LoadScanGroup:
                 #reci_entry.delete(0, tk.END)
                 self.params['eta_recipe']['var'].set(new_reci)
 
-        frm_misc = tk.Frame(tab)
+        frm_misc = ttk.Frame(tab)
         frm_misc.grid(row=0, column=0)
 
         # shows which file we have analysed:
-        analyzed_file_label = ttk.Label(frm_misc, text='', font="Helvetica 10 normal italic", background='#ffffff')
+        analyzed_file_label = ttk.Label(frm_misc, text='', font="Helvetica 10 normal italic")
         analyzed_file_label.grid(row=10, column=0, columnspan=10, sticky='ew')
         # ----
-        tk.Button(frm_misc, text="Datafile", command=get_file).grid(row=1, column=0, sticky="ew")
-        tk.Button(frm_misc, text="ETA recipe", command=get_recipe).grid(row=2, column=0, sticky="ew")
+        ttk.Button(frm_misc, text="Datafile", command=get_file).grid(row=1, column=0, sticky="ew")
+        ttk.Button(frm_misc, text="ETA recipe", command=get_recipe).grid(row=2, column=0, sticky="ew")
 
-        file_entry = tk.Entry(frm_misc, bd=2, textvariable=self.params['file_name']['var'], width=100)
-        reci_entry = tk.Entry(frm_misc, bd=2, textvariable=self.params['eta_recipe']['var'], width=100)
+        file_entry = ttk.Entry(frm_misc, textvariable=self.params['file_name']['var'], width=100)
+        reci_entry = ttk.Entry(frm_misc, textvariable=self.params['eta_recipe']['var'], width=100)
         file_entry.grid(row=1, column=1, columnspan=10, sticky="ew")
         reci_entry.grid(row=2, column=1, columnspan=10, sticky="ew")
 
-        start_btn = tk.Button(frm_misc, text="Analyze", command=press_start)
+        start_btn = ttk.Button(frm_misc, text="Analyze", command=press_start)
         start_btn.grid(row=3, column=0, columnspan=2, sticky="ew")
 
         self.eta_class.pb = ttk.Progressbar(frm_misc, style='bar.Horizontal.TProgressbar', orient='horizontal', mode='determinate', length=500)  # progressbar
         self.eta_class.pb.grid(row=3, column=2, sticky="ew")
 
-        stop_btn = tk.Button(frm_misc, text="Cancel", command=press_stop)
+        stop_btn = ttk.Button(frm_misc, text="Cancel", command=press_stop)
         stop_btn.grid(row=3, column=3, columnspan=2, sticky="ew")
 
 
