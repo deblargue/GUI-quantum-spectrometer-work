@@ -6,6 +6,7 @@ from serial.tools import list_ports
 from datetime import date
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors as mat_col
 import matplotlib.ticker as ticker
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import logging
@@ -23,7 +24,10 @@ from pathlib import Path
 from ttkthemes import ThemedTk
 
 import platform  # for scrollable class
-
+import colour
+from colour import Color
+from matplotlib.collections import LineCollection
+from matplotlib.colors import BoundaryNorm, ListedColormap
 
 class ScrollFrame(ttk.Frame):
     # SOURCE: https://gist.github.com/mp035/9f2027c3ef9172264532fcd6262f3b01
@@ -108,6 +112,62 @@ class Plotting:
         self.plots = {}  # TODO: save plot, axes, and frame handles for different plots
         # self.eta_class??? todo
 
+    def create_color_gradient(self, start_hex='#000000', finish_hex='#ffffff', n=10):
+        # SOURCE: https://bsouthga.dev/posts/color-gradients-with-python
+
+        def hex_to_RGB(hex):
+            ''' "#FFFFFF" -> [255,255,255] '''
+            # Pass 16 to the integer function for change of base
+            return [int(hex[i:i + 2], 16) for i in range(1, 6, 2)]
+
+        def RGB_to_hex(RGB):
+            ''' [255,255,255] -> "#FFFFFF" '''
+            # Components need to be integers for hex to make sense
+            RGB = [int(x) for x in RGB]
+            return "#" + "".join(["0{0:x}".format(v) if v < 16 else
+                                  "{0:x}".format(v) for v in RGB])
+
+        def color_dict(gradient):
+            ''' Takes in a list of RGB sub-lists and returns dictionary of
+              colors in RGB and hex form for use in a graphing function
+              defined later on '''
+            return {"hex": [RGB_to_hex(RGB) for RGB in gradient],
+                    "r": [RGB[0] for RGB in gradient],
+                    "g": [RGB[1] for RGB in gradient],
+                    "b": [RGB[2] for RGB in gradient]}
+
+        ''' returns a gradient list of (n) colors between
+          two hex colors. start_hex and finish_hex
+          should be the full six-digit color string,
+          inlcuding the number sign ("#FFFFFF") '''
+        # Starting and ending colors in RGB form
+        s = hex_to_RGB(start_hex)
+        f = hex_to_RGB(finish_hex)
+        # Initilize a list of the output colors with the starting color
+        RGB_list = [s]
+        # Calcuate a color at each evenly spaced value of t from 1 to n
+        for t in range(1, n):
+            # Interpolate RGB vector for color at the current value of t
+            curr_vector = [ int(s[j] + (float(t) / (n - 1)) * (f[j] - s[j])) for j in range(3) ]
+            # Add it to our list of output colors
+            RGB_list.append(curr_vector)
+
+        return color_dict(RGB_list)
+
+    def colored_lines(self):
+        pass
+        """points = np.array([x_vals, counts]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+        
+        # Create a continuous norm to map from data points to colors
+        norm = plt.Normalize(counts.min(), counts.max())
+        lc = LineCollection(segments, cmap='viridis', norm=norm)
+        # Set the values used for colormapping
+        lc.set_array(counts)
+        lc.set_linewidth(2)
+        line = axs[0].add_collection(lc)
+        fig.colorbar(line, ax=axs[0])"""
+
     def plot_spectrum_widget(self, tab):
         # TODO: make it live? live graph???
 
@@ -128,7 +188,7 @@ class Plotting:
                 x = [1/(value_nm*1e-7) for value_nm in xar_b]
 
             else:
-                print("ERROR NOT FOUND")
+                self.parent.write_log(f"ERROR NOT FOUND")
                 x = []
 
             return x
@@ -165,7 +225,7 @@ class Plotting:
         # ---
 
         # style.use('ggplot')
-        fig = plt.Figure(figsize=(9, 5), dpi=100)
+        fig = plt.Figure(figsize=(9, 4), dpi=100)
         plot1 = fig.add_subplot(111)
         plot1.set_xlim(1545, 1565)
         plot1.set_ylim(0, 5000)
@@ -196,7 +256,7 @@ class Plotting:
     def plot_correlation_widget(self, tab):
         # TODO:
         # the figure that will contain the plot
-        fig = plt.Figure(figsize=(9, 5), dpi=100)  # 10 3
+        fig = plt.Figure(figsize=(9, 4), dpi=100)  # 10 3
         # data list
         y = []
         # adding the subplot
@@ -260,20 +320,20 @@ class Plotting:
             range_str_list = range_str.split(sep=',')
             range_str_list_list = [x.split('-') for x in range_str_list]
             range_list_int = [[eval(x.strip(' ')) for x in pair] for pair in range_str_list_list]
-            print("final range list", range_list_int)
+            self.parent.write_log(f"final range list {range_list_int}")
 
             for i in range(len(range_list_int)-1):
 
                 if len(range_list_int[i]) < 2:
-                    print("note single value")
+                    self.parent.write_log(f"note single value")
                     continue
                 # check if ranges overlap:    1-6, 4-8, 9-99
                 elif range_list_int[i][1] >= range_list_int[i+1][0]:
-                    print(f"Error: overlap, {range_list_int[i][1]} >= {range_list_int[i + 1][0]}")
+                    self.parent.write_log(f"Error: overlap, {range_list_int[i][1]} >= {range_list_int[i + 1][0]}")
                     range_is_ok_bool = False
                 else:
                     pass
-                    #print(f"OK i={i}, {range_list_int[i][1]} < {range_list_int[i + 1][0]}")
+                    #self.parent.write_log(f"OK i={i}, {range_list_int[i][1]} < {range_list_int[i + 1][0]}")
 
             # check if any channels are invalid
             min_ch = 1
@@ -282,18 +342,18 @@ class Plotting:
                 if len(range_list_int[i]) == 0:
                     range_is_ok_bool = False
                 elif len(range_list_int[i]) < 2:
-                    print("note single value")
+                    self.parent.write_log(f"note single value")
                     if (range_list_int[i][0] < min_ch) or (range_list_int[i][0] > max_ch):
                         range_is_ok_bool = False
                 elif range_list_int[i][0] >= range_list_int[i][1]:
-                    print("error: not increasing range")
+                    self.parent.write_log(f"error: not increasing range")
                     range_is_ok_bool = False
                 elif (range_list_int[i][0] < min_ch) or (range_list_int[i][1] > max_ch):
-                    print("error: channel in range is out of range")
+                    self.parent.write_log(f"error: channel in range is out of range")
                     range_is_ok_bool = False
 
             if range_is_ok_bool:  # if not errors!
-                print("Range if good, ok to plot")
+                self.parent.write_log(f"Range if good, ok to plot")
 
                 # start by setting all to false
                 for key in self.ch_show.keys():
@@ -306,7 +366,7 @@ class Plotting:
                     elif len(pair) == 2:
                         for idx in range(pair[0], pair[1]+1):
                             self.ch_show[f'h{idx}'] = True
-                print("SHOW DICT: ", self.ch_show)
+                self.parent.write_log(f"SHOW DICT: {self.ch_show}")
                 update_plot()
 
         def press_scale_plot(scale):
@@ -366,7 +426,6 @@ class Plotting:
                 if cnt_min.get() == 0.0:
                     cnt_min.set(1.0)
 
-            print(cnt_min.get(), cnt_max.get())
             ax1.set_xlim([time_min.get(), time_max.get()])
             ax1.set_ylim([cnt_min.get(), cnt_max.get()])
             ax1.set_xlabel("lifetime [ns]")
@@ -385,7 +444,236 @@ class Plotting:
         plot_mode = tk.StringVar(value="linear")
         self.show_buttons = []
 
-        fig = plt.figure(figsize=(9, 5), dpi=100)   # fig, ax1 = plt.subplots(1, 1, figsize=(9, 5))
+        fig = plt.figure(figsize=(9, 4), dpi=100)   # fig, ax1 = plt.subplots(1, 1, figsize=(9, 5))
+
+        update_plot()
+        plt_frame, canvas = gui.pack_plot(tab, fig)
+        butt_frm = make_time_scale_button()
+
+        plt_frame.grid(row=2, column=1, columnspan=1, sticky="news")
+        butt_frm.grid(row=2, column=2, columnspan=1, sticky="news")
+        #return plt_frame, butt_frm
+
+    def plot_lifetime_colorbar_widget(self, tab):
+
+        def make_time_scale_button():
+            butt_frame = ttk.Frame(tab, relief=tk.FLAT, borderwidth=3)
+
+            butt_frame_t = ttk.Frame(butt_frame, borderwidth=3)
+
+            ttk.Label(butt_frame_t, text=f'min').grid(row=1, column=1, sticky="ew")
+            ttk.Label(butt_frame_t, text=f'max').grid(row=1, column=2, sticky="ew")
+
+            ttk.Label(butt_frame_t, text=f'X').grid(row=2, column=0, sticky="ew")
+            ttk.Entry(butt_frame_t, textvariable=x_min, width=6).grid(row=2, column=1, sticky="ew")
+            ttk.Entry(butt_frame_t, textvariable=x_max, width=6).grid(row=2, column=2, sticky="ew")
+
+            ttk.Label(butt_frame_t, text=f'Y').grid(row=3, column=0, sticky="ew")
+            ttk.Entry(butt_frame_t, textvariable=y_min, width=6).grid(row=3, column=1, sticky="ew")
+            ttk.Entry(butt_frame_t, textvariable=y_max, width=6).grid(row=3, column=2, sticky="ew")
+
+            ttk.Button(butt_frame_t, text="Update", command=update_plot).grid(row=4, column=0, columnspan=3, sticky="ew")
+
+            butt_frame_s = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=3)
+
+            ttk.Label(butt_frame_s, text="Show Channels:").grid(row=2, column=0, columnspan=2, sticky="ew")
+            ttk.Entry(butt_frame_s, textvariable=range_list, width=6).grid(row=3, column=0, columnspan=1, sticky="ew")
+            ttk.Button(butt_frame_s, text=f"Update range", command=range_show).grid(row=3, column=1, columnspan=1, sticky="ew")
+
+            butt_frame_p = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=3)
+            ttk.Label(butt_frame_p, text=f'Plot scale').grid(row=0, column=0, columnspan=2, sticky="ew")
+            self.scale_buttons = {
+                #'linear':       tk.Button(butt_frame_p, text="  Linear  ", highlightbackground='green', command=lambda: press_scale_plot('linear')),
+                'linear':       ttk.Button(butt_frame_p, text="  Linear  ", command=lambda: press_scale_plot('linear')),
+                #'histo':      ttk.Button(butt_frame_p, text="Linear (histo)", command=lambda: press_scale_plot('histo')),
+                'log':          ttk.Button(butt_frame_p, text=" Semi-Log ", command=lambda: press_scale_plot('log')),
+            }
+
+            for i, thing in enumerate(self.scale_buttons.values()):
+                #thing.grid(row=1+i, column=0, columnspan=2, sticky="ew")
+                thing.grid(row=1, column=i, columnspan=1, sticky="ew")
+
+            butt_frame_t.grid(row=0, column=0, sticky="news")
+            butt_frame_s.grid(row=1, column=0, sticky="news")
+            butt_frame_p.grid(row=2, column=0, sticky="news")
+
+            return butt_frame
+
+        def range_show():
+
+            range_is_ok_bool = True
+
+            range_str = range_list.get()
+            range_str_list = range_str.split(sep=',')
+            range_str_list_list = [x.split('-') for x in range_str_list]
+            range_list_int = [[eval(x.strip(' ')) for x in pair] for pair in range_str_list_list]
+            self.parent.write_log(f"final range list {range_list_int}")
+
+            for i in range(len(range_list_int)-1):
+
+                if len(range_list_int[i]) < 2:
+                    self.parent.write_log(f"note single value")
+                    continue
+                # check if ranges overlap:    1-6, 4-8, 9-99
+                elif range_list_int[i][1] >= range_list_int[i+1][0]:
+                    self.parent.write_log(f"Error: overlap, {range_list_int[i][1]} >= {range_list_int[i + 1][0]}")
+                    range_is_ok_bool = False
+                else:
+                    pass
+                    #self.parent.write_log(f"OK i={i}, {range_list_int[i][1]} < {range_list_int[i + 1][0]}")
+
+            # check if any channels are invalid
+            min_ch = 1
+            max_ch = 4
+            for i in range(len(range_list_int)):
+                if len(range_list_int[i]) == 0:
+                    range_is_ok_bool = False
+                elif len(range_list_int[i]) < 2:
+                    self.parent.write_log(f"note single value")
+                    if (range_list_int[i][0] < min_ch) or (range_list_int[i][0] > max_ch):
+                        range_is_ok_bool = False
+                elif range_list_int[i][0] >= range_list_int[i][1]:
+                    self.parent.write_log(f"error: not increasing range")
+                    range_is_ok_bool = False
+                elif (range_list_int[i][0] < min_ch) or (range_list_int[i][1] > max_ch):
+                    self.parent.write_log(f"error: channel in range is out of range")
+                    range_is_ok_bool = False
+
+            if range_is_ok_bool:  # if not errors!
+                self.parent.write_log(f"Range if good, ok to plot")
+
+                # start by setting all to false
+                for key in self.ch_show.keys():
+                    self.ch_show[key] = False
+
+                # set true for channels given in range
+                for pair in range_list_int:
+                    if len(pair) == 1:
+                        self.ch_show[f'h{pair[0]}'] = True
+                    elif len(pair) == 2:
+                        for idx in range(pair[0], pair[1]+1):
+                            self.ch_show[f'h{idx}'] = True
+                self.parent.write_log(f"SHOW DICT: {self.ch_show}")
+                update_plot()
+
+        def press_scale_plot(scale):
+            for type in self.scale_buttons.keys():
+                if type == scale:
+                    c = 'green'
+                else:
+                    c = 'white'
+                #self.scale_buttons[type].config(highlightbackground=c)
+
+            update_plot(scale)
+
+        def update_plot(scale=''):
+
+            if scale == '':
+                scale = plot_mode.get()
+            else:
+                plot_mode.set(scale)
+
+            fig.clear()
+            ax1 = fig.add_subplot(111)
+            plot_all = False   # note plotting too many value and trying to interact causes lag
+
+            b = self.parent.eta_class.bins_ns
+            x = b[:-2]
+
+            if x_min.get() >= x_max.get():
+                x_min.set(x_max.get() - 1)  # note: to ensure the min < max
+
+            if plot_all:
+                idx_min = 0
+                idx_max = -1
+            else:
+                # convert time to index??
+                idx_min = int(1000*x_min.get()/self.parent.eta_class.const['binsize'])
+                idx_max = int(1000*x_max.get()/self.parent.eta_class.const['binsize'])+1   # note: round in case int would have rounded down
+
+                if idx_min >= idx_max:
+                    x_min.set(x_max.get() - 1)  # note: to ensure the min < max
+                    idx_min = int(1000*x_min.get() / self.parent.eta_class.const['binsize'])
+
+            # COLORS
+            n_c = 256  # number of colors in gradient
+            #color_list = list(Color("green").range_to(Color("yellow"), n_c))
+            color_list = self.create_color_gradient(start_hex='#000000', finish_hex='#ffffff', n=n_c)
+            #print(color_list)
+
+            # --
+            nr_shown_chs = 0
+            for i, thing in enumerate(self.ch_show.keys()):
+                if self.ch_show[thing] is False:
+                    continue   # doesn't plot when hidden
+
+                nr_shown_chs += 1
+                time_vals = x[idx_min:idx_max]
+                n = idx_max - idx_min - 1  # nr of plotted points
+                y_vals = list(np.ones(n)*nr_shown_chs)
+
+                # COLORS
+                #counts = n_c*self.parent.eta_class.folded_countrate_pulses[thing]/(max(self.parent.eta_class.folded_countrate_pulses[thing])+1)
+                #print(counts)
+                #color_vals = [color_list['hex'][int(c)] for c in counts]
+                # --
+
+                if scale == 'log':
+                    pre_counts = [max([1, c]) for c in self.parent.eta_class.folded_countrate_pulses[thing]]
+                    counts = np.log10(pre_counts)
+                    print("PRE", pre_counts)
+                    print("POST", counts)
+                    mx = np.log10(2000)
+
+                else:
+                    counts = self.parent.eta_class.folded_countrate_pulses[thing]
+                    mx = 2000
+                    print("LIN POST", counts)
+
+                # https://matplotlib.org/stable/gallery/lines_bars_and_markers/multicolored_line.html
+                # Create a continuous norm to map from data points to colors
+                norm = plt.Normalize(min(counts), mx) #counts.max())
+                norm_counts = [min((2*c)+1, 50) for c in counts]
+
+                points = np.array([time_vals, y_vals]).T.reshape(-1, 1, 2)
+                segments = np.concatenate([points[:-1], points[1:]], axis=1)
+                lc = LineCollection(segments, cmap='plasma', norm=norm)  #, linewidths=norm_counts)
+                # Set the values used for colormapping
+                lc.set_array(counts)
+                lc.set_linewidth(40)
+                line = ax1.add_collection(lc)
+
+            fig.colorbar(line, ax=ax1)
+
+            shown_ticks = []
+            for key in self.ch_show.keys():
+                if self.ch_show[key]:
+                    print(key)
+                    shown_ticks.append(f'ch.{key[1:]}')
+            print(shown_ticks)
+
+            ticks = [i + 1 for i in range(len(shown_ticks))]
+            ax1.set_yticks(ticks)
+            ax1.set_yticklabels(shown_ticks)  # note: this will be the amount of channels we are displaying
+            y_max.set(len(ticks)+1)
+            ax1.set_xlim([x_min.get(), x_max.get()])
+            ax1.set_ylim([y_min.get(), y_max.get()])
+            ax1.set_xlabel("Time [ns]")
+            ax1.set_title("Lifetime Color")
+            #ax1.legend()
+            fig.canvas.draw_idle()   # updates the canvas immediately?
+
+        self.ch_show = {'h1': True, 'h2': True, 'h3': True, 'h4': True}
+        x_min = tk.DoubleVar(value=0.0)
+        x_max = tk.DoubleVar(value=100.0)
+        y_min = tk.DoubleVar(value=0.0)
+        y_max = tk.DoubleVar(value=5.0)
+
+        range_list = tk.StringVar(value="2, 3")
+        plot_mode = tk.StringVar(value="linear")
+        self.show_buttons = []
+
+        fig = plt.figure(figsize=(9, 4), dpi=100)   # fig, ax1 = plt.subplots(1, 1, figsize=(9, 5))
 
         update_plot()
         plt_frame, canvas = gui.pack_plot(tab, fig)
@@ -448,20 +736,20 @@ class Plotting:
             range_str_list = range_str.split(sep=',')
             range_str_list_list = [x.split('-') for x in range_str_list]
             range_list_int = [[eval(x.strip(' ')) for x in pair] for pair in range_str_list_list]
-            print("final range list", range_list_int)
+            self.parent.write_log(f"final range list: {range_list_int}")
 
             for i in range(len(range_list_int)-1):
 
                 if len(range_list_int[i]) < 2:
-                    print("note single value")
+                    self.parent.write_log(f"note single value")
                     continue
                 # check if ranges overlap:    1-6, 4-8, 9-99
                 elif range_list_int[i][1] >= range_list_int[i+1][0]:
-                    print(f"Error: overlap, {range_list_int[i][1]} >= {range_list_int[i + 1][0]}")
+                    self.parent.write_log(f"Error: overlap, {range_list_int[i][1]} >= {range_list_int[i + 1][0]}")
                     range_is_ok_bool = False
                 else:
                     pass
-                    #print(f"OK i={i}, {range_list_int[i][1]} < {range_list_int[i + 1][0]}")
+                    #self.parent.write_log(f"OK i={i}, {range_list_int[i][1]} < {range_list_int[i + 1][0]}")
 
             # check if any channels are invalid
             min_ch = 1
@@ -470,18 +758,18 @@ class Plotting:
                 if len(range_list_int[i]) == 0:
                     range_is_ok_bool = False
                 elif len(range_list_int[i]) < 2:
-                    print("note single value")
+                    self.parent.write_log(f"note single value")
                     if (range_list_int[i][0] < min_ch) or (range_list_int[i][0] > max_ch):
                         range_is_ok_bool = False
                 elif range_list_int[i][0] >= range_list_int[i][1]:
-                    print("error: not increasing range")
+                    self.parent.write_log(f"error: not increasing range")
                     range_is_ok_bool = False
                 elif (range_list_int[i][0] < min_ch) or (range_list_int[i][1] > max_ch):
-                    print("error: channel in range is out of range")
+                    self.parent.write_log(f"error: channel in range is out of range")
                     range_is_ok_bool = False
 
             if range_is_ok_bool:  # if not errors!
-                print("Range if good, ok to plot")
+                self.parent.write_log(f"Range if good, ok to plot")
 
                 # start by setting all to false
                 for key in self.ch_show_3D.keys():
@@ -494,7 +782,7 @@ class Plotting:
                     elif len(pair) == 2:
                         for idx in range(pair[0], pair[1]+1):
                             self.ch_show_3D[f'h{idx}'] = True
-                print("SHOW DICT: ", self.ch_show_3D)
+                self.parent.write_log(f"SHOW DICT: {self.ch_show_3D}")
                 update_plot()
 
         def press_scale_plot(scale):
@@ -551,7 +839,7 @@ class Plotting:
 
                 Z = self.parent.eta_class.folded_countrate_pulses[ch][idx_min:idx_max]
                 #y = self.parent.eta_class.folded_countrate_pulses[ch]
-                #print(Z)
+
                 if scale == 'log':
 
                     """for z_idx, z in enumerate(Z):
@@ -574,12 +862,6 @@ class Plotting:
             ax1.set_yticks([int(N / nr_ch) * i for i in range(nr_ch)])
             ax1.set_yticklabels([f'ch.{j[1:]}' for j in self.ch_show_3D.keys()])  # note: this will be the amount of channels we are displaying
 
-            """z_t = ax1.get_zticks()
-            z_t = np.where(z_t > 1.0, 2**(z_t), 1.0)
-            print(z_t)
-            ax1.set_zticks(z_t)"""
-
-            print(cnt_min.get(), cnt_max.get())
             ax1.set_xlim([time_min.get(), time_max.get()])
             ax1.set_zlim([cnt_min.get(), cnt_max.get()])
             ax1.set_xlabel("lifetime [ns]")
@@ -600,7 +882,7 @@ class Plotting:
         # ---
 
         #fig, ax1 = plt.subplots(1, 1, figsize=(9, 5), subplot_kw={'projection': '3d'})
-        fig = plt.figure(figsize=(9, 5), dpi=100)   # fig, ax1 = plt.subplots(1, 1, figsize=(9, 5))
+        fig = plt.figure(figsize=(9, 4), dpi=100)   # fig, ax1 = plt.subplots(1, 1, figsize=(9, 5))
         #ax1 = fig.add_subplot(111, projection='3d')
 
         update_plot()
@@ -655,9 +937,9 @@ class Plotting:
                       [0, 1, 0, 0, 2, 0, 0, 0],
                       [0, 1, 0, 0, 2, 0, 0, 0]])
 
-        print("x", X, type(X))
-        print("y", Y, type(Y))
-        print("z", Z, type(Z))
+        self.parent.write_log(f"x", X, type(X))
+        self.parent.write_log(f"y", Y, type(Y))
+        self.parent.write_log(f"z", Z, type(Z))
 
         # Give the second plot only wireframes of the type x = c
         #ax1.plot_wireframe(X, Y, Z, rstride=10, cstride=10)
@@ -737,7 +1019,7 @@ class Plotting:
 
         return frm_info
 
-class Logger:   # example from: https://stackoverflow.com/questions/30266431/create-a-log-box-with-tkinter-text-widget
+'''class Logger:   # example from: https://stackoverflow.com/questions/30266431/create-a-log-box-with-tkinter-text-widget
 
     # this item "module_logger" is visible only in this module,
     # (but you can create references to the same logger object from other modules
@@ -799,7 +1081,7 @@ class Logger:   # example from: https://stackoverflow.com/questions/30266431/cre
             self.flush()
             self.textctrl.config(state="disabled")
             self.textctrl.see("end")
-# TODO: ^ add clear button for logger
+# TODO: ^ add clear button for logger'''
 
 class GUI:
 
@@ -811,7 +1093,7 @@ class GUI:
 
         self.root.title("Quantum Spectrometer - QNP")   # *Ghostly matters*
         #self.root.geometry('1070x730')
-        self.root.geometry('1200x800')
+        self.root.geometry('1250x800')
         self.root.resizable(True, True)
 
         self.tabs = {
@@ -895,7 +1177,7 @@ class GUI:
 
     @staticmethod
     def add_tab(parent_nb, tab_name):
-        child_tab = ttk.Frame(parent_nb, borderwidth=3)
+        child_tab = ttk.Frame(parent_nb, borderwidth=3, relief=tk.FLAT)
         parent_nb.add(child_tab, text=tab_name)
         return child_tab
 
@@ -915,6 +1197,7 @@ class GUI:
         self.tabs['Load']['notebook'] = self.add_notebook(parent_tab=self.tabs['Load']['tab'], anchor='w', side='top')
         self.tabs['Load']['children']['Spectrum'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Spectrum')
         self.tabs['Load']['children']['Lifetime'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Lifetime')
+        self.tabs['Load']['children']['Lifetime Color'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Lifetime Color')
         self.tabs['Load']['children']['Lifetime 3D'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Lifetime 3D')
         self.tabs['Load']['children']['Correlation'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Correlation')
 
@@ -923,10 +1206,11 @@ class GUI:
         newScanClass.acquisition_newscan_tab(new_nb)
         # Create sub-notebooks for each tab and pack, then add children
         self.tabs['New']['notebook'] = self.add_notebook(parent_tab=self.tabs['New']['tab'], anchor='w', side='top')
-        self.tabs['New']['children']['Plot1'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Plot1')
-        self.tabs['New']['children']['Plot2'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Plot2')
-        self.tabs['New']['children']['Plot3'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Plot3')
-        self.tabs['New']['children']['Plot4'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Plot4')
+        self.tabs['New']['children']['Spectrum'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Spectrum')
+        self.tabs['New']['children']['Lifetime'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Lifetime')
+        self.tabs['New']['children']['Lifetime Color'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Lifetime Color')
+        self.tabs['New']['children']['Lifetime 3D'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Lifetime 3D')
+        self.tabs['New']['children']['Correlation'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Correlation')
 
         # --------
         self.tabs['Settings']['notebook'] = self.add_notebook(parent_tab=self.tabs['Settings']['tab'], anchor='w')
@@ -959,12 +1243,16 @@ class GUI:
 
         self.plot_spectrum_tab(self.tabs[parent_name]['children']['Spectrum'], parent_class)  # note: temp moved to front for testing
         self.plot_lifetime_tab(self.tabs[parent_name]['children']['Lifetime'], parent_class)  # note: temp moved to front for testing
+        self.plot_lifetime_color_tab(self.tabs[parent_name]['children']['Lifetime Color'], parent_class)  # note: temp moved to front for testing
         self.plot_3d_lifetime_tab(self.tabs[parent_name]['children']['Lifetime 3D'], parent_class)  # note: temp moved to front for testing
         self.plot_correlation_tab(self.tabs[parent_name]['children']['Correlation'], parent_class)  # note: temp moved to front for testing
 
     # **
     def plot_lifetime_tab(self, plots_lifetime, parent):
         parent.plotting_class.plot_lifetime_widget(plots_lifetime)
+
+    def plot_lifetime_color_tab(self, plots_lifetime, parent):
+        parent.plotting_class.plot_lifetime_colorbar_widget(plots_lifetime)
 
     # **
     def plot_3d_lifetime_tab(self, plots_3d_lifetime, parent):
@@ -1042,8 +1330,8 @@ class NewScanGroup:
 
         self.ok_to_send_list = []
         self.grating_lvl = {   # TODO: make this configurable?   # TODO fill in correct width (based on grating)
-            1: {'grating': 600,  'blz': '750 nm', 'width': 8},
-            2: {'grating': 150,  'blz': '800 nm', 'width': 4},
+            1: {'grating': 600,  'blz': '750', 'width': 8},
+            2: {'grating': 150,  'blz': '800', 'width': 4},
             3: {'grating': 1800, 'blz': 'H-VIS',  'width': 2},
         }
         self.ch_bias_list = []
@@ -1062,7 +1350,7 @@ class NewScanGroup:
         #self.log_scan_widget(new_scan_tab).grid(row=1, column=1, rowspan=100, sticky="w")  # in sub frame
         # ---
         # Frame to group together analysis configs (not including logger)
-        self._scan_frm = scan_frm = ttk.Frame(new_scan_tab, borderwidth=0, relief=tk.FLAT)
+        self._scan_frm = scan_frm = ttk.Frame(new_scan_tab, borderwidth=3, relief=tk.FLAT)
         scan_frm.grid(row=1, column=0,  sticky='nw')  # nws
 
         # Analysis configs:
@@ -1077,7 +1365,7 @@ class NewScanGroup:
         # ---
         # Logger box:
         log_box_frm = ttk.Frame(new_scan_tab, borderwidth=3 , relief=tk.GROOVE)
-        #log_box_frm.grid(row=1, column=1, sticky="nws")  # in sub frame
+        log_box_frm.grid(row=1, column=1, sticky="nws")  # in sub frame
         self.log_scan_widget(log_box_frm).grid(row=0, column=0, sticky="news")   # Inner thing
 
         # -----
@@ -1086,24 +1374,14 @@ class NewScanGroup:
         #self.show_geometry(log_box_frm, "Log box right")
         self.update_log_box_height()
 
-    def update_log_box_height(self):
-        #s#elf.log_box.config(height=2, width=2)
-
-        self._params_frm.update()
-        self._scan_frm.update()
-        box_w = self._params_frm.winfo_width() - self._scan_frm.winfo_width() - 42  # 9 is for scrollbar width
-        box_h = self._scan_frm.winfo_height() - 7
-        print("New log box size:", box_w, box_h)
-        self.log_box.config(height=int(box_h/14), width=int(box_w/7))
-
     # TODO: FIXME BELOW (make sure it connects and does right)
     def start_scan_widget(self, tab):
 
         def press_start():
-            print(self.sp.sp_handle)
-            print(self.sq.websq_handle)
+            self.write_log(f"{self.sp.sp_handle}")
+            self.write_log(f"{self.sq.websq_handle}")
             if (not self.sp.sp_handle) or (not self.sq.websq_handle):
-                print("Can not start scan if we are not connected")
+                self.write_log(f"Can not start scan if we are not connected")
                 self.running = False
                 return
 
@@ -1167,10 +1445,10 @@ class NewScanGroup:
                 self.port_list.append(f'{port.name}') # (S/N:{port.serial_number})')
 
                 #if (port.serial_number == self.acton_serial) and (port.manufacturer == 'FTDI'):
-                #    # print(f"FOUND ACTON DEVICE ON PORT {port.device}")
+                #    # self.write_log(f"FOUND ACTON DEVICE ON PORT {port.device}")
                 #    return port.device
 
-                """print(f'---------\n'
+                """self.write_log(f'---------\n'
                       f'device:          {port.device       }'
                       f'\nname:            {port.name         }'
                       f'\ndescription:     {port.description  }'
@@ -1190,10 +1468,11 @@ class NewScanGroup:
             get_ports()
 
         def select_port(port):
-            if port_parts['disconnect']['state'] == 'normal':
-                print("Please disconnect first")
+            if port_parts['refresh']['state'] == 'disabled':
+                self.write_log(f"Warning: Please disconnect from device before refreshing")
                 return
             # Update chosen port and allow connection (if not connected^)
+
             self.port.set(port)
             port_parts['connect'].config(state='normal')
 
@@ -1201,10 +1480,10 @@ class NewScanGroup:
         def press_connect():  # TODO
             # self.running = False  # TODO CHECK: need to stop scanning i think???
             if self.port.get() == "Select...":
-                print("MUST SELECT PORT FIRST")
+                self.write_log(f"MUST SELECT PORT FIRST")
 
-            print("pressed connect. fixme for real")
-            print("connecting to port", self.port.get())
+            self.write_log(f"pressed connect. fixme for real")
+            self.write_log(f"connecting to port {self.port.get()}")
 
             #if demo:
             #    Demo.d_connect(port_parts['connect'])  # changes color of button to green
@@ -1214,9 +1493,10 @@ class NewScanGroup:
             # TODO CONNECTION....
             # if connect successful:
             port_parts['label'].config(text=f'Connected to {self.port.get()}')
-            port_parts['disconnect'].config(state='normal')
-            port_parts['connect'].config(state='disabled')
             port_parts['refresh'].config(state='disabled')
+            #port_parts['disconnect'].config(state='normal')
+            #port_parts['connect'].config(state='disabled')
+            port_parts['connect'].config(text='Disconnect', command=press_disconnect)
 
             """if self.sp is None:
                 self.init_sp()
@@ -1236,16 +1516,18 @@ class NewScanGroup:
         # TODO:
         def press_disconnect():  # TODO
             # self.running = False  # TODO CHECK: need to stop scanning i think???
-            print("pressed disconnect. fixme for real")
-            print("disconnecting from port", self.port.get())
+            self.write_log(f"pressed disconnect. fixme")
+            self.write_log(f"disconnecting from port {self.port.get()}")
 
             # TODO DO DISCONNECT....
 
             # if successful:
             port_parts['label'].config(text='')
-            port_parts['connect'].config(state='normal')
-            port_parts['disconnect'].config(state='disabled')
+            #port_parts['connect'].config(state='normal')
+            #port_parts['disconnect'].config(state='disabled')
             port_parts['refresh'].config(state='normal')
+            port_parts['connect'].config(text='Connect', command=press_connect)
+
 
             """if self.sp is None:
                 self.init_sp()
@@ -1260,7 +1542,7 @@ class NewScanGroup:
 
         def update_ch(nr_pixels):
             if nr_pixels not in [4, 8]:
-                print("ERROR: other pixel amounts not available yet")
+                self.write_log(f"ERROR: other pixel amounts not available yet")
                 return
 
             self.params['nr_pixels']['var'].set(nr_pixels)
@@ -1269,9 +1551,10 @@ class NewScanGroup:
             # removes previously shown channels (in case we want to decrease in amount)
             for j, widget in enumerate(frm['ch'].winfo_children()):  # FIXME NOTE TODO: USE THIS LATER TO ACCESS BUTTONS FOR MARKING DONE
                 if j == 0:
-                    pass #print(widget)
-                print(j, widget)
-                print(widget.winfo_children())
+                    pass
+                    #self.write_log(f"{widget}")
+                #self.write_log(f"{j} {widget}")
+                #self.write_log(f"{widget.winfo_children()}")
 
             # Connecting to other/new WebSQ server
             #
@@ -1313,7 +1596,7 @@ class NewScanGroup:
         #self.port.set(self.sp.port)  # note maybe change later when implemented
 
         # FRAMES
-        frm_configs = ttk.Frame(tab) #, borderwidth=3)
+        frm_configs = ttk.Frame(tab, relief=tk.FLAT)#, borderwidth=3)
 
         frm = {
             'port'    : ttk.Frame(frm_configs, relief=tk.GROOVE, borderwidth=3) ,
@@ -1337,20 +1620,20 @@ class NewScanGroup:
         #  -- Grating:
         grating_widget_dict = {
             'radio_b': [],
-            'grt_txt': [ttk.Label(frm['grating'], text='Grating')],
-            'blz_txt': [ttk.Label(frm['grating'], text='Blaze')],
+            'grt_txt': [ttk.Label(frm['grating'], text='Grating\n(gr/mm)')],
+            'blz_txt': [ttk.Label(frm['grating'], text='Blaze\n(nm)')],
             'wid_txt': [ttk.Label(frm['grating'], text='Width')],
         }
         for c in range(3):
             grating_widget_dict['radio_b'].append(ttk.Radiobutton(frm['grating'], text="", variable=self.params['grating']['var'], value=c + 1, command=select_grating))
-            grating_widget_dict['grt_txt'].append(ttk.Label(frm['grating'], text=f"  {self.grating_lvl[c + 1]['grating']}  [gr/mm]"))
+            grating_widget_dict['grt_txt'].append(ttk.Label(frm['grating'], text=f"  {self.grating_lvl[c + 1]['grating']}"))
             grating_widget_dict['blz_txt'].append(ttk.Label(frm['grating'], text=f"  {self.grating_lvl[c + 1]['blz']}"))
             grating_widget_dict['wid_txt'].append(ttk.Label(frm['grating'], text=f"  {self.grating_lvl[c + 1]['width']}"))
 
         #  -- Detector:
-        det_parts = [ttk.Label(frm['detect'], text="Center λ"),
+        det_parts = [ttk.Label(frm['detect'], text="Center λ (nm)"),
                      ttk.Entry(frm['detect'], textvariable=self.params['nm']['var'], width=4),
-                     ttk.Label(frm['detect'], text='[nm]', width=4)]
+                     ]
 
         wid_parts = [ttk.Label(frm['detect'], text="Pixel width"),
                      ttk.Entry(frm['detect'], textvariable=self.params['width_nm']['var'], width=4),
@@ -1372,7 +1655,7 @@ class NewScanGroup:
         port_parts = { 'refresh'        : ttk.Button(frm['port'], text="Refresh", command=refresh_ports),
                        'option'         : ttk.OptionMenu(frm['port'], variable=self.port, default="Select..."),
                        'connect'        : ttk.Button(frm['port'], text="Connect", command=press_connect, state='disabled'),
-                       'disconnect'     : ttk.Button(frm['port'], text="Disconnect", command=press_disconnect, state='disabled'),
+                       #'disconnect'     : ttk.Button(frm['port'], text="Disconnect", command=press_disconnect, state='disabled'),
                        'label'          : ttk.Label(frm['port'], text=f'', font="Helvetica 10 normal italic", anchor='center'),
                        }
 
@@ -1385,7 +1668,7 @@ class NewScanGroup:
         port_parts['refresh'].grid(row=0, column=0, sticky='ew')
         port_parts['option'].grid(row=1, column=0, columnspan=2, sticky='ew')
         port_parts['connect'].grid(row=2, column=0, sticky='ew')
-        port_parts['disconnect'].grid(row=2, column=1, sticky='ew')
+        #port_parts['disconnect'].grid(row=2, column=1, sticky='ew')
         port_parts['label'].grid(row=3, column=0, columnspan=2,  sticky='ew')
         #gui.add_to_grid(widg=list(port_parts.values()), rows=[0, 1, 2], cols=[0, 0, 0], sticky=["", "", ""])
 
@@ -1399,9 +1682,9 @@ class NewScanGroup:
 
         # -- Detector
         gui.add_to_grid(widg=[ttk.Label(frm['detect'], text="Detector")], rows=[0], cols=[0], sticky=["ew"])  # , columnspan=[2])
-        gui.add_to_grid(widg=det_parts, rows=[1, 1, 1], cols=[0, 1, 2], sticky=["ew", "ew", "ew"])
+        gui.add_to_grid(widg=det_parts, rows=[1, 2], cols=[1, 1], sticky=["ew", "ew"])  # center wavelength
         # gui.add_to_grid(widg=wid_parts, rows=[2,2,2], cols=[0,1,2], sticky=["ew", "ew", "ew"])
-        gui.add_to_grid(widg=det_no_parts, rows=[3, 3, 3], cols=[0, 1, 2], sticky=["ew", "ew", "ew"])
+        gui.add_to_grid(widg=det_no_parts, rows=[1, 2, 3], cols=[0, 0, 0], sticky=["ew", "ew", "ew"])  # nr of pixels
 
         # -- Channels
         gui.add_to_grid(widg=ch_parts, rows=[0, 0, 0, 0, 0], cols=[0, 1, 2, 3, 4], sticky=["ew", "ew", "ew", "ew"])
@@ -1409,7 +1692,17 @@ class NewScanGroup:
         #fill_ch()  # Updates channels displayed
 
         # ------------- GRID FRAMES --------------
+        # labels for each part:
         gui.add_to_grid(widg=[frm['port'], frm['grating'], frm['slit'], frm['detect'], frm['ch']],
+                        cols=[1, 2, 3, 4, 5], rows=[1, 1, 1, 1, 1],
+                        sticky=["news", "news", "news", "news", "news"])
+
+        gui.add_to_grid(widg=[ttk.Label(frm_configs, text="(sp) Connect Device"),
+                              ttk.Label(frm_configs, text="(sp) Grating"),
+                              ttk.Label(frm_configs, text="(sp) Slit"),
+                              ttk.Label(frm_configs, text="(det) SNSPD"),
+                              ttk.Label(frm_configs, text="(det) SNSPD")
+                              ],
                         cols=[1, 2, 3, 4, 5], rows=[0, 0, 0, 0, 0],
                         sticky=["news", "news", "news", "news", "news"])
         return frm_configs
@@ -1453,7 +1746,7 @@ class NewScanGroup:
                 self.cancel = False
                 self.loading = True
                 analyze_btn.config(state='disabled')
-
+                self.write_log(f"Starting analysis")  # NOTE
                 self.eta_class.eta_lifetime_analysis()
                 analyze_btn.config(state='normal')
                 self.loading = False
@@ -1465,11 +1758,12 @@ class NewScanGroup:
                     self.cancel = False
 
             except:
-                print("Failed to analyze")
+                self.write_log(f"Failed to analyze")
                 raise
 
         def press_cancel():
             if self.loading:
+                self.write_log(f"Canceled Analysis")  # NOTE
                 self.cancel = True
                 self.eta_class.pb['value'] = 0
 
@@ -1522,42 +1816,39 @@ class NewScanGroup:
 
                 """
 
-        self.log_box = log_box = scrolledtext.ScrolledText(frm_log, wrap=tk.WORD, width=24, height=12, font=("Helvetica", 12), state='disabled')
+        self.log_box = log_box = scrolledtext.ScrolledText(frm_log, wrap=tk.WORD, width=24, height=12, font=('Helvetica', 12, "italic"), state='disabled')
         log_box.grid(row=1, column=0, pady=0, padx=0)
-
-        # NOTE: req_w = 2*n*14, req_h = n*14
-
-        self.show_geometry(log_box, "log_box")
-        
-        # Inner frame that can scroll
-        #scroll_frm = CreateScrollFrame(frm_log)
-        #scroll_frm.pack(side='bottom', fill='both', anchor='se')
-        #self.log_frm = scroll_frm.scrollFrame.viewPort
-        for i in range(20):
-            self.log_to_frame(f"{i}: ________\n") # 33
 
         return frm_log
 
-    def show_geometry(self, wid, name):
-        # 15 22
-        wid.update()
-        print("__"+name+"__")
-        print(f" geometry    : [{wid.winfo_geometry()}]\n"
-              f" width       : [{wid.winfo_width()}]\n"
-              f" height      : [{wid.winfo_height()}]\n"
-              f" reqwidth    : [{wid.winfo_reqwidth()}]\n"
-              f" reqheight   : [{wid.winfo_reqheight()}]\n"
-              )
-        # print(full_w, full_h)
-
-    def log_to_frame(self, msg):
+    def write_log(self, msg):
         self.log_box.configure(state='normal')
-        self.log_box.insert('end', msg)
+        self.log_box.insert('end', f'{msg}\n')
         self.log_box.configure(state='disabled')
         #label = ttk.Label(self.log_frm, text=f"{msg}")
         #label.pack(fill='both')
         #label.bind('<Configure>', lambda e: label.config(wraplength=label.winfo_width()-10))
 
+    def show_geometry(self, wid, name):
+        # 15 22
+        wid.update()
+        self.write_log(f"__{name}__")
+        self.write_log(f" geometry    : [{wid.winfo_geometry()}]\n"
+              f" width       : [{wid.winfo_width()}]\n"
+              f" height      : [{wid.winfo_height()}]\n"
+              f" reqwidth    : [{wid.winfo_reqwidth()}]\n"
+              f" reqheight   : [{wid.winfo_reqheight()}]\n"
+              )
+        # self.write_log(full_w, full_h)
+
+    def update_log_box_height(self):
+        #s#elf.log_box.config(height=2, width=2)
+
+        self._params_frm.update()
+        self._scan_frm.update()
+        box_w = self._params_frm.winfo_width() - self._scan_frm.winfo_width() - 42  # 9 is for scrollbar width
+        box_h = self._scan_frm.winfo_height() - 7
+        self.log_box.config(height=int(box_h/14), width=int(box_w/7))
 
 class LoadScanGroup:
     def __init__(self):
@@ -1582,6 +1873,7 @@ class LoadScanGroup:
                 self.cancel = False
                 self.loading = True
                 start_btn.config(state='disabled')
+                self.write_log(f"Starting analysis")
                 self.eta_class.eta_lifetime_analysis()
                 start_btn.config(state='normal')
                 self.loading = False
@@ -1593,7 +1885,7 @@ class LoadScanGroup:
                     self.cancel = False
 
             except:
-                print("Failed to analyze")
+                self.write_log(f"Failed to analyze")
                 raise
 
         def press_stop():
@@ -1622,19 +1914,89 @@ class LoadScanGroup:
         ttk.Button(frm_misc, text="Datafile", command=get_file).grid(row=1, column=0, sticky="ew")
         ttk.Button(frm_misc, text="ETA recipe", command=get_recipe).grid(row=2, column=0, sticky="ew")
 
-        file_entry = ttk.Entry(frm_misc, textvariable=self.params['file_name']['var'], width=100)
-        reci_entry = ttk.Entry(frm_misc, textvariable=self.params['eta_recipe']['var'], width=100)
+        file_entry = ttk.Entry(frm_misc, textvariable=self.params['file_name']['var'], width=70)
+        reci_entry = ttk.Entry(frm_misc, textvariable=self.params['eta_recipe']['var'], width=70)
         file_entry.grid(row=1, column=1, columnspan=10, sticky="ew")
         reci_entry.grid(row=2, column=1, columnspan=10, sticky="ew")
 
         start_btn = ttk.Button(frm_misc, text="Analyze", command=press_start)
-        start_btn.grid(row=3, column=0, columnspan=2, sticky="ew")
-
-        self.eta_class.pb = ttk.Progressbar(frm_misc, style='bar.Horizontal.TProgressbar', orient='horizontal', mode='determinate', length=500)  # progressbar
-        self.eta_class.pb.grid(row=3, column=2, sticky="ew")
+        start_btn.grid(row=3, column=0, sticky="ew")
 
         stop_btn = ttk.Button(frm_misc, text="Cancel", command=press_stop)
-        stop_btn.grid(row=3, column=3, columnspan=2, sticky="ew")
+        stop_btn.grid(row=3, column=2, sticky="ew")
+
+        self.eta_class.pb = ttk.Progressbar(frm_misc, style='bar.Horizontal.TProgressbar', orient='horizontal', mode='determinate', length=400)  # progressbar
+        self.eta_class.pb.grid(row=3, column=3, sticky="ew")
+
+        # -------------
+        # ---
+        # Logger box:
+        log_box_frm = ttk.Frame(tab, borderwidth=3 , relief=tk.FLAT)
+        log_box_frm.grid(row=0, column=1, rowspan=10, sticky="nws")  # in sub frame
+        self.log_scan_widget(log_box_frm).grid(row=0, column=0, sticky="news")   # Inner thing
+
+        # -----
+        #self.show_geometry(params_frm, "Configs analysis top")
+        #self.show_geometry(scan_frm, "Scan analysis left")
+        #self.show_geometry(log_box_frm, "Log box right")
+        #self.update_log_box_height()
+
+    def log_scan_widget(self, tab):
+        from tkinter import scrolledtext
+
+        frm_log = ttk.Frame(tab, relief=tk.SOLID)
+
+        """
+                __Configs analysis top__
+                geometry    : [1206x122+0+0]
+                width       : [1206]
+                height      : [122]
+                reqwidth    : [1206]
+                reqheight   : [122]
+
+                __Scan analysis left__
+                geometry    : [673x167+0+122]
+                width       : [673]
+                height      : [167]
+                reqwidth    : [673]
+                reqheight   : [167]
+
+                __Log box right__
+                geometry    : [352x167+854+122]
+                width       : [352]
+                height      : [167]
+                reqwidth    : [171]
+                reqheight   : [156]
+
+                """
+
+        self.log_box = log_box = scrolledtext.ScrolledText(frm_log, wrap=tk.WORD, width=48, height=6, font=("Helvetica", 12, 'italic'), state='disabled')
+        log_box.grid(row=1, column=0, pady=0, padx=0)
+
+        return frm_log
+
+    def write_log(self, msg, **kwargs):
+        if kwargs:
+            print("ERROR: COULD NOT WRITE EVERYTHING TO LOG, MSG MUST BE SENT AS ONE STRING")
+            msg += ' ...\n...ERROR: COULD NOT WRITE EVERYTHING TO LOG, MSG MUST BE SENT AS ONE STRING'
+            print("kwargs:", kwargs)
+        self.log_box.configure(state='normal')
+        self.log_box.insert('end', f'{time.strftime("%H:%M:%S", time.localtime())} - {msg}\n')
+        self.log_box.configure(state='disabled')
+        #label = ttk.Label(self.log_frm, text=f"{msg}")
+        #label.pack(fill='both')
+        #label.bind('<Configure>', lambda e: label.config(wraplength=label.winfo_width()-10))
+
+    def show_geometry(self, wid, name):
+        # 15 22
+        wid.update()
+        self.write_log(f"__{name}__")
+        self.write_log(f" geometry    : [{wid.winfo_geometry()}]\n"
+              f" width       : [{wid.winfo_width()}]\n"
+              f" height      : [{wid.winfo_height()}]\n"
+              f" reqwidth    : [{wid.winfo_reqwidth()}]\n"
+              f" reqheight   : [{wid.winfo_reqheight()}]\n"
+              )
 
 
 class ETA:
@@ -1663,7 +2025,7 @@ class ETA:
             self.pb['value'] = n
             gui.root.update()  # testing
         else:
-            print("overshot progressbar: ", n)
+            self.parent.write_log(f"overshot progressbar: {n}")
 
     def load_eta(self, recipe, **kwargs):
         self.update_progressbar(n=0)
@@ -1680,7 +2042,8 @@ class ETA:
             eta_engine.recipe.set_parameter(arg, str(kwargs[arg]))
         eta_engine.load_recipe()
 
-        print("\nRecipe loaded!")
+        self.parent.write_log(f"Recipe loaded!")
+
         return eta_engine
 
     def eta_lifetime_analysis(self):  # , const):
@@ -1717,13 +2080,13 @@ class ETA:
 
             if pulse_nr % 100 == 0:
                 if self.parent.cancel:
-                    print("Cancelled Analysis")
+                    self.parent.write_log(f"Cancelled Analysis")
                     return
                 self.update_progressbar(n=pulse_nr/100)
 
             # Check if we've run out of data, otherwise update position
             if result['timetagger1'].get_pos() == pos:  # or (pos is None):
-                print("final pulsenr", pulse_nr)
+                self.parent.write_log(f"final pulse nr: {pulse_nr}")
                 break
             else:
                 pulse_nr += 1
@@ -1733,7 +2096,7 @@ class ETA:
             for c in channels:
                 self.folded_countrate_pulses[c] += np.array(result[c])
 
-        print("DONE")
+        self.parent.write_log(f"Eta processing complete")
         self.bins_ns = list(np.array(times_i) / 1000)  # changing values from picoseconds to nanoseconds
         return
 
@@ -1755,18 +2118,17 @@ class ETA:
 
             # Set parameters in the recipe
             for arg in kwargs:
-                print("Setting", str(kwargs[arg]), "= ", arg)
+                self.parent.write_log(f"Setting {kwargs[arg]} = {arg}")
                 eta_engine.recipe.set_parameter(arg, str(kwargs[arg]))
 
             eta_engine.load_recipe()
 
             file = Path(timetag_file)
             cutfile = eta_engine.clips(filename=file, format=1)
-            result = eta_engine.run({"timetagger1": cutfile},
-                                    group='qutag')  # Runs the time tagging analysis and generates histograms
+            result = eta_engine.run({"timetagger1": cutfile}, group='qutag')  # Runs the time tagging analysis and generates histograms
 
-            # print(f"{2} : {result['c2']}")
-            # print(f"{3} : {result['c3']}")
+            # self.parent.write_log(f"{2} : {result['c2']}")
+            # self.parent.write_log(f"{3} : {result['c3']}")
 
             if recipe != 'signal_counter.eta':
 
@@ -1785,9 +2147,9 @@ class ETA:
                            # 1001: 'c1001', 1002: 'c1002',
                            }
 
-                print(f"\n# : counts\n-------")
+                self.parent.write_log(f"\n# : counts\n-------")
                 for s in signals:
-                    print(f"{s} : {result[signals[s]]}")
+                    self.parent.write_log(f"{s} : {result[signals[s]]}")
 
         recipe = 'signal_counter.eta'
         # recipe = 'temp2_signal_counter.eta'
@@ -1807,7 +2169,7 @@ class ETA:
 
         plt.show()
 
-        print("\ndone!")
+        self.parent.write_log(f"done!")
 
 
 # -------------
