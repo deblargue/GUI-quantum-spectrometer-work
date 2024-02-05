@@ -49,7 +49,7 @@ class ScrollFrame(ttk.Frame):
 
         #self.canvas = tk.Canvas(self, background="#ffffff", height=0, highlightthickness=0)  # place canvas on self
         self.canvas = tk.Canvas(self, height=10, highlightthickness=0, confine=True)  # place canvas on self
-        self.viewPort = ttk.Frame(self.canvas, relief=tk.FLAT) #, borderwidth=3) #, background="#ffffff")  # place a frame on the canvas, this frame will hold the child widgets
+        self.viewPort = ttk.Frame(self.canvas, relief=tk.FLAT) #, borderwidth=1) #, background="#ffffff")  # place a frame on the canvas, this frame will hold the child widgets
         self.vsb = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)  # place a scrollbar on self
         self.canvas.configure(yscrollcommand=self.vsb.set)  # attach scrollbar action to scroll of canvas
 
@@ -100,7 +100,7 @@ class ScrollFrame(ttk.Frame):
 
 class CreateScrollFrame(ttk.Frame):
     def __init__(self, root):
-        ttk.Frame.__init__(self, root, borderwidth=3)
+        ttk.Frame.__init__(self, root, borderwidth=1)
         self.scrollFrame = ScrollFrame(self)  # add a new scrollable frame.
         self.scrollFrame.grid(row=0, column=0, columnspan=1)
 
@@ -231,7 +231,7 @@ class Plotting:
         # ---
 
         # style.use('ggplot')
-        fig = plt.Figure(figsize=(9, 4), dpi=100)
+        fig = plt.Figure(figsize=(8, 5), dpi=100)
         plot1 = fig.add_subplot(111)
         plot1.set_xlim(1545, 1565)
         plot1.set_ylim(0, 5000)
@@ -247,7 +247,7 @@ class Plotting:
         plt_frame, canvas = gui.pack_plot(tab, fig)
 
         # BUTTONS:
-        butt_frame = ttk.Frame(tab, relief=tk.FLAT, borderwidth=3)
+        butt_frame = ttk.Frame(tab, relief=tk.FLAT, borderwidth=1)
 
         ttk.Label(butt_frame, text=f'Change X-axis to:').grid(row=0, column=0, sticky="nsew")
         ttk.Radiobutton(butt_frame, text="wavelength [nm]", value='λ [nm]', variable=self.x_label, command=pressed_xlabel).grid(row=1, column=0, sticky="ew")
@@ -262,7 +262,7 @@ class Plotting:
     def plot_correlation_widget(self, tab):
         # TODO:
         # the figure that will contain the plot
-        fig = plt.Figure(figsize=(9, 4), dpi=100)  # 10 3
+        fig = plt.Figure(figsize=(8, 5), dpi=100)  # 10 3
         # data list
         y = []
         # adding the subplot
@@ -276,9 +276,9 @@ class Plotting:
     def plot_lifetime_widget(self, tab):
 
         def make_time_scale_button():
-            butt_frame = ttk.Frame(tab, relief=tk.FLAT, borderwidth=3)
+            butt_frame = ttk.Frame(tab, relief=tk.FLAT, borderwidth=1)
 
-            butt_frame_t = ttk.Frame(butt_frame, borderwidth=3)
+            butt_frame_t = ttk.Frame(butt_frame, borderwidth=1)
 
             ttk.Label(butt_frame_t, text=f'min').grid(row=1, column=1, sticky="ew")
             ttk.Label(butt_frame_t, text=f'max').grid(row=1, column=2, sticky="ew")
@@ -293,13 +293,13 @@ class Plotting:
 
             ttk.Button(butt_frame_t, text="Update", command=update_plot).grid(row=4, column=0, columnspan=3, sticky="ew")
 
-            butt_frame_s = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=3)
+            butt_frame_s = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=1)
 
             ttk.Label(butt_frame_s, text="Show Channels:").grid(row=2, column=0, columnspan=2, sticky="ew")
             ttk.Entry(butt_frame_s, textvariable=range_list, width=6).grid(row=3, column=0, columnspan=1, sticky="ew")
-            ttk.Button(butt_frame_s, text=f"Update range", command=range_show).grid(row=3, column=1, columnspan=1, sticky="ew")
+            ttk.Button(butt_frame_s, text=f"Update range", command=range_show).grid(row=4, column=0, columnspan=1, sticky="ew")
 
-            butt_frame_p = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=3)
+            butt_frame_p = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=1)
             ttk.Label(butt_frame_p, text=f'Plot scale').grid(row=0, column=0, columnspan=2, sticky="ew")
             self.scale_buttons = {
                 #'linear':       tk.Button(butt_frame_p, text="  Linear  ", highlightbackground='green', command=lambda: press_scale_plot('linear')),
@@ -310,7 +310,7 @@ class Plotting:
 
             for i, thing in enumerate(self.scale_buttons.values()):
                 #thing.grid(row=1+i, column=0, columnspan=2, sticky="ew")
-                thing.grid(row=1, column=i, columnspan=1, sticky="ew")
+                thing.grid(row=1+i, column=0, columnspan=1, sticky="ew")
 
             butt_frame_t.grid(row=0, column=0, sticky="news")
             butt_frame_s.grid(row=1, column=0, sticky="news")
@@ -450,7 +450,7 @@ class Plotting:
         plot_mode = tk.StringVar(value="linear")
         self.show_buttons = []
 
-        fig = plt.figure(figsize=(9, 4), dpi=100)   # fig, ax1 = plt.subplots(1, 1, figsize=(9, 5))
+        fig = plt.figure(figsize=(8, 5), dpi=100)   # fig, ax1 = plt.subplots(1, 1, figsize=(8, 5))
 
         update_plot()
         plt_frame, canvas = gui.pack_plot(tab, fig)
@@ -463,50 +463,53 @@ class Plotting:
     def plot_lifetime_colorbar_widget(self, tab):
 
         def make_time_scale_button():
-            butt_frame = ttk.Frame(tab, relief=tk.FLAT, borderwidth=3)
+            butt_frame = ttk.Frame(tab, relief=tk.FLAT, borderwidth=1)
 
-            butt_frame_t = ttk.Frame(butt_frame, borderwidth=3)
+            butt_frame_t = ttk.Frame(butt_frame, borderwidth=1, relief=tk.FLAT)
 
+            ttk.Label(butt_frame_t, text=f'\nAxis ranges:').grid(row=0, column=1, columnspan=2, sticky="ew")
             ttk.Label(butt_frame_t, text=f'min').grid(row=1, column=1, sticky="ew")
             ttk.Label(butt_frame_t, text=f'max').grid(row=1, column=2, sticky="ew")
-
-            ttk.Label(butt_frame_t, text=f'X').grid(row=2, column=0, sticky="ew")
+            ttk.Label(butt_frame_t, text=f'time').grid(row=2, column=0, sticky="ew")
             ttk.Entry(butt_frame_t, textvariable=x_min, width=6).grid(row=2, column=1, sticky="ew")
             ttk.Entry(butt_frame_t, textvariable=x_max, width=6).grid(row=2, column=2, sticky="ew")
+            ttk.Label(butt_frame_t, text=f'counts').grid(row=3, column=0, sticky="ew")
+            ttk.Entry(butt_frame_t, textvariable=y_min, width=5).grid(row=3, column=1, sticky="ew")
+            ttk.Entry(butt_frame_t, textvariable=y_max, width=5).grid(row=3, column=2, sticky="ew")
 
-            ttk.Label(butt_frame_t, text=f'Y').grid(row=3, column=0, sticky="ew")
-            ttk.Entry(butt_frame_t, textvariable=y_min, width=6).grid(row=3, column=1, sticky="ew")
-            ttk.Entry(butt_frame_t, textvariable=y_max, width=6).grid(row=3, column=2, sticky="ew")
+            butt_frame_s = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=1)
+            ttk.Label(butt_frame_s, text="\nDisplay channels:").grid(row=2, column=1, columnspan=2, sticky="ew")
+            ttk.Entry(butt_frame_s, textvariable=range_list, width=5).grid(row=3, column=1, columnspan=1, sticky="new")
 
-            ttk.Button(butt_frame_t, text="Update", command=update_plot).grid(row=4, column=0, columnspan=3, sticky="ew")
+            ttk.Label(butt_frame_s, text="\nLine thickness:").grid(row=4, column=1, columnspan=2, sticky="new")
+            ttk.Entry(butt_frame_s, textvariable=line_thickness, width=5).grid(row=5, column=1, columnspan=1, sticky="new")
 
-            butt_frame_s = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=3)
+            butt_frame_p = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=1)
+            #ttk.Label(butt_frame_p, text="\n  ").grid(row=0, column=0, sticky="ew")
+            ttk.Label(butt_frame_p, text=f'\nScale:').grid(row=1, column=1, columnspan=1, sticky="ew")
 
-            ttk.Label(butt_frame_s, text="Show Channels:").grid(row=2, column=0, columnspan=2, sticky="ew")
-            ttk.Entry(butt_frame_s, textvariable=range_list, width=6).grid(row=3, column=0, columnspan=1, sticky="ew")
-            ttk.Button(butt_frame_s, text=f"Update range", command=range_show).grid(row=3, column=1, columnspan=1, sticky="ew")
-
-            butt_frame_p = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=3)
-            ttk.Label(butt_frame_p, text=f'Plot scale').grid(row=0, column=0, columnspan=2, sticky="ew")
             self.scale_buttons = {
                 #'linear':       tk.Button(butt_frame_p, text="  Linear  ", highlightbackground='green', command=lambda: press_scale_plot('linear')),
-                'linear':       ttk.Button(butt_frame_p, text="  Linear  ", command=lambda: press_scale_plot('linear')),
-                #'histo':      ttk.Button(butt_frame_p, text="Linear (histo)", command=lambda: press_scale_plot('histo')),
-                'log':          ttk.Button(butt_frame_p, text=" Semi-Log ", command=lambda: press_scale_plot('log')),
+                #'linear':       ttk.Button(butt_frame_p, text="  Linear  ", command=lambda: press_scale_plot('linear')),
+                #'log':          ttk.Button(butt_frame_p, text=" Semi-Log ", command=lambda: press_scale_plot('log')),
+                'linear':       ttk.Radiobutton(butt_frame_p, text="Linear", value='linear', variable=plot_mode, command=press_scale_plot),
+                'log':          ttk.Radiobutton(butt_frame_p, text="Semi-Log", value='log', variable=plot_mode, command=press_scale_plot),
+                #ttk.Radiobutton(frm['grating'], text="", variable=self.params['grating']['var'], value=c + 1, command=select_grating)
             }
 
             for i, thing in enumerate(self.scale_buttons.values()):
                 #thing.grid(row=1+i, column=0, columnspan=2, sticky="ew")
-                thing.grid(row=1, column=i, columnspan=1, sticky="ew")
+                thing.grid(row=2+i, column=1, columnspan=1, sticky="ew")
 
-            butt_frame_t.grid(row=0, column=0, sticky="news")
-            butt_frame_s.grid(row=1, column=0, sticky="news")
-            butt_frame_p.grid(row=2, column=0, sticky="news")
+            ttk.Label(butt_frame, text="\n").grid(row=4, column=0, sticky="ew")
+            ttk.Button(butt_frame, text=f"Update", command=range_show).grid(row=5, column=0, columnspan=2, sticky="ew")
+            butt_frame_t.grid(row=3, column=0, sticky="news")
+            butt_frame_s.grid(row=2, column=0, sticky="news")
+            butt_frame_p.grid(row=1, column=0, sticky="news")
 
             return butt_frame
 
         def range_show():
-
             range_is_ok_bool = True
 
             range_str = range_list.get()
@@ -562,7 +565,22 @@ class Plotting:
                 self.parent.write_log(f"SHOW DICT: {self.ch_show}")
                 update_plot()
 
-        def press_scale_plot(scale):
+        def press_scale_plot():
+            scale = plot_mode.get()
+            if scale == 'linear' and prev_plot_mode.get() == 'log':
+                mn = y_min.get()
+                mx = y_max.get()
+                y_min.set(round(10**mn, 3))
+                y_max.set(round(10**mx, 3))
+
+            elif scale == 'log' and prev_plot_mode.get() == 'linear':
+                mn = max(1.0, y_min.get())
+                mx = max(1.0, y_max.get())
+                y_min.set(round(np.log10(mn), 3))
+                y_max.set(round(np.log10(mx), 3))
+
+            prev_plot_mode.set(scale)
+
             for type in self.scale_buttons.keys():
                 if type == scale:
                     c = 'green'
@@ -600,7 +618,6 @@ class Plotting:
                 if idx_min >= idx_max:
                     x_min.set(x_max.get() - 1)  # note: to ensure the min < max
                     idx_min = int(1000*x_min.get() / self.parent.eta_class.const['binsize'])
-
             # COLORS
             n_c = 256  # number of colors in gradient
             #color_list = list(Color("green").range_to(Color("yellow"), n_c))
@@ -617,7 +634,7 @@ class Plotting:
 
                 nr_shown_chs += 1
                 time_vals = x[idx_min:idx_max]
-                n = idx_max - idx_min - 1  # nr of plotted points
+                n = len(time_vals)  #idx_max - idx_min - 1  # nr of plotted points
                 y_vals = list(np.ones(n)*nr_shown_chs)
 
                 # COLORS
@@ -627,43 +644,46 @@ class Plotting:
                 # --
 
                 if scale == 'log':
-                    mx = np.log10(y_max.get())
-                    mn = np.log10(max(1.0, y_min.get()))
-                    pre_counts = [max([1, c]) for c in self.parent.eta_class.folded_countrate_pulses[thing]]
+                    mx = y_max.get()  # np.log10(y_max.get())
+                    mn = y_min.get()  #np.log10(max(1.0, y_min.get()))
+                    pre_counts = [max([1.0, c]) for c in self.parent.eta_class.folded_countrate_pulses[thing]]
                     counts = np.log10(pre_counts)
-                    print("PRE", pre_counts)
-                    print("POST", counts)
+
+                    # ABSOLUTE FILTER
+                    """for l in range(len(counts)):
+                        if counts[l] > y_max.get():
+                            counts[l] = 0.0
+                        elif counts[l] < y_min.get():
+                            counts[l] = 0.0"""
+                    # ----
 
                 else:
                     counts = self.parent.eta_class.folded_countrate_pulses[thing]
                     mn = max(0.0, y_min.get())
                     mx = y_max.get()
-                    print("LIN POST", counts)
+                    #print("LIN POST", counts)
 
                 # https://matplotlib.org/stable/gallery/lines_bars_and_markers/multicolored_line.html
                 # Create a continuous norm to map from data points to colors
                 norm = plt.Normalize(mn, mx) #counts.max())
                 #norm_counts = [min((2*c)+1, 50) for c in counts]
-
                 points = np.array([time_vals, y_vals]).T.reshape(-1, 1, 2)
                 segments = np.concatenate([points[:-1], points[1:]], axis=1)
                 lc = LineCollection(segments, cmap='plasma', norm=norm)  #, linewidths=norm_counts)
                 # Set the values used for colormapping
-                lc.set_array(counts)
+                lc.set_array(counts[idx_min:idx_max])
                 line = ax1.add_collection(lc)
                 all_lines.append(lc)
 
             for lc in all_lines:
-                lc.set_linewidth(150/(len(all_lines)+1))
+                lc.set_linewidth(line_thickness.get()/(len(all_lines)+1))
 
             fig.colorbar(line, ax=ax1)
 
             shown_ticks = []
             for key in self.ch_show.keys():
                 if self.ch_show[key]:
-                    print(key)
                     shown_ticks.append(f'ch.{key[1:]}')
-            print(shown_ticks)
 
             ticks = [i + 1 for i in range(len(shown_ticks))]
             ax1.set_yticks(ticks)
@@ -671,8 +691,8 @@ class Plotting:
             #y_max.set(len(ticks)+1)
 
             ax1.set_xlim([x_min.get(), x_max.get()])
-            ax1.set_ylim([0, len(shown_ticks)+1])  # not applicable here anymore, used to change range on colorbar
-            ax1.set_xlabel("Time [ns]")
+            ax1.set_ylim([0.0, len(shown_ticks)+1.0])  # not applicable here anymore, used to change range on colorbar
+            ax1.set_xlabel("time [ns]")
             ax1.set_title("Lifetime Color")
             #ax1.legend()
             fig.canvas.draw_idle()   # updates the canvas immediately?
@@ -683,12 +703,15 @@ class Plotting:
         y_min = tk.DoubleVar(value=0.0)
         y_max = tk.DoubleVar(value=2000.0)
 
-        range_list = tk.StringVar(value="2, 3")
+        line_thickness = tk.DoubleVar(value=274.0)
+
+        range_list = tk.StringVar(value="1-4")
         plot_mode = tk.StringVar(value="linear")
+        prev_plot_mode = tk.StringVar(value="linear")
         self.show_buttons = []
 
-        fig = plt.figure(figsize=(9, 4), dpi=100)   # fig, ax1 = plt.subplots(1, 1, figsize=(9, 5))
-
+        fig = plt.figure(figsize=(8, 5), dpi=100)   # fig, ax1 = plt.subplots(1, 1, figsize=(8, 5))
+        fig.subplots_adjust(left=0.1, right=1)
         update_plot()
         plt_frame, canvas = gui.pack_plot(tab, fig)
         butt_frm = make_time_scale_button()
@@ -700,9 +723,9 @@ class Plotting:
     def plot_3D_lifetime_widget(self, tab):
 
         def make_time_scale_button():
-            butt_frame = ttk.Frame(tab, relief=tk.FLAT, borderwidth=3)
+            butt_frame = ttk.Frame(tab, relief=tk.FLAT, borderwidth=1)
 
-            butt_frame_t = ttk.Frame(butt_frame, borderwidth=3)
+            butt_frame_t = ttk.Frame(butt_frame, borderwidth=1)
 
             ttk.Label(butt_frame_t, text=f'min').grid(row=1, column=1, sticky="ew")
             ttk.Label(butt_frame_t, text=f'max').grid(row=1, column=2, sticky="ew")
@@ -717,13 +740,13 @@ class Plotting:
 
             ttk.Button(butt_frame_t, text="Update", command=update_plot).grid(row=4, column=0, columnspan=3, sticky="ew")
 
-            butt_frame_s = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=3)
+            butt_frame_s = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=1)
 
             ttk.Label(butt_frame_s, text="Show Channels:").grid(row=2, column=0, columnspan=2, sticky="ew")
             ttk.Entry(butt_frame_s, textvariable=range_list, width=6).grid(row=3, column=0, columnspan=1, sticky="ew")
-            ttk.Button(butt_frame_s, text=f"Update range", command=range_show).grid(row=3, column=1, columnspan=1, sticky="ew")
+            ttk.Button(butt_frame_s, text=f"Update range", command=range_show).grid(row=4, column=0, columnspan=1, sticky="ew")
 
-            butt_frame_p = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=3)
+            butt_frame_p = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=1)
             ttk.Label(butt_frame_p, text=f'Plot scale').grid(row=0, column=0, columnspan=2, sticky="ew")
             self.scale_buttons_3D = {
                 #'linear':       tk.Button(butt_frame_p, text="  Linear  ", highlightbackground='green', command=lambda: press_scale_plot('linear')),
@@ -895,8 +918,8 @@ class Plotting:
 
         # ---
 
-        #fig, ax1 = plt.subplots(1, 1, figsize=(9, 5), subplot_kw={'projection': '3d'})
-        fig = plt.figure(figsize=(9, 4), dpi=100)   # fig, ax1 = plt.subplots(1, 1, figsize=(9, 5))
+        #fig, ax1 = plt.subplots(1, 1, figsize=(8, 5), subplot_kw={'projection': '3d'})
+        fig = plt.figure(figsize=(8, 5), dpi=100)   # fig, ax1 = plt.subplots(1, 1, figsize=(8, 5))
         #ax1 = fig.add_subplot(111, projection='3d')
 
         update_plot()
@@ -918,7 +941,7 @@ class Plotting:
         #plot1.plot(y)  # plotting the graph
         fig, ax1 = plt.subplots(1, 1, figsize=(14, 7), subplot_kw={'projection': '3d'})
 
-        #fig = plt.Figure(figsize=(9, 5), dpi=100)
+        #fig = plt.Figure(figsize=(8, 5), dpi=100)
         #plot1 = fig.add_subplot(111)
 
         #ax1.set_xlim(1545, 1565)
@@ -970,7 +993,7 @@ class Plotting:
         min_idx = 1000
         max_idx = 3000
 
-        fig, ax1 = plt.subplots(1, 1, figsize=(9, 5), subplot_kw={'projection': '3d'})
+        fig, ax1 = plt.subplots(1, 1, figsize=(8, 5), subplot_kw={'projection': '3d'})
 
         ax1.set_xlabel("time [ns]")
         #ax1.set_ylabel("channel")
@@ -1005,7 +1028,7 @@ class Plotting:
 """
     def plot_display_info_widget(self, tab, tab_str):
 
-        frm_info = ttk.Frame(tab, relief=tk.FLAT, borderwidth=3)
+        frm_info = ttk.Frame(tab, relief=tk.FLAT, borderwidth=1)
 
         # TODO: add text or variables depending on which graph tab we have
         if tab_str == "tab 1 plots":
@@ -1114,9 +1137,9 @@ class GUI:
         #path = '@try22.cur'  # Path to the image followed by @
         self.root['cursor'] = ''  # path  # Set the cursor
 
-        self.root.title("Quantum Spectrometer - QNP")   # *Ghostly matters*
-        #self.root.geometry('1070x730')
-        self.root.geometry('1250x800')
+        self.root.title("OSQ - One Shot Quantum")   # *Ghosttly matters*
+        self.root.geometry('1000x720')
+        #self.root.geometry('1250x800')
         self.root.resizable(True, True)
 
         self.tabs = {
@@ -1181,13 +1204,13 @@ class GUI:
         self.tabs['Load']['tab'] = self.add_tab(parent_nb=self.root_nb, tab_name='Load Scan')
         self.tabs['New']['tab'] = self.add_tab(parent_nb=self.root_nb, tab_name='New Scan')
         self.tabs['Settings']['tab'] = self.add_tab(parent_nb=self.root_nb, tab_name='Settings')
-        self.create_theme_sel()
+        self.create_theme_sel(self.tabs['Settings']['tab'])  # self.root_nb)
 
     @staticmethod
     def pack_plot(tab, fig):
 
         # creating the Tkinter canvas containing the Matplotlib figure
-        plt_frame = ttk.Frame(tab, relief=tk.FLAT, borderwidth=3)
+        plt_frame = ttk.Frame(tab, relief=tk.FLAT, borderwidth=1)
         canvas = FigureCanvasTkAgg(fig, master=plt_frame)  # self.root)
         canvas.draw()
         # placing the canvas on the Tkinter window
@@ -1202,7 +1225,7 @@ class GUI:
 
     @staticmethod
     def add_tab(parent_nb, tab_name):
-        child_tab = ttk.Frame(parent_nb, borderwidth=3, relief=tk.SOLID)
+        child_tab = ttk.Frame(parent_nb, borderwidth=1, relief=tk.FLAT)   # TODO
         parent_nb.add(child_tab, text=tab_name)
         return child_tab
 
@@ -1248,7 +1271,7 @@ class GUI:
         ##conf_frm.grid(row=4, column=100) #expand=1, anchor='ne')
         #load_nb.add(conf_frm, text='ssTESTTT')
 
-    def create_theme_sel(self):
+    def create_theme_sel(self, tab):
         def change_theme(new_thm):
             print("changed to theme:", new_thm)
             self.root.set_theme(new_thm)
@@ -1264,14 +1287,17 @@ class GUI:
                 cursor_var.set(new_crs[9:-4])
             self.root.update()
 
-        conf_frm = ttk.Frame(self.root_nb)
-        conf_frm.pack(expand=1, anchor='ne')
+        conf_frm = ttk.Frame(tab)
+        conf_frm.pack(expand=1, anchor='nw')  # 'ne' if in root_nb
+
+        ttk.Label(conf_frm, text="Theme:").grid(row=0, column=0, sticky='news')
+        ttk.Label(conf_frm, text="Cursor:").grid(row=0, column=1, sticky='news')
 
         # -----
         # THEME
         thm_var = tk.StringVar(value=self.default_theme)
         option_thm = ttk.OptionMenu(conf_frm, variable=thm_var, default=self.default_theme)
-        option_thm.grid(row=0, column=0)
+        option_thm.grid(row=1, column=0)
         for theme in self.theme_list:
             option_thm['menu'].add_command(label=f"{theme}", command=lambda thm=theme: change_theme(thm))
 
@@ -1282,7 +1308,7 @@ class GUI:
 
         cursor_var = tk.StringVar(value='default')
         option_cursor = ttk.OptionMenu(conf_frm, variable=cursor_var, default='')
-        option_cursor.grid(row=0, column=1)
+        option_cursor.grid(row=1, column=1)
 
         option_cursor['menu'].add_command(label=f"default", command=lambda cur='': change_cursor(cur))
         for cursor in cursor_list:
@@ -1404,7 +1430,7 @@ class NewScanGroup:
 
         self.params = {
             'grating':     {'var': tk.IntVar(value=1),   'type': 'radio',     'default': 1,   'value': [1, 2, 3]},
-            'nm':          {'var': tk.IntVar(value=600), 'type': 'int entry', 'default': 350, 'value': [350, 650, 750]},
+            'nm':          {'var': tk.IntVar(value=1550), 'type': 'int entry', 'default': 350, 'value': [350, 650, 750]},
             'width_nm':    {'var': tk.IntVar(value=1),   'type': 'int entry', 'default': 10,  'value': [5, 15, 30]},
             'slit':        {'var': tk.IntVar(value=10),  'type': 'int entry', 'default': 10,  'value': [10, 20, 30]},
             'nr_pixels':   {'var': tk.IntVar(value=8),   'type': 'int entry', 'default': 8,   'value': [3, 8, 12]},
@@ -1443,7 +1469,7 @@ class NewScanGroup:
     def acquisition_newscan_tab(self, new_scan_tab):
 
         # Full collection of settings for scan:
-        self._params_frm = params_frm = ttk.Frame(new_scan_tab, borderwidth=3, relief=tk.FLAT)
+        self._params_frm = params_frm = ttk.Frame(new_scan_tab, borderwidth=1, relief=tk.FLAT)
         params_frm.grid(row=0, column=0, columnspan=2, sticky="nw")
         self.choose_param_configs_widget(params_frm).grid(row=0, column=0, sticky="ew")
 
@@ -1451,7 +1477,7 @@ class NewScanGroup:
         #self.log_scan_widget(new_scan_tab).grid(row=1, column=1, rowspan=100, sticky="w")  # in sub frame
         # ---
         # Frame to group together analysis configs (not including logger)
-        self._scan_frm = scan_frm = ttk.Frame(new_scan_tab, borderwidth=3, relief=tk.FLAT)
+        self._scan_frm = scan_frm = ttk.Frame(new_scan_tab, borderwidth=1, relief=tk.FLAT)
         scan_frm.grid(row=1, column=0,  sticky='nw')  # nws
 
         # Analysis configs:
@@ -1465,7 +1491,7 @@ class NewScanGroup:
 
         # ---
         # Logger box:
-        log_box_frm = ttk.Frame(new_scan_tab, borderwidth=3 , relief=tk.GROOVE)
+        log_box_frm = ttk.Frame(new_scan_tab, borderwidth=1, relief=tk.GROOVE)
         log_box_frm.grid(row=1, column=1, sticky="nws")  # in sub frame
         self.log_scan_widget(log_box_frm).grid(row=0, column=0, sticky="news")   # Inner thing
 
@@ -1500,10 +1526,10 @@ class NewScanGroup:
             #self.mark_done(btn_start, highlight=self.button_color, type='button')
             #self.mark_done(btn_stop, highlight='red', type='button')
 
-        frm_send = ttk.Frame(tab, relief=tk.FLAT, borderwidth=3)
+        frm_send = ttk.Frame(tab, relief=tk.FLAT, borderwidth=0)
         btn_start = ttk.Button(frm_send, text="Start Scan", command=press_start)
         btn_stop = ttk.Button(frm_send, text="Stop", command=press_stop)
-        self.prog_bar = ttk.Progressbar(frm_send, style='bar.Horizontal.TProgressbar', orient='horizontal', mode='determinate', length=400)  # progressbar
+        self.prog_bar = ttk.Progressbar(frm_send, style='bar.Horizontal.TProgressbar', orient='horizontal', mode='determinate', length=430)  # progressbar
 
         btn_start.grid(row=0, column=0, sticky="nsew")
         btn_stop.grid(row=0, column=1, sticky="nsew")
@@ -1641,30 +1667,30 @@ class NewScanGroup:
             # TODO: auto update plot axis
             pass
 
-        def update_ch(nr_pixels):
-            if nr_pixels not in [4, 8]:
+        def update_ch():
+            nr_pixels = self.params['nr_pixels']['var'].get()
+            if nr_pixels not in [4, 8, 16]:
                 self.write_log(f"ERROR: other pixel amounts not available yet")
                 return
 
-            self.params['nr_pixels']['var'].set(nr_pixels)
+            #self.write_log(f"Setting {nr_pixels} pixels")
+            #self.params['nr_pixels']['var'].set(nr_pixels)
 
-            # TODO: FIXME
+            scroll_frm = None  # placeholder
             # removes previously shown channels (in case we want to decrease in amount)
             for j, widget in enumerate(frm['ch'].winfo_children()):  # FIXME NOTE TODO: USE THIS LATER TO ACCESS BUTTONS FOR MARKING DONE
-                if j == 0:
-                    pass
-                    #self.write_log(f"{widget}")
-                #self.write_log(f"{j} {widget}")
-                #self.write_log(f"{widget.winfo_children()}")
+                #print(widget)
+                if j == 4:
+                    widget.destroy()
+                    scroll_frm = CreateScrollFrame(frm['ch'])
+                    scroll_frm.grid(row=1, column=0, columnspan=10)
 
-            # Connecting to other/new WebSQ server
-            #
+            # Connecting to other/new WebSQ server   # TODO FIXME
             #self.sq.websq_disconnect()
             #self.sq.websq_connect(nr_pixels)
-            #self.plotting_class.reset_histo_bins()
-            fill_ch()
+            fill_ch(scroll_frm)
 
-        def fill_ch():
+        def fill_ch(scroll_frm):
             chosen_frm = scroll_frm.scrollFrame.viewPort
             self.ch_bias_list = []
             self.pix_counts_list = []
@@ -1673,7 +1699,7 @@ class NewScanGroup:
             if demo:
                 device_bias = []
                 device_trigger = []
-                self.params['nr_pixels']['var'].set(16)
+                #self.params['nr_pixels']['var'].set(16)
                 for ci in range(self.params['nr_pixels']['var'].get()):
                     device_bias.append(0)
                     device_trigger.append(100)
@@ -1685,7 +1711,7 @@ class NewScanGroup:
                 self.ch_bias_list.append(tk.IntVar(value=device_bias[pix]))  # FIXME we are only displaying, not setting anything
                 self.ch_trig_list.append(tk.IntVar(value=device_trigger[pix]))  # FIXME we are only displaying, not setting anything
 
-                ttk.Label(chosen_frm, text=f"{pix + 1}").grid(row=pix + 2, column=0, sticky="ew", padx=6)
+                ttk.Label(chosen_frm, text=f"    {pix + 1}   ").grid(row=pix + 2, column=0, sticky="ew", padx=6)
                 ttk.Entry(chosen_frm, textvariable=self.ch_bias_list[pix], width=6).grid(row=pix + 2, column=1, sticky="ew", padx=8)
                 ttk.Entry(chosen_frm, textvariable=self.ch_trig_list[pix], width=8).grid(row=pix + 2, column=2, sticky="ew", padx=7)
 
@@ -1697,7 +1723,7 @@ class NewScanGroup:
         #self.port.set(self.sp.port)  # note maybe change later when implemented
 
         # FRAMES
-        frm_configs = ttk.Frame(tab, relief=tk.FLAT)#, borderwidth=3)
+        frm_configs = ttk.Frame(tab, relief=tk.FLAT)#, borderwidth=1)
 
         frm = {
             'port'    : ttk.Frame(frm_configs, relief=tk.GROOVE, borderwidth=3) ,
@@ -1706,10 +1732,6 @@ class NewScanGroup:
             'detect'  : ttk.Frame(frm_configs, relief=tk.GROOVE, borderwidth=3) ,
             'ch'      : ttk.Frame(frm_configs, relief=tk.GROOVE, borderwidth=3) ,
         }
-
-        scroll_frm = CreateScrollFrame(frm['ch'])
-        scroll_frm.grid(row=1, column=0, columnspan=10)
-        fill_ch()
 
         # WIDGETS
 
@@ -1740,16 +1762,23 @@ class NewScanGroup:
                      ttk.Entry(frm['detect'], textvariable=self.params['width_nm']['var'], width=4),
                      ttk.Label(frm['detect'], text='[nm]')]
 
-        det_no_parts = [ttk.Label(frm['detect'], text="Nr. of pixels"),
-                        ttk.Button(frm['detect'], text="4", command=lambda: update_ch(4)),
-                        ttk.Button(frm['detect'], text="8", command=lambda: update_ch(8))]
+        self.params['nr_pixels']['var'].set(4)
+        det_no_parts = [ttk.Label(frm['detect'], text="Nr. of channels"),
+                        ttk.Radiobutton(frm['detect'], text="4", value=4, variable=self.params['nr_pixels']['var'], command=update_ch),
+                        ttk.Radiobutton(frm['detect'], text="8", value=8, variable=self.params['nr_pixels']['var'], command=update_ch),
+                        ttk.Radiobutton(frm['detect'], text="16", value=16, variable=self.params['nr_pixels']['var'], command=update_ch),
+                        ]
 
         # -- Channels:
         ch_parts = [
-            ttk.Label(frm['ch'], text='Pixel'),
+            ttk.Label(frm['ch'], text='Channel'),
             ttk.Label(frm['ch'], text='Bias (uA)'),
             ttk.Label(frm['ch'], text='    Trigger (mV)'),
             ttk.Label(frm['ch'], text='  Counts')]
+
+        scroll_frm = CreateScrollFrame(frm['ch'])
+        scroll_frm.grid(row=1, column=0, columnspan=10)
+        fill_ch(scroll_frm)
 
         #  -- Port:
         get_ports()
@@ -1785,7 +1814,7 @@ class NewScanGroup:
         gui.add_to_grid(widg=[ttk.Label(frm['detect'], text="Detector")], rows=[0], cols=[0], sticky=["ew"])  # , columnspan=[2])
         gui.add_to_grid(widg=det_parts, rows=[1, 2], cols=[1, 1], sticky=["ew", "ew"])  # center wavelength
         # gui.add_to_grid(widg=wid_parts, rows=[2,2,2], cols=[0,1,2], sticky=["ew", "ew", "ew"])
-        gui.add_to_grid(widg=det_no_parts, rows=[1, 2, 3], cols=[0, 0, 0], sticky=["ew", "ew", "ew"])  # nr of pixels
+        gui.add_to_grid(widg=det_no_parts, rows=[1, 2, 3, 4], cols=[0, 0, 0, 0], sticky=["ew", "ew", "ew", "ew"])  # nr of pixels
 
         # -- Channels
         gui.add_to_grid(widg=ch_parts, rows=[0, 0, 0, 0, 0], cols=[0, 1, 2, 3, 4], sticky=["ew", "ew", "ew", "ew"])
@@ -1820,7 +1849,7 @@ class NewScanGroup:
                    f"date({currDate})_time({currTime}).timeres"
             self.params['file_name']['var'].set(temp)
 
-        frm_anal_configs = ttk.Frame(tab, borderwidth=3, relief=tk.FLAT)
+        frm_anal_configs = ttk.Frame(tab, borderwidth=0, relief=tk.FLAT)
 
         # choosing datafile and recipe entries:
         file_btn = ttk.Button(frm_anal_configs, text="Datafile  ", command=suggest_filename)
@@ -1866,7 +1895,7 @@ class NewScanGroup:
         def press_add():
             print('FIXME')
 
-        frm_anal_buttons = ttk.Frame(tab, borderwidth=3, relief=tk.FLAT)
+        frm_anal_buttons = ttk.Frame(tab, borderwidth=0, relief=tk.FLAT)
 
         # strt stop analysis buttons:
         analyze_btn = ttk.Button(frm_anal_buttons, text="Analyze", command=press_analyze)
@@ -1882,7 +1911,8 @@ class NewScanGroup:
         analyzed_file_label.grid(row=4, column=1, columnspan=10, sticky='ew')
 
         # progress bar of analysis:
-        self.eta_class.pb = ttk.Progressbar(frm_anal_buttons, style='bar.Horizontal.TProgressbar', orient='horizontal', mode='determinate', length=400)  # progressbar
+        self.eta_class.pb = ttk.Progressbar(frm_anal_buttons, style='bar.Horizontal.TProgressbar',
+                                            orient='horizontal', mode='determinate', length=430) # 400)  # progressbar
 
         self.eta_class.pb.grid(row=3, column=2, sticky="ew")
 
@@ -2036,8 +2066,8 @@ class LoadScanGroup:
         ttk.Button(frm_misc, text="Datafile", command=get_file).grid(row=1, column=0, sticky="ew")
         ttk.Button(frm_misc, text="ETA recipe", command=get_recipe).grid(row=2, column=0, sticky="ew")
 
-        file_entry = ttk.Entry(frm_misc, textvariable=self.params['file_name']['var'], width=70)
-        reci_entry = ttk.Entry(frm_misc, textvariable=self.params['eta_recipe']['var'], width=70)
+        file_entry = ttk.Entry(frm_misc, textvariable=self.params['file_name']['var'], width=65)
+        reci_entry = ttk.Entry(frm_misc, textvariable=self.params['eta_recipe']['var'], width=65)
         file_entry.grid(row=1, column=1, columnspan=10, sticky="ew")
         reci_entry.grid(row=2, column=1, columnspan=10, sticky="ew")
 
@@ -2047,7 +2077,7 @@ class LoadScanGroup:
         stop_btn = ttk.Button(frm_misc, text="Cancel", command=press_stop)
         stop_btn.grid(row=3, column=2, sticky="ew")
 
-        self.eta_class.pb = ttk.Progressbar(frm_misc, style='bar.Horizontal.TProgressbar', orient='horizontal', mode='determinate', length=400)  # progressbar
+        self.eta_class.pb = ttk.Progressbar(frm_misc, style='bar.Horizontal.TProgressbar', orient='horizontal', mode='determinate', length=475)  # progressbar
         self.eta_class.pb.grid(row=3, column=3, sticky="ew")
 
         # -----
@@ -2060,7 +2090,7 @@ class LoadScanGroup:
         # -------------
         # ---
         # Logger box:
-        log_box_frm = ttk.Frame(tab, borderwidth=3 , relief=tk.FLAT)
+        log_box_frm = ttk.Frame(tab, borderwidth=1, relief=tk.FLAT)
         log_box_frm.grid(row=0, column=1, rowspan=10, sticky="nws")  # in sub frame
         self.log_scan_widget(log_box_frm).grid(row=0, column=0, sticky="news")   # Inner thing
 
@@ -2073,7 +2103,7 @@ class LoadScanGroup:
     def log_scan_widget(self, tab):
         from tkinter import scrolledtext
 
-        frm_log = ttk.Frame(tab, relief=tk.SOLID)
+        frm_log = ttk.Frame(tab, relief=tk.GROOVE)
 
         """
                 __Configs analysis top__
@@ -2099,8 +2129,11 @@ class LoadScanGroup:
 
                 """
 
-        self.log_box = log_box = scrolledtext.ScrolledText(frm_log, wrap=tk.WORD, width=48, height=6, font=("Helvetica", 12, 'italic'), state='disabled')
+        #self.log_box = log_box = scrolledtext.ScrolledText(frm_log, wrap=tk.WORD, width=48, height=6, font=("Helvetica", 12, 'italic'), state='disabled')
+        self.log_box = log_box = scrolledtext.ScrolledText(frm_log, wrap=tk.WORD, width=30, height=6, font=("Helvetica", 12, 'italic'), state='disabled')
         log_box.grid(row=1, column=0, pady=0, padx=0)
+        log_box.tag_config('error', foreground='red')  # <--  Change colors of texts tagged `error`
+        log_box.tag_config('log', foreground='grey')  # <--  Change colors of texts tagged `log`
 
         return frm_log
 
@@ -2110,7 +2143,7 @@ class LoadScanGroup:
             msg += ' ...\n...ERROR: COULD NOT WRITE EVERYTHING TO LOG, MSG MUST BE SENT AS ONE STRING'
             print("kwargs:", kwargs)
         self.log_box.configure(state='normal')
-        self.log_box.insert('end', f'{time.strftime("%H:%M:%S", time.localtime())} - {msg}\n')
+        self.log_box.insert('end', f'{time.strftime("%H:%M:%S", time.localtime())} - {msg}\n', 'log')
         self.log_box.configure(state='disabled')
         #label = ttk.Label(self.log_frm, text=f"{msg}")
         #label.pack(fill='both')
