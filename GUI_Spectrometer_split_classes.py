@@ -28,6 +28,12 @@ import colour
 from colour import Color
 from matplotlib.collections import LineCollection
 from matplotlib.colors import BoundaryNorm, ListedColormap
+import glob
+
+
+# Grab and extend frames
+# make whole notebook a scrollable frame (both horizontally and vertically)
+
 
 class ScrollFrame(ttk.Frame):
     # SOURCE: https://gist.github.com/mp035/9f2027c3ef9172264532fcd6262f3b01
@@ -603,6 +609,8 @@ class Plotting:
 
             # --
             nr_shown_chs = 0
+            all_lines = []
+
             for i, thing in enumerate(self.ch_show.keys()):
                 if self.ch_show[thing] is False:
                     continue   # doesn't plot when hidden
@@ -619,29 +627,34 @@ class Plotting:
                 # --
 
                 if scale == 'log':
+                    mx = np.log10(y_max.get())
+                    mn = np.log10(max(1.0, y_min.get()))
                     pre_counts = [max([1, c]) for c in self.parent.eta_class.folded_countrate_pulses[thing]]
                     counts = np.log10(pre_counts)
                     print("PRE", pre_counts)
                     print("POST", counts)
-                    mx = np.log10(2000)
 
                 else:
                     counts = self.parent.eta_class.folded_countrate_pulses[thing]
-                    mx = 2000
+                    mn = max(0.0, y_min.get())
+                    mx = y_max.get()
                     print("LIN POST", counts)
 
                 # https://matplotlib.org/stable/gallery/lines_bars_and_markers/multicolored_line.html
                 # Create a continuous norm to map from data points to colors
-                norm = plt.Normalize(min(counts), mx) #counts.max())
-                norm_counts = [min((2*c)+1, 50) for c in counts]
+                norm = plt.Normalize(mn, mx) #counts.max())
+                #norm_counts = [min((2*c)+1, 50) for c in counts]
 
                 points = np.array([time_vals, y_vals]).T.reshape(-1, 1, 2)
                 segments = np.concatenate([points[:-1], points[1:]], axis=1)
                 lc = LineCollection(segments, cmap='plasma', norm=norm)  #, linewidths=norm_counts)
                 # Set the values used for colormapping
                 lc.set_array(counts)
-                lc.set_linewidth(40)
                 line = ax1.add_collection(lc)
+                all_lines.append(lc)
+
+            for lc in all_lines:
+                lc.set_linewidth(150/(len(all_lines)+1))
 
             fig.colorbar(line, ax=ax1)
 
@@ -655,9 +668,10 @@ class Plotting:
             ticks = [i + 1 for i in range(len(shown_ticks))]
             ax1.set_yticks(ticks)
             ax1.set_yticklabels(shown_ticks)  # note: this will be the amount of channels we are displaying
-            y_max.set(len(ticks)+1)
+            #y_max.set(len(ticks)+1)
+
             ax1.set_xlim([x_min.get(), x_max.get()])
-            ax1.set_ylim([y_min.get(), y_max.get()])
+            ax1.set_ylim([0, len(shown_ticks)+1])  # not applicable here anymore, used to change range on colorbar
             ax1.set_xlabel("Time [ns]")
             ax1.set_title("Lifetime Color")
             #ax1.legend()
@@ -667,7 +681,7 @@ class Plotting:
         x_min = tk.DoubleVar(value=0.0)
         x_max = tk.DoubleVar(value=100.0)
         y_min = tk.DoubleVar(value=0.0)
-        y_max = tk.DoubleVar(value=5.0)
+        y_max = tk.DoubleVar(value=2000.0)
 
         range_list = tk.StringVar(value="2, 3")
         plot_mode = tk.StringVar(value="linear")
@@ -1089,7 +1103,16 @@ class GUI:
         # Create and configure the main GUI window
 
         #self.root = tk.Tk()
-        self.root = ThemedTk(theme='radiance')  # yaru is good i think
+
+        self.default_theme = 'radiance'
+        self.root = ThemedTk(theme=self.default_theme)  # yaru is good i think
+
+        print(self.root['cursor'])
+
+        #path = '@duck.cur'  # Path to the image followed by @
+        #path = '@troive_small.cur'  # Path to the image followed by @
+        #path = '@try22.cur'  # Path to the image followed by @
+        self.root['cursor'] = ''  # path  # Set the cursor
 
         self.root.title("Quantum Spectrometer - QNP")   # *Ghostly matters*
         #self.root.geometry('1070x730')
@@ -1147,7 +1170,9 @@ class GUI:
             'winxpblue',
             'yaru',  # nice and light, but buttons too big
         ]
-        self.default_theme = 'scidblue'
+
+        #self.cursor_list = cursor_list = ['']
+
         # Create root notebook
         #self.root_nb = self.add_notebook(parent_tab=self.root,  expand=1, fill="both")
         self.root_nb = self.add_notebook(parent_tab=self.root,  expand=1, fill="both", side='right')
@@ -1177,7 +1202,7 @@ class GUI:
 
     @staticmethod
     def add_tab(parent_nb, tab_name):
-        child_tab = ttk.Frame(parent_nb, borderwidth=3, relief=tk.FLAT)
+        child_tab = ttk.Frame(parent_nb, borderwidth=3, relief=tk.SOLID)
         parent_nb.add(child_tab, text=tab_name)
         return child_tab
 
@@ -1192,35 +1217,36 @@ class GUI:
 
         # --------
         load_nb = self.add_notebook(parent_tab=self.tabs['Load']['tab'], anchor='w', side='top')
-        loadScanClass.acquisition_loadscan_tab(load_nb)   # adds in load params
+
         # Create sub-notebooks for each tab and pack, then add children tabs
         self.tabs['Load']['notebook'] = self.add_notebook(parent_tab=self.tabs['Load']['tab'], anchor='w', side='top')
-        self.tabs['Load']['children']['Spectrum'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Spectrum')
-        self.tabs['Load']['children']['Lifetime'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Lifetime')
+        #load_nb = self.tabs['Load']['notebook']
         self.tabs['Load']['children']['Lifetime Color'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Lifetime Color')
-        self.tabs['Load']['children']['Lifetime 3D'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Lifetime 3D')
-        self.tabs['Load']['children']['Correlation'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Correlation')
-
+        self.tabs['Load']['children']['Lifetime'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Lifetime')
+        #self.tabs['Load']['children']['Lifetime 3D'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Lifetime 3D')
+        #self.tabs['Load']['children']['Spectrum'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Spectrum')
+        #self.tabs['Load']['children']['Correlation'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Correlation')
         # --------
         new_nb = self.add_notebook(parent_tab=self.tabs['New']['tab'], anchor='w', side='top')
-        newScanClass.acquisition_newscan_tab(new_nb)
         # Create sub-notebooks for each tab and pack, then add children
         self.tabs['New']['notebook'] = self.add_notebook(parent_tab=self.tabs['New']['tab'], anchor='w', side='top')
-        self.tabs['New']['children']['Spectrum'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Spectrum')
-        self.tabs['New']['children']['Lifetime'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Lifetime')
         self.tabs['New']['children']['Lifetime Color'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Lifetime Color')
-        self.tabs['New']['children']['Lifetime 3D'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Lifetime 3D')
-        self.tabs['New']['children']['Correlation'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Correlation')
-
+        self.tabs['New']['children']['Lifetime'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Lifetime')
+        #self.tabs['New']['children']['Lifetime 3D'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Lifetime 3D')
+        #self.tabs['New']['children']['Spectrum'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Spectrum')
+        #self.tabs['New']['children']['Correlation'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Correlation')
         # --------
         self.tabs['Settings']['notebook'] = self.add_notebook(parent_tab=self.tabs['Settings']['tab'], anchor='w')
+        # --------
 
-        # ---- CHOOSING THEME ----
-        #self.theme_var = tk.StringVar(value='yaru')
-        #option_thm = ttk.OptionMenu(self.tabs['Settings']['notebook'], variable=self.theme_var, default="yaru")
+        loadScanClass.acquisition_loadscan_tab(load_nb)   # adds in load params
+        newScanClass.acquisition_newscan_tab(new_nb)
+
+        #conf_frm = ttk.Frame(load_nb, relief=tk.FLAT)
+        #option_thm = ttk.Label(conf_frm, text='TESTTT')
         #option_thm.grid(row=0, column=0)
-        #for theme in self.theme_list:
-        #    option_thm['menu'].add_command(label=f"{theme}", command=lambda thm=theme: self.change_theme(thm))
+        ##conf_frm.grid(row=4, column=100) #expand=1, anchor='ne')
+        #load_nb.add(conf_frm, text='ssTESTTT')
 
     def create_theme_sel(self):
         def change_theme(new_thm):
@@ -1229,11 +1255,38 @@ class GUI:
             thm_var.set(new_thm)
             newScanClass.update_log_box_height()
 
-        thm_var = tk.StringVar(value="yaru")
-        option_thm = ttk.OptionMenu(self.root_nb, variable=thm_var, default=self.default_theme)
-        option_thm.pack(expand=1, anchor='ne')
+        def change_cursor(new_crs):
+            self.root['cursor'] = new_crs
+            print("changed cursor to:", new_crs)
+            if new_crs == '':
+                cursor_var.set("default")
+            else:
+                cursor_var.set(new_crs[9:-4])
+            self.root.update()
+
+        conf_frm = ttk.Frame(self.root_nb)
+        conf_frm.pack(expand=1, anchor='ne')
+
+        # -----
+        # THEME
+        thm_var = tk.StringVar(value=self.default_theme)
+        option_thm = ttk.OptionMenu(conf_frm, variable=thm_var, default=self.default_theme)
+        option_thm.grid(row=0, column=0)
         for theme in self.theme_list:
             option_thm['menu'].add_command(label=f"{theme}", command=lambda thm=theme: change_theme(thm))
+
+        # CURSOR
+        cursor_list = []  #  ['']
+        for file in glob.glob("cursors/*.cur"):
+            cursor_list.append(f'{file}')
+
+        cursor_var = tk.StringVar(value='default')
+        option_cursor = ttk.OptionMenu(conf_frm, variable=cursor_var, default='')
+        option_cursor.grid(row=0, column=1)
+
+        option_cursor['menu'].add_command(label=f"default", command=lambda cur='': change_cursor(cur))
+        for cursor in cursor_list:
+            option_cursor['menu'].add_command(label=f"{cursor[8:-4]}", command=lambda cur=cursor: change_cursor(f'@{cur}'))
 
     def add_plot_tabs(self, parent_class, parent_name):
         # NOTE: CREATE NEW TAB THAT DOESN'T EXIST WITH:
@@ -1241,11 +1294,59 @@ class GUI:
         #plot_3d_lifetime_tab(child_tab, parent_class)
         # ----
 
-        self.plot_spectrum_tab(self.tabs[parent_name]['children']['Spectrum'], parent_class)  # note: temp moved to front for testing
-        self.plot_lifetime_tab(self.tabs[parent_name]['children']['Lifetime'], parent_class)  # note: temp moved to front for testing
-        self.plot_lifetime_color_tab(self.tabs[parent_name]['children']['Lifetime Color'], parent_class)  # note: temp moved to front for testing
-        self.plot_3d_lifetime_tab(self.tabs[parent_name]['children']['Lifetime 3D'], parent_class)  # note: temp moved to front for testing
-        self.plot_correlation_tab(self.tabs[parent_name]['children']['Correlation'], parent_class)  # note: temp moved to front for testing
+        for tab_nm in self.tabs[parent_name]['children'].keys():
+            gui.add_new_plot_tab(parent_class=parent_class, parent_name=parent_name, tab_name=tab_nm, init=True)
+        #self.plot_lifetime_color_tab(self.tabs[parent_name]['children']['Lifetime Color'], parent_class)  # note: temp moved to front for testing
+        #self.plot_lifetime_tab(self.tabs[parent_name]['children']['Lifetime'], parent_class)  # note: temp moved to front for testing
+
+    def add_new_plot_tab(self, parent_class, parent_name, tab_name, init=False):
+
+        if init:
+            print("init fill tabs, skipping creating new tab")
+        elif tab_name in self.tabs[parent_name]['children'].keys():
+            print("Plot already exists")
+            return
+        else:
+            # not init and not already added: --> add new tab
+            if tab_name == 'Lifetime Color':
+                self.tabs[parent_name]['children']['Lifetime Color'] = self.add_tab(
+                    parent_nb=self.tabs[parent_name]['notebook'], tab_name='Lifetime Color')
+
+            elif tab_name == 'Lifetime':
+                self.tabs[parent_name]['children']['Lifetime'] = self.add_tab(
+                    parent_nb=self.tabs[parent_name]['notebook'], tab_name='Lifetime')
+
+            elif tab_name == 'Lifetime 3D':
+                self.tabs[parent_name]['children']['Lifetime 3D'] = self.add_tab(
+                    parent_nb=self.tabs[parent_name]['notebook'], tab_name='Lifetime 3D')
+
+            elif tab_name == 'Spectrum':
+                self.tabs[parent_name]['children']['Spectrum'] = self.add_tab(
+                    parent_nb=self.tabs[parent_name]['notebook'], tab_name='Spectrum')
+
+            elif tab_name == 'Correlation':
+                self.tabs[parent_name]['children']['Correlation'] = self.add_tab(
+                    parent_nb=self.tabs[parent_name]['notebook'], tab_name='Correlation')
+            else:
+                print(f"WARNING: ??? in function 'add_new_plot_tab()'")
+
+        # ----
+        if tab_name == 'Lifetime Color':
+            self.plot_lifetime_color_tab(self.tabs[parent_name]['children']['Lifetime Color'], parent_class)
+
+        elif tab_name == 'Lifetime':
+            self.plot_lifetime_tab(self.tabs[parent_name]['children']['Lifetime'], parent_class)
+
+        elif tab_name == 'Lifetime 3D':
+            self.plot_3d_lifetime_tab(self.tabs[parent_name]['children']['Lifetime 3D'], parent_class)
+
+        elif tab_name == 'Spectrum':
+            self.plot_spectrum_tab(self.tabs[parent_name]['children']['Spectrum'], parent_class)
+
+        elif tab_name == 'Correlation':
+            self.plot_correlation_tab(self.tabs[parent_name]['children']['Correlation'], parent_class)
+        else:
+            print(f"WARNING: Could not find plotting option for: {tab_name}")
 
     # **
     def plot_lifetime_tab(self, plots_lifetime, parent):
@@ -1697,14 +1798,9 @@ class NewScanGroup:
                         cols=[1, 2, 3, 4, 5], rows=[1, 1, 1, 1, 1],
                         sticky=["news", "news", "news", "news", "news"])
 
-        gui.add_to_grid(widg=[ttk.Label(frm_configs, text="(sp) Connect Device"),
-                              ttk.Label(frm_configs, text="(sp) Grating"),
-                              ttk.Label(frm_configs, text="(sp) Slit"),
-                              ttk.Label(frm_configs, text="(det) SNSPD"),
-                              ttk.Label(frm_configs, text="(det) SNSPD")
-                              ],
-                        cols=[1, 2, 3, 4, 5], rows=[0, 0, 0, 0, 0],
-                        sticky=["news", "news", "news", "news", "news"])
+        ttk.Label(frm_configs, text="Monochromator", relief=tk.GROOVE, anchor='center').grid(row=0, column=0, columnspan=4, sticky='ew')
+        ttk.Label(frm_configs, text="SNSPD", relief=tk.GROOVE, anchor='center').grid(row=0, column=4, columnspan=2, sticky='ew')
+
         return frm_configs
 
     def analysis_config_widget(self, tab):
@@ -1767,18 +1863,23 @@ class NewScanGroup:
                 self.cancel = True
                 self.eta_class.pb['value'] = 0
 
+        def press_add():
+            print('FIXME')
+
         frm_anal_buttons = ttk.Frame(tab, borderwidth=3, relief=tk.FLAT)
 
         # strt stop analysis buttons:
         analyze_btn = ttk.Button(frm_anal_buttons, text="Analyze", command=press_analyze)
         cancel_btn = ttk.Button(frm_anal_buttons, text="Cancel", command=press_cancel)
+        #add_btn = ttk.Button(frm_anal_buttons, text="Add test", command=press_add)
+        #add_btn.grid(row=4, column=0, sticky='ew')
 
         # shows which file we have analysed:
         analyzed_file_label = ttk.Label(frm_anal_buttons, text='', font="Helvetica 10 normal italic")
 
         analyze_btn.grid(row=3, column=0, sticky="ew")
         cancel_btn.grid(row=3, column=1, sticky="ew")
-        analyzed_file_label.grid(row=10, column=0, columnspan=10, sticky='ew')
+        analyzed_file_label.grid(row=4, column=1, columnspan=10, sticky='ew')
 
         # progress bar of analysis:
         self.eta_class.pb = ttk.Progressbar(frm_anal_buttons, style='bar.Horizontal.TProgressbar', orient='horizontal', mode='determinate', length=400)  # progressbar
@@ -1876,6 +1977,8 @@ class LoadScanGroup:
                 self.write_log(f"Starting analysis")
                 self.eta_class.eta_lifetime_analysis()
                 start_btn.config(state='normal')
+                option_plt['state'] = 'normal'
+
                 self.loading = False
 
                 if not self.cancel:
@@ -1904,12 +2007,31 @@ class LoadScanGroup:
                 #reci_entry.delete(0, tk.END)
                 self.params['eta_recipe']['var'].set(new_reci)
 
+        def press_add(tab_name):  # new
+
+            gui.add_new_plot_tab(parent_class=self, parent_name='Load', tab_name=tab_name)
+            new_plt_var.set('+')
+            new_options = get_plt_options()
+
+            frm_misc.children[list(frm_misc.children.keys())[-1]].destroy()
+
+            if new_options:
+                option_plt = ttk.OptionMenu(frm_misc, new_plt_var, '+', *get_plt_options(), command=press_add)
+                option_plt.grid(row=4, column=0, sticky='w')
+
+        def get_plt_options():  # new
+            remaining = []
+            for op in ['Lifetime Color', 'Lifetime', 'Lifetime 3D', 'Spectrum', 'Correlation']:
+                if op not in gui.tabs['Load']['children'].keys():
+                    remaining.append(op)
+            return remaining
+
         frm_misc = ttk.Frame(tab, borderwidth=3, relief=tk.FLAT) #
         frm_misc.grid(row=0, column=0)
 
         # shows which file we have analysed:
         analyzed_file_label = ttk.Label(frm_misc, text='', font="Helvetica 10 normal italic")
-        analyzed_file_label.grid(row=10, column=0, columnspan=10, sticky='ew')
+        analyzed_file_label.grid(row=4, column=1, columnspan=10, sticky='ew')
         # ----
         ttk.Button(frm_misc, text="Datafile", command=get_file).grid(row=1, column=0, sticky="ew")
         ttk.Button(frm_misc, text="ETA recipe", command=get_recipe).grid(row=2, column=0, sticky="ew")
@@ -1927,6 +2049,13 @@ class LoadScanGroup:
 
         self.eta_class.pb = ttk.Progressbar(frm_misc, style='bar.Horizontal.TProgressbar', orient='horizontal', mode='determinate', length=400)  # progressbar
         self.eta_class.pb.grid(row=3, column=3, sticky="ew")
+
+        # -----
+        new_plt_var = tk.StringVar(value='??')
+        option_plt = ttk.OptionMenu(frm_misc, new_plt_var, '+', *get_plt_options(), command=press_add)
+        option_plt.grid(row=4, column=0, sticky='w')
+        option_plt['state'] = 'disabled'
+        # ----
 
         # -------------
         # ---
