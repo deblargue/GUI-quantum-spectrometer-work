@@ -34,7 +34,8 @@ import glob
 # Grab and extend frames
 # make whole notebook a scrollable frame (both horizontally and vertically)
 
-
+# TODO:
+#  With each measurement we should save a configuration file that can be used to load information about scan
 class ScrollFrame(ttk.Frame):
     # SOURCE: https://gist.github.com/mp035/9f2027c3ef9172264532fcd6262f3b01
     # ************************
@@ -181,17 +182,17 @@ class Plotting:
             unit = self.x_label.get()
 
             if unit == "λ [nm]":
-                x = [value for value in xar_b]
+                x = [value for value in x_bins]
 
             elif unit == "f [Hz]":
                 c = 2.99792458e9
-                x = [c/(value*1e-9) for value in xar_b]
+                x = [c/(value*1e-9) for value in x_bins]
 
             elif unit == "E [eV]":
-                x = [1240/value for value in xar_b]
+                x = [1240/value for value in x_bins]
 
             elif unit == "v [1/cm]":
-                x = [1/(value_nm*1e-7) for value_nm in xar_b]
+                x = [1/(value_nm*1e-7) for value_nm in x_bins]
 
             else:
                 self.parent.write_log(f"ERROR NOT FOUND")
@@ -201,50 +202,80 @@ class Plotting:
 
         def pressed_xlabel():  # TODO: add data conversion for respective unit
             fig.clear()
+            x_bins = convert_values()
+            plot_spec(x_bins)
+
+        def plot_spec(x_bins):
             plot1 = fig.add_subplot(111)
 
-            x = convert_values()
+            x_centers = [(x_bins[i - 1] + x_bins[i]) / 2 for i in range(1, len(x_bins))]
+            #plt.hist()
+            print("x bins:", x_bins)
+            print("centers:", x_centers)
 
-            plot1.plot(x, yar_b, 'b')
-            #plot1.plot(xar_r, yar_r, 'r')
+            # N, bins, bars = plot1.hist(x=x_bins[:-2], bins=x_bins[:-1], weights=y_counts[:-1], rwidth=0.7, align='left')
+            N, bins, bars = plot1.hist(x=x_bins[:-1], bins=x_bins, weights=y_counts,
+                                       rwidth=1, align='mid',
+                                       edgecolor='white', linewidth=1
+                                       , label=ch_labels)  # TODO ASSIGN A CHANNEL A UNIVERSAL COLOR
+
+            labels = []
+            for b, bar in enumerate(bars):
+                bar.set_facecolor(self.parent.eta_class.pix_dict[f'h{b+1}']['color'])  # FIXME: does not work if we hide and only show some channels, must map
+                labels.append(f'ch.{b+1}')  # FIXME by mapping to channel
+
+            print(bins, bars, N)
+            ticks_list = sorted(list(x_centers)+list(bins))
+            plot1.set_title("Spectrum")
             plot1.set_xlabel(self.x_label.get())
             plot1.set_ylabel("counts")
-            plot1.set_title("Spectrum")
+            plot1.set_xlim([x_bins[0] - 10, x_bins[-1] + 10])
+            plot1.set_xticks(ticks=ticks_list)
+            #fig.axes[0].set_xticklabels(x_centers)
+            plot1.bar_label(bars, labels=labels)  # , fontsize=20, color='navy')
+
             canvas.draw()
 
-        self.x_label.set('λ [nm]')
-        # the figure that will contain the plot
-        xar_b = []
-        yar_b = []
-        xar_r = []
-        yar_r = []
+        def get_bins():
+            #nr_pix = self.parent.params['nr_pixels']['var'].get()
+            nr_pix = len(self.parent.eta_class.folded_countrate_pulses.keys())   # TODO FIXME: what happens if we define more channels than we have data on?
+            pixel_width = self.parent.params['width_nm']['var'].get()   # TODO: maybe make this different depending on which
+            center_pix = self.parent.params['nm']['var'].get()
 
-        len_b = len(example_data_blue)
-        len_r = len(example_data_red)
-        # ---temp
-        for i in range(len_b):
-            xar_b.append(example_data_blue[i][0])
-            yar_b.append(example_data_blue[i][1])
-        for i in range(len_r):
-            xar_r.append(example_data_red[i][0])
-            yar_r.append(example_data_red[i][1])
-        # ---
+            left_pix_bound = center_pix - (nr_pix * pixel_width / 2)
+            right_pix_bound = center_pix + (nr_pix * pixel_width / 2)
+
+            bins = np.linspace(start=left_pix_bound, stop=right_pix_bound, num=nr_pix+1, endpoint=True)  # , dtype=)
+
+            return bins
+
+
+        def get_counts():
+            ch_labs = []  # bin centers   #TODO: use as extra label for x axis
+            y_cnts = []  # total counts per bin
+
+            for channel in self.parent.eta_class.folded_countrate_pulses.keys():
+                ch_labs.append(channel)  # TODO USE CHANNEL NUMBER TO GET WAVELENGTH
+                print(self.parent.eta_class.folded_countrate_pulses[channel])
+                y_cnts.append(sum(self.parent.eta_class.folded_countrate_pulses[channel]))  # TODO CHECK THAAT THIS IS CORRECT
+
+            y_cnts[0] += y_cnts[1] / 2  # note temp change to test  # REMOVE LATER!
+            y_cnts[3] += y_cnts[1] / 2  # note temp change to test  # REMOVE LATER!
+
+            return ch_labs, y_cnts
+
+        self.x_label.set('λ [nm]')
+
+        ch_labels, y_counts = get_counts()
 
         # style.use('ggplot')
         fig = plt.Figure(figsize=(8, 5), dpi=100)
-        plot1 = fig.add_subplot(111)
-        plot1.set_xlim(1545, 1565)
-        plot1.set_ylim(0, 5000)
-        line_b, = plot1.plot(xar_b, yar_b, 'b')  # , marker='o')
-        #plot1.hist(yar_b, bins='auto')
-        #N, bins, bars = plot1.hist(xar_b, weights=yar_b, rwidth=1, align='left')
-        # TODO: make into histogram
+        x_bins = get_bins()   # self.parent.eta_class.get
 
-        plot1.set_xlabel(self.x_label.get())
-        plot1.set_ylabel("counts")
-        plot1.set_title("Spectrum")
-
+        # -----
         plt_frame, canvas = gui.pack_plot(tab, fig)
+
+        plot_spec(x_bins)
 
         # BUTTONS:
         butt_frame = ttk.Frame(tab, relief=tk.FLAT, borderwidth=1)
@@ -261,16 +292,24 @@ class Plotting:
 
     def plot_correlation_widget(self, tab):
         # TODO:
+
         # the figure that will contain the plot
-        fig = plt.Figure(figsize=(8, 5), dpi=100)  # 10 3
-        # data list
-        y = []
+        fig = plt.figure(figsize=(8, 5), dpi=100)  # 10 3
         # adding the subplot
         plot1 = fig.add_subplot(111)
-        # plotting the graph
-        plot1.plot(y)
 
         plt_frame, canvas = gui.pack_plot(tab, fig)
+        return plt_frame
+
+    def plot_visible_spectra_widget(self, tab):
+        fig = plt.figure(figsize=(8, 2), dpi=100)  # 10 3
+        plot1 = fig.add_subplot(111)
+
+        for key in gui.CIE_colors.wavelengths.keys():
+            col = gui.CIE_colors.wavelengths[key]
+            plot1.plot([key, key], [0, 10], c=col)
+        plot1.axes.get_yaxis().set_visible(False)
+        plt_frame, canvas = gui.pack_plot(tab, fig, use_toolbar=False)
         return plt_frame
 
     def plot_lifetime_widget(self, tab):
@@ -326,7 +365,7 @@ class Plotting:
             range_str_list = range_str.split(sep=',')
             range_str_list_list = [x.split('-') for x in range_str_list]
             range_list_int = [[eval(x.strip(' ')) for x in pair] for pair in range_str_list_list]
-            self.parent.write_log(f"final range list {range_list_int}")
+            #self.parent.write_log(f"final range list {range_list_int}")
 
             for i in range(len(range_list_int)-1):
 
@@ -359,7 +398,7 @@ class Plotting:
                     range_is_ok_bool = False
 
             if range_is_ok_bool:  # if not errors!
-                self.parent.write_log(f"Range if good, ok to plot")
+                #self.parent.write_log(f"Range if good, ok to plot")
 
                 # start by setting all to false
                 for key in self.ch_show.keys():
@@ -422,11 +461,13 @@ class Plotting:
                 y = self.parent.eta_class.folded_countrate_pulses[thing]
 
                 if scale == 'linear':
-                    line_b, = ax1.plot(x[idx_min:idx_max], y[idx_min:idx_max], label='c' + thing, c=['red', 'orange', 'green', 'blue'][i%4])
+                    line_b, = ax1.plot(x[idx_min:idx_max], y[idx_min:idx_max], label=f'{self.parent.eta_class.pix_dict[thing]["wavelength"]} nm (c{thing})', c=self.parent.eta_class.pix_dict[thing]["color"], alpha=0.8)
                 elif scale == 'log':
-                    line_b, = ax1.semilogy(x[idx_min:idx_max], y[idx_min:idx_max], label='c' + thing, c=['red', 'orange', 'green', 'blue'][i%4])
+                    line_b, = ax1.semilogy(x[idx_min:idx_max], y[idx_min:idx_max], label=f'{self.parent.eta_class.pix_dict[thing]["wavelength"]} (c{thing})' + thing, c=self.parent.eta_class.pix_dict[thing]["color"], alpha=0.8)
                 #elif scale == 'histo':
                 #    N, bins, bars = ax1.hist(x[idx_min:idx_max], bins=b[idx_min:idx_max], weights=y[idx_min:idx_max], rwidth=1, align='left')
+
+                ###plt.text(x[-1], y[-1], f'c{thing}')
 
             if scale == 'log':
                 if cnt_min.get() == 0.0:
@@ -516,7 +557,7 @@ class Plotting:
             range_str_list = range_str.split(sep=',')
             range_str_list_list = [x.split('-') for x in range_str_list]
             range_list_int = [[eval(x.strip(' ')) for x in pair] for pair in range_str_list_list]
-            self.parent.write_log(f"final range list {range_list_int}")
+            #self.parent.write_log(f"final range list {range_list_int}")
 
             for i in range(len(range_list_int)-1):
 
@@ -549,7 +590,7 @@ class Plotting:
                     range_is_ok_bool = False
 
             if range_is_ok_bool:  # if not errors!
-                self.parent.write_log(f"Range if good, ok to plot")
+                #self.parent.write_log(f"Range if good, ok to plot")
 
                 # start by setting all to false
                 for key in self.ch_show.keys():
@@ -562,7 +603,7 @@ class Plotting:
                     elif len(pair) == 2:
                         for idx in range(pair[0], pair[1]+1):
                             self.ch_show[f'h{idx}'] = True
-                self.parent.write_log(f"SHOW DICT: {self.ch_show}")
+                #self.parent.write_log(f"SHOW DICT: {self.ch_show}")
                 update_plot()
 
         def press_scale_plot():
@@ -683,7 +724,7 @@ class Plotting:
             shown_ticks = []
             for key in self.ch_show.keys():
                 if self.ch_show[key]:
-                    shown_ticks.append(f'ch.{key[1:]}')
+                    shown_ticks.append(f'{self.parent.eta_class.pix_dict[key]["wavelength"]} nm\nch.{key[1:]}   ')
 
             ticks = [i + 1 for i in range(len(shown_ticks))]
             ax1.set_yticks(ticks)
@@ -773,7 +814,7 @@ class Plotting:
             range_str_list = range_str.split(sep=',')
             range_str_list_list = [x.split('-') for x in range_str_list]
             range_list_int = [[eval(x.strip(' ')) for x in pair] for pair in range_str_list_list]
-            self.parent.write_log(f"final range list: {range_list_int}")
+            #self.parent.write_log(f"final range list: {range_list_int}")
 
             for i in range(len(range_list_int)-1):
 
@@ -806,7 +847,7 @@ class Plotting:
                     range_is_ok_bool = False
 
             if range_is_ok_bool:  # if not errors!
-                self.parent.write_log(f"Range if good, ok to plot")
+                #self.parent.write_log(f"Range is good, ok to plot")
 
                 # start by setting all to false
                 for key in self.ch_show_3D.keys():
@@ -1127,6 +1168,8 @@ class GUI:
 
         #self.root = tk.Tk()
 
+        self.CIE_colors = ColorMatchingCIE()   # self.CIE_colors.wavelengths[600]
+
         self.default_theme = 'radiance'
         self.root = ThemedTk(theme=self.default_theme)  # yaru is good i think
 
@@ -1207,7 +1250,7 @@ class GUI:
         self.create_theme_sel(self.tabs['Settings']['tab'])  # self.root_nb)
 
     @staticmethod
-    def pack_plot(tab, fig):
+    def pack_plot(tab, fig, use_toolbar=True):
 
         # creating the Tkinter canvas containing the Matplotlib figure
         plt_frame = ttk.Frame(tab, relief=tk.FLAT, borderwidth=1)
@@ -1216,8 +1259,9 @@ class GUI:
         # placing the canvas on the Tkinter window
         canvas.get_tk_widget().pack()
         # creating the Matplotlib toolbar
-        toolbar = NavigationToolbar2Tk(canvas, plt_frame)  # self.root)
-        toolbar.update()
+        if use_toolbar:
+            toolbar = NavigationToolbar2Tk(canvas, plt_frame)  # self.root)
+            toolbar.update()
         # placing the toolbar on the Tkinter window
         canvas.get_tk_widget().pack()
 
@@ -1244,26 +1288,32 @@ class GUI:
         # Create sub-notebooks for each tab and pack, then add children tabs
         self.tabs['Load']['notebook'] = self.add_notebook(parent_tab=self.tabs['Load']['tab'], anchor='w', side='top')
         #load_nb = self.tabs['Load']['notebook']
+        self.tabs['Load']['children']['Visible Spectra'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Visible Spectra')
+        self.tabs['Load']['children']['Spectrum'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Spectrum')
         self.tabs['Load']['children']['Lifetime Color'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Lifetime Color')
         self.tabs['Load']['children']['Lifetime'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Lifetime')
+        self.tabs['Load']['children']['Correlation'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Correlation')
+
         #self.tabs['Load']['children']['Lifetime 3D'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Lifetime 3D')
-        #self.tabs['Load']['children']['Spectrum'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Spectrum')
-        #self.tabs['Load']['children']['Correlation'] = self.add_tab(parent_nb=self.tabs['Load']['notebook'], tab_name='Correlation')
         # --------
         new_nb = self.add_notebook(parent_tab=self.tabs['New']['tab'], anchor='w', side='top')
         # Create sub-notebooks for each tab and pack, then add children
         self.tabs['New']['notebook'] = self.add_notebook(parent_tab=self.tabs['New']['tab'], anchor='w', side='top')
+        self.tabs['New']['children']['Visible Spectra'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Visible Spectra')
+        self.tabs['New']['children']['Spectrum'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Spectrum')
         self.tabs['New']['children']['Lifetime Color'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Lifetime Color')
         self.tabs['New']['children']['Lifetime'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Lifetime')
+        self.tabs['New']['children']['Correlation'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Correlation')
         #self.tabs['New']['children']['Lifetime 3D'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Lifetime 3D')
-        #self.tabs['New']['children']['Spectrum'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Spectrum')
-        #self.tabs['New']['children']['Correlation'] = self.add_tab(parent_nb=self.tabs['New']['notebook'], tab_name='Correlation')
         # --------
         self.tabs['Settings']['notebook'] = self.add_notebook(parent_tab=self.tabs['Settings']['tab'], anchor='w')
         # --------
 
         loadScanClass.acquisition_loadscan_tab(load_nb)   # adds in load params
         newScanClass.acquisition_newscan_tab(new_nb)
+
+        # TEMP
+        self.plot_visible_spectra_tab(self.tabs['Load']['children']['Visible Spectra'], loadScanClass)  # NOTE TEMP FIXME!!!!
 
         #conf_frm = ttk.Frame(load_nb, relief=tk.FLAT)
         #option_thm = ttk.Label(conf_frm, text='TESTTT')
@@ -1322,6 +1372,7 @@ class GUI:
 
         for tab_nm in self.tabs[parent_name]['children'].keys():
             gui.add_new_plot_tab(parent_class=parent_class, parent_name=parent_name, tab_name=tab_nm, init=True)
+
         #self.plot_lifetime_color_tab(self.tabs[parent_name]['children']['Lifetime Color'], parent_class)  # note: temp moved to front for testing
         #self.plot_lifetime_tab(self.tabs[parent_name]['children']['Lifetime'], parent_class)  # note: temp moved to front for testing
 
@@ -1334,7 +1385,12 @@ class GUI:
             return
         else:
             # not init and not already added: --> add new tab
-            if tab_name == 'Lifetime Color':
+
+            if tab_name == 'Spectrum':
+                self.tabs[parent_name]['children']['Spectrum'] = self.add_tab(
+                    parent_nb=self.tabs[parent_name]['notebook'], tab_name='Spectrum')
+
+            elif tab_name == 'Lifetime Color':
                 self.tabs[parent_name]['children']['Lifetime Color'] = self.add_tab(
                     parent_nb=self.tabs[parent_name]['notebook'], tab_name='Lifetime Color')
 
@@ -1345,11 +1401,9 @@ class GUI:
             elif tab_name == 'Lifetime 3D':
                 self.tabs[parent_name]['children']['Lifetime 3D'] = self.add_tab(
                     parent_nb=self.tabs[parent_name]['notebook'], tab_name='Lifetime 3D')
-
-            elif tab_name == 'Spectrum':
-                self.tabs[parent_name]['children']['Spectrum'] = self.add_tab(
-                    parent_nb=self.tabs[parent_name]['notebook'], tab_name='Spectrum')
-
+            elif tab_name == 'Visible Spectra':
+                self.tabs[parent_name]['children']['Visible Spectra'] = self.add_tab(
+                    parent_nb=self.tabs[parent_name]['notebook'], tab_name='Visible Spectra')
             elif tab_name == 'Correlation':
                 self.tabs[parent_name]['children']['Correlation'] = self.add_tab(
                     parent_nb=self.tabs[parent_name]['notebook'], tab_name='Correlation')
@@ -1357,7 +1411,11 @@ class GUI:
                 print(f"WARNING: ??? in function 'add_new_plot_tab()'")
 
         # ----
-        if tab_name == 'Lifetime Color':
+
+        if tab_name == 'Spectrum':
+            self.plot_spectrum_tab(self.tabs[parent_name]['children']['Spectrum'], parent_class)
+
+        elif tab_name == 'Lifetime Color':
             self.plot_lifetime_color_tab(self.tabs[parent_name]['children']['Lifetime Color'], parent_class)
 
         elif tab_name == 'Lifetime':
@@ -1366,11 +1424,11 @@ class GUI:
         elif tab_name == 'Lifetime 3D':
             self.plot_3d_lifetime_tab(self.tabs[parent_name]['children']['Lifetime 3D'], parent_class)
 
-        elif tab_name == 'Spectrum':
-            self.plot_spectrum_tab(self.tabs[parent_name]['children']['Spectrum'], parent_class)
-
         elif tab_name == 'Correlation':
             self.plot_correlation_tab(self.tabs[parent_name]['children']['Correlation'], parent_class)
+
+        elif tab_name == 'Visible Spectra':
+            self.plot_visible_spectra_tab(self.tabs[parent_name]['children']['Visible Spectra'], parent_class)
         else:
             print(f"WARNING: Could not find plotting option for: {tab_name}")
 
@@ -1397,6 +1455,11 @@ class GUI:
     def plot_correlation_tab(self, plots_correlation, parent):
         # TODO: add widgets
         ttk.Label(plots_correlation, text='\nNOTHING TO SHOW YET. WORK IN PROGRESS...', font=('', 15)).grid(row=0, column=0, columnspan=4, sticky="news")
+        #parent.plotting_class.plot_correlation_widget(plots_correlation).grid(row=0, rowspan=1, column=1, sticky="nsew")
+
+    # **?
+    def plot_visible_spectra_tab(self, plots_spectrum, parent):
+        parent.plotting_class.plot_visible_spectra_widget(plots_spectrum).grid(row=0, column=0, sticky="nsew")
 
 
     @staticmethod
@@ -1431,7 +1494,7 @@ class NewScanGroup:
         self.params = {
             'grating':     {'var': tk.IntVar(value=1),   'type': 'radio',     'default': 1,   'value': [1, 2, 3]},
             'nm':          {'var': tk.IntVar(value=1550), 'type': 'int entry', 'default': 350, 'value': [350, 650, 750]},
-            'width_nm':    {'var': tk.IntVar(value=1),   'type': 'int entry', 'default': 10,  'value': [5, 15, 30]},
+            'width_nm':    {'var': tk.IntVar(value=10),   'type': 'int entry', 'default': 10,  'value': [5, 15, 30]},
             'slit':        {'var': tk.IntVar(value=10),  'type': 'int entry', 'default': 10,  'value': [10, 20, 30]},
             'nr_pixels':   {'var': tk.IntVar(value=8),   'type': 'int entry', 'default': 8,   'value': [3, 8, 12]},
             'file_name':   {'var': tk.StringVar(),       'type': 'str entry', 'default': '',  'value': ['butterfly.timeres', 'frog.timeres', 'sheep.timeres']},
@@ -1463,7 +1526,7 @@ class NewScanGroup:
         }
         self.ch_bias_list = []
         self.ch_trig_list = []
-        self.ch_nm_bin_edges = []  # TODO
+        #self.ch_nm_bin_edges = []  # TODO
         self.cumulative_ch_counts = []
 
     def acquisition_newscan_tab(self, new_scan_tab):
@@ -1609,7 +1672,7 @@ class NewScanGroup:
             if self.port.get() == "Select...":
                 self.write_log(f"MUST SELECT PORT FIRST")
 
-            self.write_log(f"pressed connect. fixme for real")
+            #s#elf.write_log(f"pressed connect. fixme for real")
             self.write_log(f"connecting to port {self.port.get()}")
 
             #if demo:
@@ -1754,16 +1817,15 @@ class NewScanGroup:
             grating_widget_dict['wid_txt'].append(ttk.Label(frm['grating'], text=f"  {self.grating_lvl[c + 1]['width']}"))
 
         #  -- Detector:
-        det_parts = [ttk.Label(frm['detect'], text="Center λ (nm)"),
+        center_parts = [ttk.Label(frm['detect'], text="Center λ (nm)"),
                      ttk.Entry(frm['detect'], textvariable=self.params['nm']['var'], width=4),
                      ]
 
-        wid_parts = [ttk.Label(frm['detect'], text="Pixel width"),
-                     ttk.Entry(frm['detect'], textvariable=self.params['width_nm']['var'], width=4),
-                     ttk.Label(frm['detect'], text='[nm]')]
+        wid_parts = [ttk.Label(frm['detect'], text="Pixel width (nm)"),
+                     ttk.Entry(frm['detect'], textvariable=self.params['width_nm']['var'], width=4),]
 
         self.params['nr_pixels']['var'].set(4)
-        det_no_parts = [ttk.Label(frm['detect'], text="Nr. of channels"),
+        det_no_parts = [ttk.Label(frm['detect'], text="Nr. of pixels"),
                         ttk.Radiobutton(frm['detect'], text="4", value=4, variable=self.params['nr_pixels']['var'], command=update_ch),
                         ttk.Radiobutton(frm['detect'], text="8", value=8, variable=self.params['nr_pixels']['var'], command=update_ch),
                         ttk.Radiobutton(frm['detect'], text="16", value=16, variable=self.params['nr_pixels']['var'], command=update_ch),
@@ -1771,7 +1833,7 @@ class NewScanGroup:
 
         # -- Channels:
         ch_parts = [
-            ttk.Label(frm['ch'], text='Channel'),
+            ttk.Label(frm['ch'], text=' Pixel '),
             ttk.Label(frm['ch'], text='Bias (uA)'),
             ttk.Label(frm['ch'], text='    Trigger (mV)'),
             ttk.Label(frm['ch'], text='  Counts')]
@@ -1812,8 +1874,8 @@ class NewScanGroup:
 
         # -- Detector
         gui.add_to_grid(widg=[ttk.Label(frm['detect'], text="Detector")], rows=[0], cols=[0], sticky=["ew"])  # , columnspan=[2])
-        gui.add_to_grid(widg=det_parts, rows=[1, 2], cols=[1, 1], sticky=["ew", "ew"])  # center wavelength
-        # gui.add_to_grid(widg=wid_parts, rows=[2,2,2], cols=[0,1,2], sticky=["ew", "ew", "ew"])
+        gui.add_to_grid(widg=center_parts, rows=[1, 2], cols=[1, 1], sticky=["ew", "ew"])  # center wavelength
+        gui.add_to_grid(widg=wid_parts, rows=[3,4], cols=[1, 1], sticky=["ew", "ew"])
         gui.add_to_grid(widg=det_no_parts, rows=[1, 2, 3, 4], cols=[0, 0, 0, 0], sticky=["ew", "ew", "ew", "ew"])  # nr of pixels
 
         # -- Channels
@@ -1986,12 +2048,13 @@ class LoadScanGroup:
         self.params = {
             'grating':     {'var': tk.IntVar(value=1),   'type': 'radio',     'default': 1,   'value': [1, 2, 3]},
             'nm':          {'var': tk.IntVar(value=600), 'type': 'int entry', 'default': 350, 'value': [350, 650, 750]},
-            'width_nm':    {'var': tk.IntVar(value=1),   'type': 'int entry', 'default': 10,  'value': [5, 15, 30]},
+            'width_nm':    {'var': tk.IntVar(value=10),   'type': 'int entry', 'default': 10,  'value': [5, 15, 30]},
             'slit':        {'var': tk.IntVar(value=10),  'type': 'int entry', 'default': 10,  'value': [10, 20, 30]},
             'nr_pixels':   {'var': tk.IntVar(value=8),   'type': 'int entry', 'default': 8,   'value': [3, 8, 12]},
             'file_name':   {'var': tk.StringVar(value="Data/ToF_Duck_10MHz_det1_det2_5.0ms_[2.1, 3.9, -3.2, -4.8]_100x100_231220.timeres"), 'type': 'str entry', 'default': '...',  'value': ['butterfly.timeres', 'frog.timeres', 'sheep.timeres']},
             'eta_recipe':  {'var': tk.StringVar(value="3D_2_channels_tof_swabian_marker_ch4.eta"), 'type': 'str entry', 'default': '...',  'value': ['~/Desktop/GUI/Recipe/gui_recipe_1.eta', '~/Desktop/GUI/Recipe/gui_recipe_2.eta', '~/Desktop/GUI/Recipe/gui_recipe_3.eta']},
         }
+
         self.eta_class = ETA(self)
         self.plotting_class = Plotting(self)
         self.loading = False  # this tracks if we are running a scan (collecting counts from detector)
@@ -2016,6 +2079,8 @@ class LoadScanGroup:
                     analyzed_file_label.config(text=f"Analyzed file: {self.params['file_name']['var'].get()}")
                 else:
                     self.cancel = False
+
+                # ------
 
             except:
                 self.write_log(f"Failed to analyze")
@@ -2057,7 +2122,7 @@ class LoadScanGroup:
             return remaining
 
         frm_misc = ttk.Frame(tab, borderwidth=3, relief=tk.FLAT) #
-        frm_misc.grid(row=0, column=0)
+        frm_misc.grid(row=0, column=0, rowspan=15)
 
         # shows which file we have analysed:
         analyzed_file_label = ttk.Label(frm_misc, text='', font="Helvetica 10 normal italic")
@@ -2090,8 +2155,11 @@ class LoadScanGroup:
         # -------------
         # ---
         # Logger box:
-        log_box_frm = ttk.Frame(tab, borderwidth=1, relief=tk.FLAT)
-        log_box_frm.grid(row=0, column=1, rowspan=10, sticky="nws")  # in sub frame
+
+        self.choose_params_widget(tab).grid(row=0, column=1, sticky="nw", padx=5, pady=5)
+
+        log_box_frm = ttk.Frame(tab, borderwidth=1, relief=tk.GROOVE)
+        log_box_frm.grid(row=1, column=1, rowspan=10, sticky="nw")  # in sub frame
         self.log_scan_widget(log_box_frm).grid(row=0, column=0, sticky="news")   # Inner thing
 
         # -----
@@ -2099,6 +2167,27 @@ class LoadScanGroup:
         #self.show_geometry(scan_frm, "Scan analysis left")
         #self.show_geometry(log_box_frm, "Log box right")
         #self.update_log_box_height()
+
+    def choose_params_widget(self, tab):
+
+        # FRAMES
+        frm_configs = ttk.Frame(tab, relief=tk.FLAT)#, borderwidth=1)
+
+        #  -- Detector:
+        center_parts = [ttk.Label(frm_configs, text="Center λ (nm)"),
+                     ttk.Entry(frm_configs, textvariable=self.params['nm']['var'], width=4),]
+
+        wid_parts = [ttk.Label(frm_configs, text="Pixel width (nm)"),
+                     ttk.Entry(frm_configs, textvariable=self.params['width_nm']['var'], width=4),]
+
+        self.params['nr_pixels']['var'].set(4)
+
+        # -- Detector
+        gui.add_to_grid(widg=center_parts, rows=[1, 2], cols=[1, 1], sticky=["ew", "ew"])  # center wavelength
+        gui.add_to_grid(widg=wid_parts, rows=[1, 2], cols=[2, 2], sticky=["ew", "ew"])
+        #gui.add_to_grid(widg=det_no_parts, rows=[1, 2, 3, 4], cols=[0, 0, 0, 0], sticky=["ew", "ew", "ew", "ew"])  # nr of pixels
+
+        return frm_configs
 
     def log_scan_widget(self, tab):
         from tkinter import scrolledtext
@@ -2173,7 +2262,20 @@ class ETA:
             'bins':          5000,
             'binsize':       20,     # bin width in ps
             }
-        self.folded_countrate_pulses = []
+        self.folded_countrate_pulses = {}
+        self.ch_colors = ['tab:purple', 'tab:pink', 'tab:orange']
+
+        self.pix_dict = {
+            # EXAMPLE:
+            # 'h1' : {
+            #    'name'          : 'ch1',
+            #    'wavelength'    : 600,
+            #    'color'         : 'tab:red',
+            #    'counts'        : 6958,
+            #    'lifetime'      : 57.4,
+            # }
+        }
+
         self.bins_ns = []
         self.eta_engine = None
         self.pb = None
@@ -2210,7 +2312,7 @@ class ETA:
 
     def eta_lifetime_analysis(self):  # , const):
 
-        self.folded_countrate_pulses = []
+        self.folded_countrate_pulses = {}
 
         # NOTE: MAYBE FIXME, MIGHT HAVE TO RELOAD RECIPE EVERY TIME!
         if self.const["eta_recipe"] != self.parent.params['eta_recipe']['var'].get():
@@ -2260,6 +2362,25 @@ class ETA:
 
         self.parent.write_log(f"Eta processing complete")
         self.bins_ns = list(np.array(times_i) / 1000)  # changing values from picoseconds to nanoseconds
+
+        # -----
+
+        wavelens = self.get_wavelengths()
+
+        for c, channel in enumerate(self.folded_countrate_pulses.keys()):
+            peak_idx = self.find_peak_idx(self.folded_countrate_pulses[channel])
+
+            self.pix_dict[channel] = {
+                'name': 'c' + channel,
+                'wavelength': wavelens[c],  # computed
+                #'color': self.ch_colors[c % len(self.ch_colors)],
+                'color': gui.CIE_colors.get_rgb(wavelens[c]),
+                'counts': sum(self.folded_countrate_pulses[channel]),  # sum of channel
+                'peak idx': peak_idx,
+                'lifetime': self.bins_ns[peak_idx],  # calculated max value
+            }
+
+
         return
 
     # help function to check how many counts each channel has in the timeres file
@@ -2333,6 +2454,171 @@ class ETA:
 
         self.parent.write_log(f"done!")
 
+    def get_wavelengths(self):
+
+        #nr_pix = self.parent.params['nr_pixels']['var'].get()
+        nr_pix = len(self.parent.eta_class.folded_countrate_pulses.keys())   # TODO FIXME: what happens if we define more channels than we have data on?
+        pixel_width = self.parent.params['width_nm']['var'].get()   # TODO: maybe make this different depending on which
+        center_pix = self.parent.params['nm']['var'].get()
+
+        left_pix_bound = center_pix - (nr_pix * pixel_width / 2)
+        right_pix_bound = center_pix + (nr_pix * pixel_width / 2)
+
+        bins = np.linspace(start=left_pix_bound, stop=right_pix_bound, num=nr_pix+1, endpoint=True)  # , dtype=)
+
+        x_centers = [(bins[i - 1] + bins[i]) / 2 for i in range(1, len(bins))]
+
+        return x_centers
+
+    def find_peak_idx(self, data):
+        return np.where(data == np.max(data))[0][0]
+
+
+class ColorMatchingCIE:
+    # source/inspo: https://www.baeldung.com/cs/rgb-color-light-frequency
+    def __init__(self):
+        self.wavelengths = {}
+
+        for wl in np.arange(350, 750):
+            self.wavelengths[wl] = self.get_rgb(wl)   # CIE
+            #self.wavelengths[wl] = self.get_simple_rgb(wl)   # simplified (not CIE)
+
+    def get_rgb(self, wavelength):
+        def get_X(wavelen):
+            # X is considered to represent the hue and saturation on the red-green axis.
+            if wavelen < 442.0:
+                factor1 = 0.0624
+            else:
+                factor1 = 0.0374
+
+            if wavelen < 599.8:
+                factor2 = 0.0264
+            else:
+                factor2 = 0.0323
+
+            if wavelen < 501.1:
+                factor3 = 0.0490
+            else:
+                factor3 = 0.0382
+
+            Xt1 = (wavelen - 442.0) * factor1
+            Xt2 = (wavelen - 599.8) * factor2
+            Xt3 = (wavelen - 501.1) * factor3
+
+            return (0.362 * np.exp(-0.5 * (Xt1 ** 2))) + (1.056 * np.exp(-0.5 * (Xt2 ** 2))) - (0.065 * np.exp(-0.5 * (Xt3 ** 2)))
+
+        def get_Y(wavelen):
+            # Y is considered to represent the luminosity.
+            if wavelen < 568.8:
+                factor1 = 0.0213
+            else:
+                factor1 = 0.0247
+            if wavelen < 530.9:
+                factor2 = 0.0613
+            else:
+                factor2 = 0.0322
+            Yt1 = (wavelen - 568.8) * factor1
+            Yt2 = (wavelen - 530.9) * factor2
+
+            return (0.821 * np.exp(-0.5 * (Yt1 ** 2))) + (0.286 * np.exp(-0.5 * (Yt2 ** 2)))
+
+        def get_Z(wavelen):
+            # Z is considered to represent the hue and saturation on the blue-yellow axis.
+            if wavelen < 437.0:
+                factor1 = 0.0845
+            else:
+                factor1 = 0.0278
+            if wavelen < 459.0:
+                factor2 = 0.0385
+            else:
+                factor2 = 0.0725
+
+            Zt1 = (wavelen - 437.0) * factor1
+            Zt2 = (wavelen - 459.0) * factor2
+
+            return (1.217 * np.exp(-0.5 * (Zt1 ** 2))) + (0.681 * np.exp(-0.5 * (Zt2 ** 2)))
+
+        def calc_rgb(X, Y, Z):
+            # calculate raw RBG values
+            r_factors = [3.2406255, -1.537208, -0.4986286]
+            g_factors = [-0.9689307, 1.8757561, 0.0415175]
+            b_factors = [0.0557101, -0.2040211, 1.0569959]
+
+            R_raw = r_factors[0]*X + r_factors[1]*Y + r_factors[2]*Z
+            G_raw = g_factors[0]*X + g_factors[1]*Y + g_factors[2]*Z
+            B_raw = b_factors[0]*X + b_factors[1]*Y + b_factors[2]*Z
+
+            return R_raw, G_raw, B_raw
+
+        def gamma_correction(value):
+            # apply gamma correction and convert them to 0-255 range
+            if value <= 0:
+                return 0
+            elif value <= 0.0031308:
+                return round(255*value*12.92)
+            elif value <= 1:
+                return round(255 * (1.055 * (value**(1/2.4)) - 0.055 ))
+            else:
+                return 255
+
+        X = get_X(wavelength)
+        Y = get_Y(wavelength)
+        Z = get_Z(wavelength)
+        #print(X, Y, Z)
+        R_raw, G_raw, B_raw = calc_rgb(X, Y, Z)
+        #print(R_raw, G_raw, B_raw)
+
+        R = gamma_correction(R_raw)
+        G = gamma_correction(G_raw)
+        B = gamma_correction(B_raw)
+        #print(R, G, B)
+        return '#{:02x}{:02x}{:02x}'.format(R, G, B)
+        #return [R, B, G]
+
+    def get_simple_rgb(self, wl):
+        if 645 < wl <= 780:
+            red = 1
+            green = 0
+            blue = 0
+        elif 580 < wl <= 645:
+            red = 1
+            green = -(wl-645)/(645-580)  # FIXME -(wl-645)/(645/580)
+            blue = 0
+        elif 510 < wl <= 580:
+            red = (wl-510)/(580-510)
+            green = 1
+            blue = 0
+        elif 490 < wl <= 510:
+            red = 0
+            green = 1
+            blue = -(wl-510)/(510-490)
+        elif 440 < wl <= 490:
+            red = 0
+            green = (wl-440)/(490-440)
+            blue = 1
+        elif 380 < wl <= 440:
+            red = -(wl-440)/(440-380)
+            green = 0
+            blue = 1
+        else:
+            red = 0
+            green = 0
+            blue = 0
+
+        if 700 < wl <= 780:
+            factor = 0.3 + (0.7*(780-wl)/(780-700))
+        elif 420 < wl <= 700:
+            factor = 1
+        elif 380 < wl <= 420:
+            factor = 0.3 + (0.7*(wl-380)/(420-380))
+        else:
+            factor = 0
+
+        r = round(255*(red*factor)**0.8)
+        g = round(255*(green*factor)**0.8)
+        b = round(255*(blue*factor)**0.8)
+
+        return [r, g, b]
 
 # -------------
 
