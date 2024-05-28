@@ -326,7 +326,7 @@ def main():
             elif res in ['g', 'G', 'goto']:  # plot the current calibration values
                 try:
                     goto_nm_actual = float(input(f">>> Which laser wavelength would you like to go to? "))
-                    if goto_nm_actual in saved_calibrations.keys():
+                    """if goto_nm_actual in saved_calibrations.keys():
                         goto_nm_calibration = round(saved_calibrations[goto_nm_actual], 1)
                         ans = input(f">>> Do you want to go to the calibrated value: {new_nm} nm? ")
                         if ans in ['y', 'Y', 'yes']:
@@ -334,7 +334,17 @@ def main():
                         else:
                             print("Cancelled goto.")
                     else:
-                        print(f"{goto_nm_actual} nm does not have a saved calibration value. Try again")
+                        print(f"{goto_nm_actual} nm does not have a saved calibration value. Try again")"""
+
+                    a, b = get_polyfit([xi for xi in saved_calibrations.keys()], [yi for yi in saved_calibrations.values()])
+                    goto_nm_calibration = (a*goto_nm_actual) + b
+
+                    ans = input(f">>> Do you want to go to the calibrated value: {goto_nm_calibration} nm? ")
+                    if ans in ['y', 'Y', 'yes']:
+                        new_nm = goto_nm_calibration
+                    else:
+                        print("Cancelled goto.")
+                        new_nm = None
                 except:
                     print("Error with input. Try again.")
 
