@@ -39,7 +39,8 @@ def get_polyfit(x_list, y_list):
     coeff = np.polyfit(np.array(x_list), np.array(y_list), 1)
     a = coeff[0]
     b = coeff[1]
-    print(f"Polyfit line: y = {round(a, 4)} x + {round(b, 4)}")
+    print(f"Regression line: y = {round(a, 4)} x + {round(b, 4)}")
+
     return a, b
 
 
@@ -219,15 +220,19 @@ def calcualte_time_iter(handle, new_val):
 
 def get_menu(step_size):
     menu_str = f" ------------------------------MENU--------------------------------" \
-               f"\n  ->     ***.*            (move to given wavelength)" \
-               f"\n  ->     u / U / up       (toggle step +{step_size} nm)           "\
-               f"\n  ->     d / D / down     (toggle step -{step_size} nm)           " \
-               f"\n  ->     s / S / step     (change step size of toggle in nm)      " \
-               f"\n  ->     a / A / accept   (accept and save calibration wavelength)" \
-               f"\n  ->     c / C / change   (start a new calibration wavelength)    " \
-               f"\n  ->     t / T / table    (display table of saved calibrations so far)" \
-               f"\n  ->     p / P / plot     (plot the saved calibrations so far)    " \
-               f"\n  ->     e / E / exit     (stop calibration program)              " \
+               f"\n  ->     ***.*                 (move to given wavelength)" \
+               f"\n  ->     u / U / up            (toggle step +{step_size} nm)           "\
+               f"\n  ->     d / D / down          (toggle step -{step_size} nm)           " \
+               f"\n  ->     s / S / step          (change step size of toggle in nm)      " \
+               f"\n  ->     g / G / goto          (goto corrected wavelength given nm)      " \
+               f"\n  ->     a / A / accept        (accept and save calibration wavelength)" \
+               f"\n  ->     c / C / change        (start a new calibration wavelength)    " \
+               f"\n  ->     t / T / table         (display table of saved calibrations so far)" \
+               f"\n  ->     i / I / insert        (insert value into calibration table)" \
+               f"\n  ->     r / R / remove        (remove value from calibration table)" \
+               f"\n  ->     l / L / line          (display equation for alignment regression line)" \
+               f"\n  ->     p / P / plot          (plot the saved calibrations so far)    " \
+               f"\n  ->     e / E / exit          (stop calibration program)              " \
                f"\n------------------------------------------------------------------"
     return menu_str
 
@@ -318,6 +323,65 @@ def main():
                 a, b = get_polyfit(x, y)
                 print('RMS Error=', round(RMSE(a, b, x, y), 4))
 
+            elif res in ['g', 'G', 'goto']:  # plot the current calibration values
+                try:
+                    goto_nm_actual = float(input(f">>> Which laser wavelength would you like to go to? "))
+                    if goto_nm_actual in saved_calibrations.keys():
+                        goto_nm_calibration = round(saved_calibrations[goto_nm_actual], 1)
+                        ans = input(f">>> Do you want to go to the calibrated value: {new_nm} nm? ")
+                        if ans in ['y', 'Y', 'yes']:
+                            new_nm = goto_nm_calibration
+                        else:
+                            print("Cancelled goto.")
+                    else:
+                        print(f"{goto_nm_actual} nm does not have a saved calibration value. Try again")
+                except:
+                    print("Error with input. Try again.")
+
+            elif res in ['i', 'I', 'insert']:  # plot the current calibration values
+                try:
+                    temp_new_actual = float(input(">>> Entry for LASER wavelength: "))
+                    temp_new_calibration = float(input(">>> Entry for CALIBRATION wavelength: "))
+
+                    if temp_new_actual in saved_calibrations.keys():
+                        ans = input(f"WARNING: There is already a saved entry for {temp_new_actual} nm!\n>>> Would you like to overwrite the saved calibration value "
+                                    f"which is {saved_calibrations[temp_new_actual]} nm? (y/n) ")
+                        if ans in ['y', 'Y', 'yes']:
+                            saved_calibrations[temp_new_actual] = temp_new_calibration
+                        else:
+                            print("Did not save new value.")
+                    else:
+                        saved_calibrations[temp_new_actual] = temp_new_calibration
+
+                except:
+                    print("Incorrect input into table. Try again.")
+
+            elif res in ['r', 'R', 'remove']:  # plot the current calibration values
+                if demo:
+                    x = [400, 450, 500, 600, 670]
+                    y = [412, 456, 523, 675, 682]
+                else:
+                    x = [xi for xi in saved_calibrations.keys()]
+                    y = [yi for yi in saved_calibrations.values()]
+
+                print("Current calibration table")
+                table_data = []
+                for key in saved_calibrations.keys():
+                    table_data.append([key, saved_calibrations[key]])
+                # display table
+                print(tabulate(table_data, headers=table_head, tablefmt="grid"))
+
+                try:
+                    temp_new_actual = float(input(">>> Remove entry for LASER wavelength: "))
+                    if temp_new_actual in saved_calibrations.keys():
+                        old_val = saved_calibrations[temp_new_actual]
+                        del saved_calibrations[temp_new_actual]
+                        print(f"Removed entry: {temp_new_actual} with calibration value {old_val}")
+                    else:
+                        print(f"Could not find {temp_new_actual} in table. Try again.")
+                except:
+                    print("Incorrect deletion from table. Try again.")
+
             elif res in ['p', 'P', 'plot']:  # plot the current calibration values
 
                 if demo:
@@ -341,10 +405,15 @@ def main():
                 #a, b = get_polyfit(x, y)
                 #print('RMS Error=', round(RMSE(a, b, x, y), 4))
 
-                plot_calibration(x, y)
+                plot_calibration(x, y)  # a, b = get_polyfit(x_list, y_list)
                 plt.show()
 
                 continue
+
+            elif res in ['l', 'L', 'line']:
+                x = [xi for xi in saved_calibrations.keys()]
+                y = [yi for yi in saved_calibrations.values()]
+                _, _ = get_polyfit(x, y)  # a, b = get_polyfit(x_list, y_list)
 
             elif res in ['a', 'A', 'accept']:  # plot the current calibration values
                 saved_calibrations[current_desired_nm] = current_nm
