@@ -43,7 +43,6 @@ def get_polyfit(x_list, y_list):
 
     return a, b
 
-
 def RMSE(a, b, des, cal):
     x_desired = np.array(des)   # the desired
     y_prediction = (a*x_desired) + b
@@ -107,7 +106,7 @@ def create_cmd(cmd_type, value=None):
 
     return cmd_in.encode('utf-8')
 
-def send_cmd(type, handle, value=None):
+def send_cmd(type, handle, value=None, speed=None):
 
     strip_i = lookup_dict[type]['strip']
     time_iter = lookup_dict[type]['time']
@@ -116,7 +115,15 @@ def send_cmd(type, handle, value=None):
     if time_iter == -1:
         time_iter, curr_val = calcualte_time_iter(handle, value)
         if value:
-            if abs(value - curr_val) > 30:
+            if abs(value - curr_val) > 100:
+                cmd = create_cmd('write scan speed', 1000.0)
+                ans = input(f'cmd={cmd}. Continue?')
+                if ans == 'y':
+                    handle.write(cmd)
+                else:
+                    print("cancelled")
+                    return -1
+
                 ans = input(f'You are asking for a large change in wavelength (delta={abs(value - curr_val)}).\n>>> Do you wish to proceed with the change? (y/n) ')
                 if ans in ['y', 'Y', 'yes']:
                     pass
@@ -148,6 +155,13 @@ def send_cmd(type, handle, value=None):
             if 'ok' in res:
                 res = res[strip_i[0]:strip_i[1]]
                 #print('OK FOUND --> done! \nFinal response:', res)
+
+                if speed:
+                    cmd = create_cmd('write scan speed', 100)
+                    ans = input(f'cmd={cmd}. Continue?')
+                    if ans == 'y':
+                        handle.write(cmd)
+
                 return res
 
             else:
@@ -156,6 +170,10 @@ def send_cmd(type, handle, value=None):
                 res += res_r.decode("ASCII")  # ASCII
                 if value:
                     print(f'({i}/{time_iter})', "--> Response so far:", res)
+
+                else:
+                    if i > 10:
+                        print(f'({i}/{time_iter})', "--> Response so far:", res)
 
     else:
         #print("IN DEMO MODE, NO RESPONSE AVAILABLE")
@@ -166,6 +184,12 @@ def send_cmd(type, handle, value=None):
     #    handle.close()
     #    #exit()
     #exit()
+
+    if speed:
+        cmd = create_cmd('write scan speed', 100)
+        ans = input(f'cmd={cmd}. AT END Continue?')
+        if ans == 'y':
+            handle.write(cmd)
 
     return -1
 
@@ -325,6 +349,10 @@ def main():
 
             elif res in ['g', 'G', 'goto']:  # plot the current calibration values
                 try:
+                    if len(saved_calibrations.keys()) < 2:
+                        print("Not enough values in table. Can not get regression. Try again!")
+                        continue
+
                     goto_nm_actual = float(input(f">>> Which laser wavelength would you like to go to? "))
                     """if goto_nm_actual in saved_calibrations.keys():
                         goto_nm_calibration = round(saved_calibrations[goto_nm_actual], 1)
@@ -337,7 +365,7 @@ def main():
                         print(f"{goto_nm_actual} nm does not have a saved calibration value. Try again")"""
 
                     a, b = get_polyfit([xi for xi in saved_calibrations.keys()], [yi for yi in saved_calibrations.values()])
-                    goto_nm_calibration = (a*goto_nm_actual) + b
+                    goto_nm_calibration = round(float((a*goto_nm_actual) + b), 1)
 
                     ans = input(f">>> Do you want to go to the calibrated value: {goto_nm_calibration} nm? ")
                     if ans in ['y', 'Y', 'yes']:
@@ -350,8 +378,8 @@ def main():
 
             elif res in ['i', 'I', 'insert']:  # plot the current calibration values
                 try:
-                    temp_new_actual = float(input(">>> Entry for LASER wavelength: "))
-                    temp_new_calibration = float(input(">>> Entry for CALIBRATION wavelength: "))
+                    temp_new_actual = round(float(input(">>> Entry for LASER wavelength: ")), 1)
+                    temp_new_calibration = round(float(input(">>> Entry for CALIBRATION wavelength: ")), 1)
 
                     if temp_new_actual in saved_calibrations.keys():
                         ans = input(f"WARNING: There is already a saved entry for {temp_new_actual} nm!\n>>> Would you like to overwrite the saved calibration value "
@@ -450,8 +478,9 @@ def main():
                 if 0.0 <= new_nm <= 1000.0:  # if in range, send value
                     # 7) Send new value
                     if isinstance(new_nm, float):
+                        new_nm = round(new_nm, 1)
                         print(f"new wavelength to set = {new_nm} nm")
-                        _ = float(send_cmd('write nm value', handle, new_nm))
+                        _ = send_cmd('write nm value', handle, new_nm)
                         current_nm = float(send_cmd('read nm value', handle))
                     else:
                         print('Not a float!')
@@ -486,6 +515,15 @@ lookup_dict = {
     'read scan speed': {
         'info': f'\n----------\nChecking scan speed',
         'cmd': '?NM/MIN\r',
+        'time': 20,
+        'strip': [8, -6],
+        'unit': 'nm/min',
+        'default': 100,
+    },
+
+    'write scan speed': {
+        'info': f'\n----------\nWriting scan speed',
+        'cmd': ' NM/MIN\r',
         'time': 20,
         'strip': [8, -6],
         'unit': 'nm/min',
