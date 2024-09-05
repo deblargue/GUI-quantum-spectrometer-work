@@ -182,13 +182,14 @@ class MainWindow(QtWidgets.QMainWindow):
         #print(self.counts)
         #self.line.setData(self.time, list(self.counts))
 
-        self.histo.setOpts(height=[livecounts.counts[j+1] for j in range(self.nr_chs)])
-        #self.line.setData(self.time, [livecounts.counts[j+1] for j in range(self.nr_chs)])   # for line plot
-
         loop.run_until_complete(websocket_client(base_url, livecounts.get_live_counts, n=1))
 
+        all_cnts = [livecounts.counts[i] for i in range(1, self.nr_chs+1)]
+        self.histo.setOpts(height=all_cnts)
+        #self.line.setData(self.time, [livecounts.counts[j+1] for j in range(self.nr_chs)])   # for line plot
+
         if livecounts.case == 'running':
-            all_cnts = np.array([livecounts.counts[i] for i in range(1, self.nr_chs+1)])
+            all_cnts = np.array(all_cnts)
             ch_nrs = np.arange(1, self.nr_chs+1, 1)
             #print(all_cnts)
             #print(ch_nrs)
@@ -230,19 +231,17 @@ class LiveCounts:
             if self.cnter % 10 == 0:  # for when to update plot lims
                 self.max_val = 0
 
-            temp_list = [0 for _ in range(self.nr_chs)]
+            #events_list = [0 for _ in range(self.nr_chs)]
+            #time_list = [0 for _ in range(self.nr_chs)]
             for message in payload:  # for every channel
-                temp_list[message['rank']-1] += 1
+                #events_list[message['rank']-1] += 1                # for counting how many updates this channel has had so far
+                #time_list[message['rank']-1] = message['time']     # for storing the current time
 
                 if self.active_chs[message['rank']-1] is False:  # NOTE: NEW!!
                     self.counts[message['rank']] = 0
                 else:
-                    if fake_data:
-                        #self.counts[message['rank']] = np.random.randint(0, 5)
-                        self.counts[message['rank']] += 1
-                    else:
-                        self.counts[message['rank']] = message['counts'] / (self.max_counts[message['rank']])  # divide by measured average
-
+                    self.counts[message['rank']] = message['counts'] / (self.max_counts[message['rank']])  # divide by measured average
+                    #self.counts[message['rank']] = message['counts'] # note: will normalize after
 
                 # FIXME check if this needs to be under else
                 if self.max_val < self.counts[message['rank']]:
@@ -250,7 +249,6 @@ class LiveCounts:
 
                 #thisapp._update()
                 #self.print_counts(payload)
-            print(temp_list)
 
         elif self.case == 'calibrate':
 
@@ -263,19 +261,20 @@ class LiveCounts:
                     #    print(f"skipped ch {key} in reset!!")
                     #else:
                     self.max_counts[key] = np.max([np.mean(self.max_counts_list[key]), 1.0])
+            else:
+                self.norm_counter += 1
 
-            self.norm_counter += 1
-
-            for message in payload:  # for every channel
-                print(message)
-                if self.active_chs[message['rank']-1] is False:  # NOTE: NEW!!
-                    self.max_counts_list[message['rank']].append(0)
-                else:
-                    self.max_counts_list[message['rank']].append(message['counts'])
+                for message in payload:  # for every channel
+                    print(message)
+                    if self.active_chs[message['rank']-1] is False:  # NOTE: NEW!!
+                        self.max_counts_list[message['rank']].append(0)
+                    else:
+                        self.max_counts_list[message['rank']].append(message['counts'])
 
         else:
-            print("WRONGG CASE")
-            self.case = 'running'
+            print("ERROR: WRONG CASE IN CALIBRATE")
+            #self.case = 'running'
+            exit()
 
         #print("done get live counts")
 
@@ -304,8 +303,6 @@ class LiveCounts:
 
 
 if __name__ == '__main__':
-
-    fake_data = True  # if we don't have counts we can randomly generate fake data
 
     url = "130.237.35.20"  # url = "192.168.1.1"
     base_url = f'ws://{url}'
