@@ -110,12 +110,13 @@ class LiveCounts:
 
             if self.norm_counter == self.n:
                 self.case = 'running'
-                try:
-                    #main.button_recalibrate.setStyleSheet("background-color: white")
-                    main.entry_calibrate.setText("")
-                    print("DONE BUTTON GREY")
-                except:
-                    print("FAILED BUTTON GREY")
+                print("")
+                #try:
+                #   main.button_recalibrate.setStyleSheet("background-color: white")
+                #   main.entry_calibrate.setText("")
+                #   print("DONE BUTTON GREY")
+                #except:
+                #    print("FAILED BUTTON GREY")
 
                 for k in self.ch_numbers:
                     self.averaged_calibration_counts[k-1] = np.max([np.mean(self.calibration_counts_dict_lists[k]), 1.0])   # FIXME??
@@ -213,78 +214,64 @@ class MainWindow:  #()QtWidgets.QMainWindow):
         lay.addWidget(self.entry_calibrate, 2, 0, 1, 2)
 
         # ----- CHANNEL BUTTONS -----
-        if False:
-            j = 0
-            k = 0
-            b_off = 6  # which row the first buttons should be
-            self.ch_buttons = {}
-            for i in livecounts.ch_numbers:
-                butt = QtWidgets.QPushButton(f"ch.{i}")
-                butt.setStyleSheet("background-color: green")
-                if i % 13 == 0:
-                    j = 0
-                    k += 1
-                self.ch_buttons[i] = butt
-                butt.clicked.connect(lambda checked, i=i: self.toggle_ch(i))  # FIXMEadding signal and slot
-                lay.addWidget(butt, j+b_off, k)
-                j += 1
-        else:  # If we want to use the wavelength entries
-            b_off = 7  # which row the first buttons should be
-            self.ch_buttons = {}
-            self.entry_lams = {}  # to save lamda entries
-            self.text_counts = {}
-            for i in livecounts.ch_numbers:
-                butt = QtWidgets.QPushButton(f"ch.{i}")
-                butt.setStyleSheet("background-color: green")
-                self.ch_buttons[i] = butt
-                butt.clicked.connect(lambda checked, i=i: self.toggle_ch(i))  # FIXMEadding signal and slot
-                lay.addWidget(butt, b_off+1+i, 0)
+        b_off = 4  # which row the first buttons should be
+        self.ch_buttons = {}
+        self.entry_lams = {}  # to save lamda entries
+        self.text_counts = {}
+        self.text_counts2 = {}
+        for i in livecounts.ch_numbers:
+            butt = QtWidgets.QPushButton(f"ch.{i}")
+            butt.setStyleSheet("background-color: green")
+            self.ch_buttons[i] = butt
+            butt.clicked.connect(lambda checked, i=i: self.toggle_ch(i))  # FIXMEadding signal and slot
+            lay.addWidget(butt, b_off+1+i, 0)
 
-                # ----- WAVELENGTH ENTRIES AND BUTTON
-                # self.clicked_update_wavelength
+            # ----- WAVELENGTH ENTRIES AND BUTTON
 
-                entry_lam = QtWidgets.QLineEdit()
-                validator = QtGui.QDoubleValidator(0.0, 99999.0, 1)
-                validator.setLocale(QtCore.QLocale("en_US")) #
-                entry_lam.setValidator(validator)
-                entry_lam.setText("")
-                self.entry_lams[i] = entry_lam
-                lay.addWidget(entry_lam, b_off+1+i, 1)
+            entry_lam = QtWidgets.QLineEdit()
+            validator = QtGui.QDoubleValidator(0.0, 99999.0, 1)
+            validator.setLocale(QtCore.QLocale("en_US"))
+            entry_lam.setValidator(validator)
+            entry_lam.setText("")
+            entry_lam.editingFinished.connect(self.clicked_fill_wavelengths)
+            self.entry_lams[i] = entry_lam
+            lay.addWidget(entry_lam, b_off+1+i, 1)
 
-                # COUNTRATE TEXT ON BARS
-                new_text = pg.TextItem(
-                    text=f'-',
-                    color=(0, 0, 0),
-                    anchor=(0, 0.5),  # where in the text box that the setPos with anchor to
-                    angle=90,  # 90
-                    rotateAxis=(1, 0))
-                new_text.setPos(i, 0)
-                self.text_counts[i] = new_text
-                self.ax_vb.addItem(new_text)
+            # COUNTRATE FIGURE TEXT ON BARS
+            new_text = pg.TextItem(text=f'-', color=(0, 0, 0), anchor=(0, 0.5),  # where in the text box that the setPos with anchor to
+                                   angle=90, rotateAxis=(1, 0))
+            new_text.setPos(i, 0)
+            self.text_counts[i] = new_text
+            self.ax_vb.addItem(new_text)
 
-            update_lams = QtWidgets.QPushButton(f"Set λs")  # Button to update lambdas
-            #update_lams.setStyleSheet("background-color: green")
-            update_lams.clicked.connect(self.clicked_update_wavelength)  # FIXME
-            lay.addWidget(update_lams, b_off, 0)
+            if False:
+                new_text2 = pg.TextItem(text=f'', color=(200, 200, 200), anchor=(0.5, 0),  # where in the text box that the setPos with anchor to
+                                       angle=45, rotateAxis=(1, 0))
+                new_text2.setPos(i, self.plot_window.getViewBox().viewRange()[1][1])
+                self.text_counts2[i] = new_text2
+                self.pltitem.addItem(new_text2)  # TODO FIX
 
-            get_lams = QtWidgets.QPushButton(f"Get λs")  # Button to update lambdas
-            get_lams.clicked.connect(self.clicked_fill_wavelengths)  # FIXME
-            lay.addWidget(get_lams, b_off, 1)
+        open_lams = QtWidgets.QPushButton(f"Open λs")
+        open_lams.clicked.connect(self.clicked_open_wavelengths)
+        lay.addWidget(open_lams, b_off, 0)
 
-            open_lams = QtWidgets.QPushButton(f"Open λs")  # Button to update lambdas
-            open_lams.clicked.connect(self.clicked_open_wavelengths)  # FIXME
-            lay.addWidget(open_lams, b_off-2, 1)
+        save_lams = QtWidgets.QPushButton(f"Save λs")
+        save_lams.clicked.connect(self.clicked_save_wavelengths)
+        lay.addWidget(save_lams, b_off, 1)
 
-            clear_lams = QtWidgets.QPushButton(f"Clear λs")  # Button to update lambdas
-            clear_lams.clicked.connect(self.clicked_clear_wavelengths)  # FIXMEadding signal and slot
-            lay.addWidget(clear_lams, b_off-1, 1)
+        clear_lams = QtWidgets.QPushButton(f"Clear λs")
+        clear_lams.clicked.connect(self.clicked_clear_wavelengths)
+        lay.addWidget(clear_lams, b_off+1, 0)
 
-            save_lams = QtWidgets.QPushButton(f"Save λs")  # Button to update lambdas
-            save_lams.clicked.connect(self.clicked_save_wavelengths)  # FIXMEadding signal and slot
-            lay.addWidget(save_lams, b_off-1, 0)
+        update_lams = QtWidgets.QPushButton(f"Set λs")
+        update_lams.clicked.connect(self.clicked_update_wavelength)
+        lay.addWidget(update_lams, b_off+1, 1)
 
-            #("background-color: white")
+        #get_lams = QtWidgets.QPushButton(f"Get λs")
+        #get_lams.clicked.connect(self.clicked_fill_wavelengths)
+        #lay.addWidget(get_lams, b_off+2, 1)
 
+        # --- ADDING PLOT LAST TO ENSURE IT FILLS UP ALL ROWS
         lay.addWidget(self.plot_window, 0, 2, lay.rowCount(), 1)  # note that columnstrech on this column is much larger (prev def)
 
     def adjust_window(self):
@@ -320,52 +307,63 @@ class MainWindow:  #()QtWidgets.QMainWindow):
         pass
 
     def clicked_clear_wavelengths(self):
+        self.acquired_wavelengths = False
         for i in livecounts.ch_numbers:
-            self.entry_lams[i].setText("")
+            if self.entry_lams[i].text() != "":  # If there is text to remove
+                self.entry_lams[i].setPlaceholderText(self.entry_lams[i].text())
+                self.entry_lams[i].setText("")
+
+                #self.text_counts[i].setText("") #NOTE THIS ISN*T WORKING
+
+            elif self.entry_lams[i].placeholderText() != "":
+                self.entry_lams[i].setPlaceholderText("")
 
     def clicked_fill_wavelengths(self):
         try:
             provided_chs = []
             provided_wavelens = {}
             for i in livecounts.ch_numbers:
-                try:
+                if self.entry_lams[i].text() != "":
                     provided_wavelens[i] = eval(self.entry_lams[i].text())
                     provided_chs.append(i)
-                except:
-                    continue
 
             n = len(provided_chs)
             self.acquired_wavelengths = True
             if n > 1:
-                # this means we can extrapolate data
-                """avg_delta = []
-                for i in range(n):  # for each given channel
-                    for j in range(i+1, n):  # for each of the remaining channels not compared with
-                        # average wavelength distance (delta lambda/delta ch nr):
-                        avg = (provided_wavelens[provided_chs[j]]-provided_wavelens[provided_chs[i]])/(provided_chs[j]-provided_chs[i])
-                        avg_delta.append(avg)
-
-                        if avg < 0:
-                            self.acquired_wavelengths = False
-                            print("INVALID RANGE OF WAVELENGTHS:")
-                            print(provided_wavelens)
-                            return"""
-
                 try:
-                    # Interpolating ranges between
+
                     wl_range = []
-                    for start in range(n-1):
-                        wl_range += list(np.linspace(start=provided_wavelens[provided_chs[start]], stop=provided_wavelens[provided_chs[start+1]], num=provided_chs[start+1]-provided_chs[start], endpoint=False))
-                    livecounts.nr_chs - len(wl_range)
-                    wl_range += list(np.linspace(start=provided_wavelens[provided_chs[-1]], stop=provided_wavelens[provided_chs[-1]] + (livecounts.nr_chs - len(wl_range))*(wl_range[-1]-wl_range[-2]),
-                                                 num=livecounts.nr_chs - len(wl_range), endpoint=False))
 
+                    # FILLING CHANNELS BEFORE FIRST GIVEN CHANNEL
+                    if provided_chs[0] != 1:  # if we have to interpolate backwards
+                        delta_wl = (provided_wavelens[provided_chs[1]] - provided_wavelens[provided_chs[0]])/(provided_chs[1]-provided_chs[0])
+
+                        wl_range += list(np.linspace(
+                            start=provided_wavelens[provided_chs[0]] - delta_wl*(provided_chs[0]-1),
+                            stop=provided_wavelens[provided_chs[0]],
+                            num=provided_chs[0]-1, endpoint=False))
+
+                    # FILLING IN BETWEEN ALL GIVEN WAVELENGTHS
+                    for first in range(n - 1):
+                        wl_range += list(np.linspace(start=provided_wavelens[provided_chs[first]],
+                                                     stop=provided_wavelens[provided_chs[first+1]],
+                                                     num=provided_chs[first+1] - provided_chs[first], endpoint=False))
+
+                    # FILLING REMAINING CHANNELS AFTER
+                    delta_wl = wl_range[-1] - wl_range[-2]
+                    n_remain = livecounts.nr_chs - provided_chs[-1] + 1 # REMAINING FOR INCREASING CHANNELS #len(wl_range.values())
+                    wl_range += list(np.linspace(
+                        start=provided_wavelens[provided_chs[-1]],
+                        stop=provided_wavelens[provided_chs[-1]] + n_remain * delta_wl,
+                        num=n_remain, endpoint=False))  # +1 to include the last provided channel
+
+                    # SETTING PLACEHOLDER TEXT
                     for i in livecounts.ch_numbers:
-                        self.wavelengths[i] = round(wl_range[i-1], 0)
-                        self.entry_lams[i].setText(f"{round(wl_range[i-1], 1)}")
-
+                        self.wavelengths[i] = round(wl_range[i-1], 1)
                         if i not in provided_chs:
-                            self.entry_lams[i].setStyleSheet()
+                            self.entry_lams[i].setPlaceholderText(f"{self.wavelengths[i]}")
+                        else:
+                            self.entry_lams[i].setPlaceholderText(f"*{self.wavelengths[i]}")  # TESTING
 
                 except:
                     self.acquired_wavelengths = False
@@ -379,20 +377,27 @@ class MainWindow:  #()QtWidgets.QMainWindow):
     def clicked_update_wavelength(self):
         """If we want to toggle wavelength vs channel display on"""
         if self.acquired_wavelengths:
+            self.acquired_wavelengths = False
             try:
                 for i in livecounts.ch_numbers:
+                    if self.entry_lams[i].text() == "":
+                        if self.entry_lams[i].placeholderText() == "":
+                            self.acquired_wavelengths = False
+                            print("ERROR:MISSING WAVELENGTH ENTRIES")
+                            return
+                        else:
+                            self.entry_lams[i].setText(self.entry_lams[i].placeholderText())
+                    else:
+                        self.entry_lams[i].setText(f"{float(eval(self.entry_lams[i].text()))}")
+
                     self.wavelengths[i] = eval(self.entry_lams[i].text())
 
-                #self.ax = self.plot_window.getAxis('bottom')
-                #self.ax.setTicks([[(i, f'{i}') for i in livecounts.ch_numbers]])  # adjust plot/histo axis
-
-                label_chs = [(self.wavelengths[i], f'{i}') for i in livecounts.ch_numbers]
                 label_chs = [[(self.wavelengths[i], f'{i}') for i in livecounts.ch_numbers]]
                 label_wls = [[(self.wavelengths[i], f'{self.wavelengths[i]}') for i in livecounts.ch_numbers]]
 
                 wls = list(self.wavelengths.values())
                 min_wl, max_wl = [wls[0]-(wls[1]-wls[0]) , wls[-1]+(wls[1]-wls[0])]
-                print(min_wl, max_wl)
+                #print(min_wl, max_wl)
                 self.plot_window.getAxis('bottom').setTicks(label_chs)
                 self.plot_window.getAxis('bottom').setRange(min_wl, max_wl)
                 self.plot_window.getAxis('bottom').setLabel("Channel nr")
@@ -406,13 +411,16 @@ class MainWindow:  #()QtWidgets.QMainWindow):
                 self.pltitem.getAxis('top').linkToView(self.ax_vb)
 
                 self.histo.setOpts(x=wls)
-                self.histo.setOpts(width=0.6*(wls[1]-wls[0]))
+                delta_wls = np.min(np.array(wls[1:])-np.array(wls[0:-1]))
+                self.histo.setOpts(width=0.7*delta_wls)
 
-                #self.plot_window.setXRange(list(self.wavelengths.values())[0], list(self.wavelengths.values())[-1])   # (0, 13) when we had 12 chs
+                for i in livecounts.ch_numbers:
+                    self.text_counts[i].setPos(self.wavelengths[i], 0)
 
-                if True:
-                    for i in livecounts.ch_numbers:
-                        self.text_counts[i].setPos(self.wavelengths[i], 0)
+                    #self.text_counts2[i].setPos(self.wavelengths[i], self.plot_window.getViewBox().viewRange()[1][1])  # NOTE NEW FOR NM TEXT
+                    if False:
+                        self.text_counts2[i].setPos(self.wavelengths[i], 1)  # NOTE NEW FOR NM TEXT
+                        self.text_counts2[i].setText(f"{self.wavelengths[i]}")
 
             except:
                 print("ERROR: FAILED TO RESET X AXIS TICKS, REVERTING")
@@ -461,8 +469,8 @@ class MainWindow:  #()QtWidgets.QMainWindow):
 
         except:
             print("ERROR: Failed to get nr of samples, using default of 5")
-            self.entry_calibrate.setText("5")
-            livecounts.reset_vars(n=5)
+            self.entry_calibrate.setText("Try Again")
+
 
         #self.button_recalibrate.setStyleSheet("background-color: grey")
 
@@ -502,53 +510,6 @@ class MainWindow:  #()QtWidgets.QMainWindow):
                 self.plot_window.setTitle(f"", color="k", size="20pt")
                 self.plot_window.setYRange(0, 1)
 
-
-'''def STANDALONE_initialize():
-    lay = QtWidgets.QGridLayout(view)
-
-    # ------ TEXT INPUT BOX ------
-    e1 = QtWidgets.QLineEdit()
-    e1.setValidator(QtGui.QIntValidator())
-    e1.setMaxLength(5)
-    # e1.setAlignment(QtCore.Qt.AlignRight)
-    # e1.setFont(QtCore.Qt.QFont("Arial", 20))
-    lay.addWidget(e1, 0, 1, 1, 1)
-
-    e2 = QtWidgets.QLineEdit()
-    e2.setValidator(QtGui.QIntValidator())
-    e2.setMaxLength(5)
-    # e1.setAlignment(QtCore.Qt.AlignRight)
-    # e1.setFont(QtCore.Qt.QFont("Arial", 20))
-    lay.addWidget(e2, 0, 2, 1, 1)
-
-    # ------ BUTTONS ------
-    def handle_button_clicked(button):
-        print(button, button.text())
-
-    group = QtWidgets.QButtonGroup()
-    j = 1
-    k = 1
-    for i in range(1, 25):
-        button = QtWidgets.QPushButton(f"ch.{i}")
-        lay.addWidget(button, j, k, 1, 1)
-        j += 1
-        if i % 12 == 0:
-            j = 1
-            k += 1
-        group.addButton(button)
-
-    group.buttonClicked.connect(handle_button_clicked)
-
-    # ----- PLOT -----
-
-    plot_window = pg.PlotWidget()  ##parent=self.new_w)
-    lay.addWidget(plot_window, 0, 0, 30, 1)
-
-    histo = pg.BarGraphItem(x=[0, 1, 2, 3, 4, 5], height=[1, 2, 3, 4, 5, 6], width=0.6, brush='g')
-
-    # add histo item to window
-    plot_window.addItem(histo)
-'''
 
 if __name__ == "__main__":
     url = "130.237.35.20"
