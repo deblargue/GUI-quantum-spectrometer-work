@@ -1,3 +1,5 @@
+import time
+
 from PyQt5 import QtWidgets, QtCore, QtGui
 import pyqtgraph as pg
 import sys
@@ -86,10 +88,10 @@ class LiveCounts:
         #print("done reset vars ")
 
     def get_live_counts(self, payload):
+
         if demo:
-            #p = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.5, 0.7, 0.9, 0.8, 0.8, 0.3, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])-0.05
             for i, message in enumerate(payload):
-                payload[i]['counts'] = round(np.random.normal(loc=50, scale=2, size=1)[0], 0)#*p[message['rank']-1]
+                payload[i]['counts'] = round(np.random.normal(loc=50, scale=2, size=1)[0], 0) #*p[message['rank']-1]
 
         self.payload = payload
 
@@ -100,9 +102,16 @@ class LiveCounts:
                 if self.active_chs[message['rank']] is False:  # NOTE: NEW!!
                     self.counts[message['rank']] = 0
                 else:
-                    self.counts[message['rank']] = message['counts']
 
-                self.copy_counts[message['rank']] = message['counts']
+                    if demo:
+                        self.counts[message['rank']] = message['counts'] * p1[message['rank'] - 1]
+                    else:
+                        self.counts[message['rank']] = message['counts']
+
+                if demo:
+                    self.copy_counts[message['rank']] = message['counts'] * p1[message['rank'] - 1]
+                else:
+                    self.copy_counts[message['rank']] = message['counts']
 
                 #thisapp._update()
 
@@ -111,12 +120,10 @@ class LiveCounts:
             if self.norm_counter == self.n:
                 self.case = 'running'
                 print("")
-                #try:
-                #   main.button_recalibrate.setStyleSheet("background-color: white")
-                #   main.entry_calibrate.setText("")
-                #   print("DONE BUTTON GREY")
-                #except:
-                #    print("FAILED BUTTON GREY")
+                try:
+                    main.entry_calibrate.setText("")
+                except:
+                    pass
 
                 for k in self.ch_numbers:
                     self.averaged_calibration_counts[k-1] = np.max([np.mean(self.calibration_counts_dict_lists[k]), 1.0])   # FIXME??
@@ -126,7 +133,11 @@ class LiveCounts:
                     if self.active_chs[message['rank']] is False:  # If the channel is inactive we don't collect counts
                         self.calibration_counts_dict_lists[message['rank']].append(0)
                     else:
-                        self.calibration_counts_dict_lists[message['rank']].append(message['counts'])
+                        if demo:
+                            self.calibration_counts_dict_lists[message['rank']].append(message['counts'])
+                            #self.calibration_counts_dict_lists[message['rank']].append(p1[message['rank']-1]*message['counts'])
+                        else:
+                            self.calibration_counts_dict_lists[message['rank']].append(message['counts'])
 
             print(f"\r---sampling: {self.norm_counter}/{self.n}", end='')
 
@@ -161,7 +172,7 @@ class MainWindow:  #()QtWidgets.QMainWindow):
     def __init__(self):
         #super().__init__()  # THIS WAS TO INIT THE SUPERCLASS
         self.autoscale = False
-        self.wavelengths = {i : None for i in livecounts.ch_numbers}
+        self.wavelengths = {i : i for i in livecounts.ch_numbers}
         self.acquired_wavelengths = False
 
         # -------------
@@ -213,12 +224,21 @@ class MainWindow:  #()QtWidgets.QMainWindow):
         self.entry_calibrate.setPlaceholderText("Resample n times")
         lay.addWidget(self.entry_calibrate, 2, 0, 1, 2)
 
+        # ---- BUNCHING AVERAGES ---
+        self.entry_bunch = entry_bunch = QtWidgets.QLineEdit()
+        entry_bunch.editingFinished.connect(self.clicked_bunch)
+        entry_bunch.textChanged.connect(self.changed_bunch)
+        entry_bunch.setValidator(QtGui.QIntValidator(0, livecounts.nr_chs))  # can be a float
+        entry_bunch.setPlaceholderText("Bunching amount")   # for max y-axis value
+        lay.addWidget(entry_bunch, 4, 0, 1, 2)
+
         # ----- CHANNEL BUTTONS -----
-        b_off = 4  # which row the first buttons should be
+        b_off = 6  # which row the first buttons should be
         self.ch_buttons = {}
         self.entry_lams = {}  # to save lamda entries
         self.text_counts = {}
         self.text_counts2 = {}
+        self.text_peaks = {}
         for i in livecounts.ch_numbers:
             butt = QtWidgets.QPushButton(f"ch.{i}")
             butt.setStyleSheet("background-color: green")
@@ -245,11 +265,19 @@ class MainWindow:  #()QtWidgets.QMainWindow):
             self.ax_vb.addItem(new_text)
 
             if False:
-                new_text2 = pg.TextItem(text=f'', color=(200, 200, 200), anchor=(0.5, 0),  # where in the text box that the setPos with anchor to
+                new_text2 = pg.TextItem(text=f'', color=(0, 255, 0), anchor=(0.5, 0),  # where in the text box that the setPos with anchor to
                                        angle=45, rotateAxis=(1, 0))
                 new_text2.setPos(i, self.plot_window.getViewBox().viewRange()[1][1])
                 self.text_counts2[i] = new_text2
-                self.pltitem.addItem(new_text2)  # TODO FIX
+                self.ax_vb.addItem(new_text2)  # TODO FIX
+
+            if True:
+                new_peak_text = pg.TextItem(text=f'', color=(0, 0, 0), anchor=(0.5, 0),
+                                        # where in the text box that the setPos with anchor to
+                                        angle=45, rotateAxis=(1, 0))
+                new_peak_text.setPos(i, 100)
+                self.text_peaks[i] = new_peak_text
+                self.ax_vb.addItem(new_peak_text)  # TODO FIX
 
         open_lams = QtWidgets.QPushButton(f"Open λs")
         open_lams.clicked.connect(self.clicked_open_wavelengths)
@@ -267,16 +295,24 @@ class MainWindow:  #()QtWidgets.QMainWindow):
         update_lams.clicked.connect(self.clicked_update_wavelength)
         lay.addWidget(update_lams, b_off+1, 1)
 
+        butt_pause = QtWidgets.QPushButton(f"PAUSE")
+        butt_pause.clicked.connect(self.clicked_pause)
+        lay.addWidget(butt_pause, b_off-1, 0, 1, 2)
+
         #get_lams = QtWidgets.QPushButton(f"Get λs")
         #get_lams.clicked.connect(self.clicked_fill_wavelengths)
         #lay.addWidget(get_lams, b_off+2, 1)
 
         # --- ADDING PLOT LAST TO ENSURE IT FILLS UP ALL ROWS
+        self.checkbox_auto.setChecked(True)
+        self.autoscale = True
         lay.addWidget(self.plot_window, 0, 2, lay.rowCount(), 1)  # note that columnstrech on this column is much larger (prev def)
 
+    def clicked_pause(self):
+        time.sleep(2)
     def adjust_window(self):
         #self.plot_window.setGeometry(QtCore.QRect(0, 0, 600, 100))      # (0, 0, 600, 500))        #NOTE THIS DICTATES WHERE BUTTONS ARE PLACED I THINK
-        self.plot_window.setMouseEnabled(x=True, y=True)
+        self.plot_window.setMouseEnabled(x=False, y=True)
 
         # self.plot_window.geometry().left()
         # self.plot_window.geometry().top()
@@ -286,7 +322,7 @@ class MainWindow:  #()QtWidgets.QMainWindow):
 
         self.plot_window.setBackground("w")
 
-        axes_styles = {"color": "black", "font-size": "18px"}
+        axes_styles = {"color": "black", "font-size": "16px"}
         self.plot_window.setLabel("left", "Counts", **axes_styles)
         self.plot_window.setLabel("bottom", "Channel", **axes_styles)
 
@@ -299,6 +335,83 @@ class MainWindow:  #()QtWidgets.QMainWindow):
         #self.plot_window.setXRange(0, livecounts.nr_chs+1)   # (0, 13) when we had 12 chs
         self.plot_window.getAxis('bottom').setRange(0, livecounts.nr_chs+1)   # (0, 13) when we had 12 chs
         self.plot_window.setYRange(0, 2)  # FIXME? --> make auto scale? Add button to release auto
+
+    def clicked_bunch(self):
+        if self.entry_bunch.text() == "":
+            pass
+        else:
+            try:
+                n_bunch = int(eval(self.entry_bunch.text()))  # how many neighbors on each side
+                remaining_chs = np.ones(livecounts.nr_chs)
+                checked_chs = []
+                bunched_dict = {}
+                #while len(checked_chs) < livecounts.nr_chs:
+                counter = 0
+                while np.sum(remaining_chs) > 0:
+                    #print("remaining", remaining_chs)
+                    if counter > livecounts.nr_chs:
+                        #print("BREAKING")
+                        break
+                    counter += 1
+
+                    counts = np.array([livecounts.counts[i] for i in livecounts.ch_numbers]) * remaining_chs
+                    peak_ch = np.argmax(counts) + 1
+                    neighs = [peak_ch + i for i in range(1, np.min([n_bunch, livecounts.nr_chs-peak_ch])+1)] + \
+                             [peak_ch - i for i in range(1, np.min([n_bunch, peak_ch])+1)]
+
+                    #print(f" peak ch = {peak_ch} has neighbors {neighs}")
+
+                    remaining_chs[peak_ch - 1] = 0
+                    #copy_neighs = neighs.copy()
+                    for neigh in neighs.copy():
+                        #print("\n-----")
+                        #print(remaining_chs)
+                        if neigh == 0:
+                            neighs.remove(neigh)
+                        elif remaining_chs[neigh-1] == 0:
+                            #print(f"REMOVED {neigh} from {peak_ch}'s neighbors")
+
+                            #print("before:", neighs)
+                            neighs.remove(neigh)
+                            #print("after:", neighs)
+                        else:
+                            remaining_chs[neigh-1] -= 1 #0  # remove now that it is a neighbor
+
+                    #remaining_chs[peak_ch-1] = 0
+
+                    if len(neighs) == 0:
+                        avg = peak_ch
+                    else:
+                        bunch_counts = np.array([livecounts.counts[i] for i in [peak_ch]+neighs])
+                        avg = round(np.sum(np.array([peak_ch]+neighs) * bunch_counts) / np.sum(bunch_counts), 2)  # FIXME
+
+                    bunched_dict[peak_ch] = {'members': [peak_ch]+neighs, 'avg' : round(avg, 1)}
+                    checked_chs += [peak_ch]+neighs
+
+                #print("---------------")
+                for peak in bunched_dict.keys():
+                    #print("--:::--")
+                    #print(peak)
+                    #print(self.wavelengths[peak])
+                    #temp = bunched_dict[peak]['members']
+                    #sorted(temp)
+                    #print("ch", peak, "-> ", temp )
+                    #print(livecounts.counts[peak])
+                    self.text_peaks[peak].setText(f"(chs.{np.min(bunched_dict[peak]['members'])}-{np.max(bunched_dict[peak]['members'])}) = {bunched_dict[peak]['avg']}")
+                    #self.text_peaks[peak].setPos(self.wavelengths[peak], 100) #livecounts.counts[peak])
+
+            except:
+                print("ERROR BUNCHING")
+                raise
+
+    def changed_bunch(self):
+        for i in livecounts.ch_numbers:
+            self.text_peaks[i].setText("")
+
+        if self.entry_bunch.text() != "":
+            for i in livecounts.ch_numbers:
+                self.text_peaks[i].setPos(self.wavelengths[i], 0.8*self.plot_window.getViewBox().viewRange()[1][1])
+
 
     def clicked_save_wavelengths(self):
         pass
@@ -379,7 +492,9 @@ class MainWindow:  #()QtWidgets.QMainWindow):
         if self.acquired_wavelengths:
             self.acquired_wavelengths = False
             try:
+
                 for i in livecounts.ch_numbers:
+
                     if self.entry_lams[i].text() == "":
                         if self.entry_lams[i].placeholderText() == "":
                             self.acquired_wavelengths = False
@@ -446,6 +561,9 @@ class MainWindow:  #()QtWidgets.QMainWindow):
             self.plot_window.setYRange(0, eval(new_y))
             self.autoscale = False  # if we succeed setting it then we don't want autoscale
             self.checkbox_auto.setChecked(False)
+            for i in livecounts.ch_numbers:
+                self.text_peaks[i].setPos(self.wavelengths[i], 0.8*self.plot_window.getViewBox().viewRange()[1][1])
+
         except:
             print("Error trying to set y range (likely invalid input)")
             raise
@@ -496,9 +614,11 @@ class MainWindow:  #()QtWidgets.QMainWindow):
 
             # CALCULATE WEIGHTED AVERAGE
             if np.sum(all_cnts_raw) != 0:
-                # TODO FIXME: CHECK IF WEIGHTED AVERAGE IF BEFORE OR AFTER NORM
-                self.weighted_avg = round(np.sum(livecounts.ch_numbers * all_cnts_raw) / np.sum(all_cnts_raw), 2)  # FIXME
-                self.plot_window.setTitle(f"Weighted Average Channel = {self.weighted_avg}", color="k", size="20pt")
+
+                main.clicked_bunch()
+
+                #self.weighted_avg = round(np.sum(livecounts.ch_numbers * all_cnts_raw) / np.sum(all_cnts_raw), 2)  # FIXME
+                #self.plot_window.setTitle(f"Weighted Average Channel = {self.weighted_avg}", color="k", size="20pt")
 
                 if self.autoscale:
                     curr_y_max = np.max(all_cnts_norm)
@@ -514,7 +634,32 @@ class MainWindow:  #()QtWidgets.QMainWindow):
 if __name__ == "__main__":
     url = "130.237.35.20"
     base_url = f"ws://{url}"
+
+    # ----
     demo = True
+    p1 = np.ones(24)
+    if True:
+        p1 *= 0.1
+
+        p1[5] += 100
+        p1[10] += 145
+        p1[20] += 50
+
+        p1[4] = p1[5]*0.3
+        p1[6] = p1[5]* 0.5
+
+        p1[9] = p1[10]* 0.56
+        p1[11] = p1[10]* 0.4
+
+        p1[14] = p1[20]* 0.27
+        p1[16] = p1[20]* 0.45
+
+        p1[19] = p1[20]* 0.3
+        p1[22] = p1[20]* 0.7
+        p1[21] = p1[20]* 0.6
+
+        print(p1)
+    # ----
 
     livecounts = LiveCounts()
 
