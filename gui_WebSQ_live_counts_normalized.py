@@ -201,6 +201,8 @@ class MainWindow:  #()QtWidgets.QMainWindow):
         # create histo item
         self.histo = pg.BarGraphItem(x=livecounts.ch_numbers, height=np.zeros(livecounts.nr_chs), width=0.6, brush='g')
         self.plot_window.addItem(self.histo)  # add histo item to window
+        self.histo_colors = {i:'g' for i in livecounts.ch_numbers}
+        #self.histo.setOpts(brushes=[self.histo_colors[ch] for ch in livecounts.ch_numbers])
 
         # ------- RESET RANGE BUTTONS -----
         self.checkbox_auto = QtWidgets.QCheckBox("Auto")
@@ -237,7 +239,6 @@ class MainWindow:  #()QtWidgets.QMainWindow):
         self.ch_buttons = {}
         self.entry_lams = {}  # to save lamda entries
         self.text_counts = {}
-        self.text_counts2 = {}
         self.text_peaks = {}
         for i in livecounts.ch_numbers:
             butt = QtWidgets.QPushButton(f"ch.{i}")
@@ -258,33 +259,25 @@ class MainWindow:  #()QtWidgets.QMainWindow):
             lay.addWidget(entry_lam, b_off+1+i, 1)
 
             # COUNTRATE FIGURE TEXT ON BARS
-            new_text = pg.TextItem(text=f'-', color=(0, 0, 0), anchor=(0, 0.5),  # where in the text box that the setPos with anchor to
-                                   angle=90, rotateAxis=(1, 0))
+            new_text = pg.TextItem(text=f'-', color=(0, 0, 0), anchor=(0, 0.5), angle=90, rotateAxis=(1, 0))
             new_text.setPos(i, 0)
             self.text_counts[i] = new_text
             self.ax_vb.addItem(new_text)
 
-            if False:
-                new_text2 = pg.TextItem(text=f'', color=(0, 255, 0), anchor=(0.5, 0),  # where in the text box that the setPos with anchor to
-                                       angle=45, rotateAxis=(1, 0))
-                new_text2.setPos(i, self.plot_window.getViewBox().viewRange()[1][1])
-                self.text_counts2[i] = new_text2
-                self.ax_vb.addItem(new_text2)  # TODO FIX
-
             if True:
-                new_peak_text = pg.TextItem(text=f'', color=(0, 0, 0), anchor=(0.5, 0),
-                                        # where in the text box that the setPos with anchor to
-                                        angle=45, rotateAxis=(1, 0))
-                new_peak_text.setPos(i, 100)
+                #new_peak_text = pg.TextItem(text=f'', color=(0, 0, 0), anchor=(0.5, 0.5), # where in the text box that the setPos with anchor to
+                #                        angle=45, rotateAxis=(1, 0))
+                new_peak_text = pg.TextItem(text=f'', color=(0, 0, 0), anchor=(0.5, 0.5), angle=20, rotateAxis=(1, 0))
+                new_peak_text.setPos(i, 1)
                 self.text_peaks[i] = new_peak_text
-                self.ax_vb.addItem(new_peak_text)  # TODO FIX
+                self.ax_vb.addItem(new_peak_text)
 
         open_lams = QtWidgets.QPushButton(f"Open λs")
-        open_lams.clicked.connect(self.clicked_open_wavelengths)
+        open_lams.clicked.connect(self.clicked_open_wavelengths)  # TODO FIXME
         lay.addWidget(open_lams, b_off, 0)
 
         save_lams = QtWidgets.QPushButton(f"Save λs")
-        save_lams.clicked.connect(self.clicked_save_wavelengths)
+        save_lams.clicked.connect(self.clicked_save_wavelengths)    # TODO FIXME
         lay.addWidget(save_lams, b_off, 1)
 
         clear_lams = QtWidgets.QPushButton(f"Clear λs")
@@ -298,10 +291,6 @@ class MainWindow:  #()QtWidgets.QMainWindow):
         butt_pause = QtWidgets.QPushButton(f"PAUSE")
         butt_pause.clicked.connect(self.clicked_pause)
         lay.addWidget(butt_pause, b_off-1, 0, 1, 2)
-
-        #get_lams = QtWidgets.QPushButton(f"Get λs")
-        #get_lams.clicked.connect(self.clicked_fill_wavelengths)
-        #lay.addWidget(get_lams, b_off+2, 1)
 
         # --- ADDING PLOT LAST TO ENSURE IT FILLS UP ALL ROWS
         self.checkbox_auto.setChecked(True)
@@ -333,10 +322,11 @@ class MainWindow:  #()QtWidgets.QMainWindow):
         self.plot_window.showGrid(x=True, y=True)
 
         #self.plot_window.setXRange(0, livecounts.nr_chs+1)   # (0, 13) when we had 12 chs
-        self.plot_window.getAxis('bottom').setRange(0, livecounts.nr_chs+1)   # (0, 13) when we had 12 chs
-        self.plot_window.setYRange(0, 2)  # FIXME? --> make auto scale? Add button to release auto
+        #self.plot_window.getAxis('bottom').setRange(0, livecounts.nr_chs+1)   # (0, 13) when we had 12 chs
+        #self.plot_window.setYRange(0, 2)  # FIXME? --> make auto scale? Add button to release auto
+        #self.plot_window.setYRange(0, 2)  # FIXME? --> make auto scale? Add button to release auto
 
-    def clicked_bunch(self):
+    def clicked_bunch_old_old(self):
         if self.entry_bunch.text() == "":
             pass
         else:
@@ -397,8 +387,172 @@ class MainWindow:  #()QtWidgets.QMainWindow):
                     #sorted(temp)
                     #print("ch", peak, "-> ", temp )
                     #print(livecounts.counts[peak])
+                    self.text_peaks[peak].setText(f"(chs.{np.min(bunched_dict[peak]['members'])}-{np.max(bunched_dict[peak]['members'])})={bunched_dict[peak]['avg']}")
+                    #self.text_peaks[peak].setPos(self.wavelengths[peak], self.plot_window.getViewBox().viewRange()[1][1]*0.8)
+
+
+            except:
+                print("ERROR BUNCHING")
+                raise
+
+    def clicked_bunch_old_color(self):
+        if self.entry_bunch.text() == "":
+            pass
+        else:
+            try:
+                n_bunch = int(eval(self.entry_bunch.text()))  # how many neighbors on each side
+                remaining_chs = np.ones(livecounts.nr_chs)
+                checked_chs = []
+                peak_chs_dict = {}
+                bunched_dict = {}
+                counter = 0
+                while np.sum(remaining_chs) > 0:
+                    #print("remaining", remaining_chs)
+                    if counter > livecounts.nr_chs*50:
+                        print("BREAKING")
+                        break
+
+                    counter += 1
+
+                    counts = np.array([livecounts.counts[i] for i in livecounts.ch_numbers]) * remaining_chs
+                    peak_ch = np.argmax(counts) + 1
+
+                    peak_chs_dict[peak_ch] = []  # tracking peak channels while still possible
+
+                    newneighs = [peak_ch + i for i in range(1, np.min([n_bunch, livecounts.nr_chs-peak_ch, len(peak_chs_dict[peak_ch])+1])+1)] + \
+                             [peak_ch - i for i in range(1, np.min([n_bunch, peak_ch, len(peak_chs_dict[peak_ch])+1])+1)]
+
+                    neighs = [peak_ch + i for i in range(1, np.min([n_bunch, livecounts.nr_chs-peak_ch])+1)] + \
+                             [peak_ch - i for i in range(1, np.min([n_bunch, peak_ch])+1)]
+
+                    #print(f" peak ch = {peak_ch} has neighbors {neighs}")
+
+                    remaining_chs[peak_ch - 1] = 0
+
+                    #copy_neighs = neighs.copy()
+                    for neigh in neighs.copy():
+                        #print("\n-----")
+                        #print(remaining_chs)
+                        if neigh == 0:
+                            neighs.remove(neigh)
+                        elif remaining_chs[neigh-1] == 0:
+                            #print(f"REMOVED {neigh} from {peak_ch}'s neighbors")
+
+                            #print("before:", neighs)
+                            neighs.remove(neigh)
+                            #print("after:", neighs)
+                        #elif remain   #TODO FIX
+                        else:
+                            remaining_chs[neigh-1] -= 1 #0  # remove now that it is a neighbor
+
+                    #remaining_chs[peak_ch-1] = 0
+
+                    if len(neighs) == 0:
+                        avg = peak_ch
+                        #remaining_chs[peak_ch - 1] = 0
+                        del peak_chs_dict[peak_ch]  # NOTE NEW!
+
+                    else:
+                        bunch_counts = np.array([livecounts.counts[i] for i in [peak_ch]+neighs])
+                        avg = round(np.sum(np.array([peak_ch]+neighs) * bunch_counts) / np.sum(bunch_counts), 2)
+
+                    bunched_dict[peak_ch] = {'members': [peak_ch]+neighs, 'avg' : round(avg, 5)}
+                    checked_chs += [peak_ch]+neighs
+
+                #print("---------------")
+                for i, peak in enumerate(bunched_dict.keys()):
+                    #print("--:::--")
+                    #print(peak)
+                    #print(self.wavelengths[peak])
+                    #temp = bunched_dict[peak]['members']
+                    #sorted(temp)
+                    #print("ch", peak, "-> ", temp )
+                    #print(livecounts.counts[peak])
                     self.text_peaks[peak].setText(f"(chs.{np.min(bunched_dict[peak]['members'])}-{np.max(bunched_dict[peak]['members'])}) = {bunched_dict[peak]['avg']}")
-                    #self.text_peaks[peak].setPos(self.wavelengths[peak], 100) #livecounts.counts[peak])
+                    #self.text_peaks[peak].setPos(self.wavelengths[peak], self.plot_window.getViewBox().viewRange()[1][1]*0.8)
+                    for ch in bunched_dict[peak]['members']:
+                        self.histo_colors[ch] = col_choice[i]
+
+            except:
+                print("ERROR BUNCHING")
+                raise
+
+    def clicked_bunch(self):  # TODO FIX LOGIC
+        if self.entry_bunch.text() == "":
+            pass
+        else:
+            try:
+                n_bunch = int(eval(self.entry_bunch.text()))  # how many neighbors on each side
+                remaining_chs = np.ones(livecounts.nr_chs)
+                checked_chs = []
+                peak_chs_dict = {}
+                bunched_dict = {}
+                counter = 0
+                while np.sum(remaining_chs) > 0:
+                    #print("remaining", remaining_chs)
+                    if counter > livecounts.nr_chs*50:
+                        print("BREAKING")
+                        break
+
+                    counter += 1
+
+                    counts = np.array([livecounts.counts[i] for i in livecounts.ch_numbers]) * remaining_chs
+                    peak_ch = np.argmax(counts) + 1
+
+                    peak_chs_dict[peak_ch] = []  # tracking peak channels while still possible
+
+                    newneighs = [peak_ch + i for i in range(1, np.min([n_bunch, livecounts.nr_chs-peak_ch, len(peak_chs_dict[peak_ch])+1])+1)] + \
+                             [peak_ch - i for i in range(1, np.min([n_bunch, peak_ch, len(peak_chs_dict[peak_ch])+1])+1)]
+
+                    neighs = [peak_ch + i for i in range(1, np.min([n_bunch, livecounts.nr_chs-peak_ch])+1)] + \
+                             [peak_ch - i for i in range(1, np.min([n_bunch, peak_ch])+1)]
+
+                    #print(f" peak ch = {peak_ch} has neighbors {neighs}")
+
+                    remaining_chs[peak_ch - 1] = 0
+
+                    #copy_neighs = neighs.copy()
+                    for neigh in neighs.copy():
+                        #print("\n-----")
+                        #print(remaining_chs)
+                        if neigh == 0:
+                            neighs.remove(neigh)
+                        elif remaining_chs[neigh-1] == 0:
+                            #print(f"REMOVED {neigh} from {peak_ch}'s neighbors")
+
+                            #print("before:", neighs)
+                            neighs.remove(neigh)
+                            #print("after:", neighs)
+                        #elif remain   #TODO FIX
+                        else:
+                            remaining_chs[neigh-1] -= 1 #0  # remove now that it is a neighbor
+
+                    #remaining_chs[peak_ch-1] = 0
+
+                    if len(neighs) == 0:
+                        avg = peak_ch
+                        #remaining_chs[peak_ch - 1] = 0
+                        del peak_chs_dict[peak_ch]  # NOTE NEW!
+
+                    else:
+                        bunch_counts = np.array([livecounts.counts[i] for i in [peak_ch]+neighs])
+                        avg = round(np.sum(np.array([peak_ch]+neighs) * bunch_counts) / np.sum(bunch_counts), 2)
+
+                    bunched_dict[peak_ch] = {'members': [peak_ch]+neighs, 'avg' : round(avg, 5)}
+                    checked_chs += [peak_ch]+neighs
+
+                # Display the final text and assign colors
+                for i, peak in enumerate(bunched_dict.keys()):
+                    #print("--:::--")
+                    #print(peak)
+                    #print(self.wavelengths[peak])
+                    #temp = bunched_dict[peak]['members']
+                    #sorted(temp)
+                    #print("ch", peak, "-> ", temp )
+                    #print(livecounts.counts[peak])
+                    self.text_peaks[peak].setText(f"(chs.{np.min(bunched_dict[peak]['members'])}-{np.max(bunched_dict[peak]['members'])}) = {bunched_dict[peak]['avg']}")
+                    for ch in bunched_dict[peak]['members']:
+                        self.histo_colors[ch] = col_choice[i]
 
             except:
                 print("ERROR BUNCHING")
@@ -412,6 +566,10 @@ class MainWindow:  #()QtWidgets.QMainWindow):
             for i in livecounts.ch_numbers:
                 self.text_peaks[i].setPos(self.wavelengths[i], 0.8*self.plot_window.getViewBox().viewRange()[1][1])
 
+            self.histo_colors = {i: 'g' for i in livecounts.ch_numbers}
+            #self.histo_colors = ['g' for _ in livecounts.ch_numbers]
+            self.clicked_bunch()
+            self.histo.setOpts(brushes=[self.histo_colors[ch] for ch in livecounts.ch_numbers])
 
     def clicked_save_wavelengths(self):
         pass
@@ -419,7 +577,7 @@ class MainWindow:  #()QtWidgets.QMainWindow):
     def clicked_open_wavelengths(self):
         pass
 
-    def clicked_clear_wavelengths(self):
+    def clicked_clear_wavelengths(self):  # NOTE: REMOVE BUNCHING AVERAGE
         self.acquired_wavelengths = False
         for i in livecounts.ch_numbers:
             if self.entry_lams[i].text() != "":  # If there is text to remove
@@ -512,13 +670,10 @@ class MainWindow:  #()QtWidgets.QMainWindow):
 
                 wls = list(self.wavelengths.values())
                 min_wl, max_wl = [wls[0]-(wls[1]-wls[0]) , wls[-1]+(wls[1]-wls[0])]
-                #print(min_wl, max_wl)
+                print(min_wl, max_wl)
                 self.plot_window.getAxis('bottom').setTicks(label_chs)
                 self.plot_window.getAxis('bottom').setRange(min_wl, max_wl)
-                self.plot_window.getAxis('bottom').setLabel("Channel nr")
-
-                #pltitem.setLabels(bottom='Channel')
-                #pltitem.setLabels(top='Wavelength (nm)')
+                #self.plot_window.getAxis('bottom').setLabel("Channel nr")
 
                 self.pltitem.showAxis('top')
                 self.pltitem.getAxis('top').setLabel("Wavelength (nm)")
@@ -531,11 +686,7 @@ class MainWindow:  #()QtWidgets.QMainWindow):
 
                 for i in livecounts.ch_numbers:
                     self.text_counts[i].setPos(self.wavelengths[i], 0)
-
-                    #self.text_counts2[i].setPos(self.wavelengths[i], self.plot_window.getViewBox().viewRange()[1][1])  # NOTE NEW FOR NM TEXT
-                    if False:
-                        self.text_counts2[i].setPos(self.wavelengths[i], 1)  # NOTE NEW FOR NM TEXT
-                        self.text_counts2[i].setText(f"{self.wavelengths[i]}")
+                    self.text_peaks[i].setPos(self.wavelengths[i], 0.8*self.plot_window.getViewBox().viewRange()[1][1])
 
             except:
                 print("ERROR: FAILED TO RESET X AXIS TICKS, REVERTING")
@@ -556,13 +707,13 @@ class MainWindow:  #()QtWidgets.QMainWindow):
             print(f"Toggled ch {ch} --> OFF")
 
     def clicked_setYmax(self):
-        new_y = self.entry_max.text()
         try:
-            self.plot_window.setYRange(0, eval(new_y))
+            new_ymax = eval(self.entry_max.text())
+            self.plot_window.setYRange(0, new_ymax)
             self.autoscale = False  # if we succeed setting it then we don't want autoscale
             self.checkbox_auto.setChecked(False)
             for i in livecounts.ch_numbers:
-                self.text_peaks[i].setPos(self.wavelengths[i], 0.8*self.plot_window.getViewBox().viewRange()[1][1])
+                self.text_peaks[i].setPos(self.wavelengths[i], 0.8*new_ymax)  # self.plot_window.getViewBox().viewRange()[1][1])
 
         except:
             print("Error trying to set y range (likely invalid input)")
@@ -590,8 +741,6 @@ class MainWindow:  #()QtWidgets.QMainWindow):
             self.entry_calibrate.setText("Try Again")
 
 
-        #self.button_recalibrate.setStyleSheet("background-color: grey")
-
     def update_plot(self):
 
         # Fetch new data
@@ -610,15 +759,12 @@ class MainWindow:  #()QtWidgets.QMainWindow):
             for i in livecounts.ch_numbers:
                 self.text_counts[i].setText(f"{int(livecounts.copy_counts[i])}")
 
-            # self.line.setData(livecounts.ch_numbers, all_cnts)   # for line plot   #FIXME???
-
             # CALCULATE WEIGHTED AVERAGE
             if np.sum(all_cnts_raw) != 0:
 
                 main.clicked_bunch()
 
                 #self.weighted_avg = round(np.sum(livecounts.ch_numbers * all_cnts_raw) / np.sum(all_cnts_raw), 2)  # FIXME
-                #self.plot_window.setTitle(f"Weighted Average Channel = {self.weighted_avg}", color="k", size="20pt")
 
                 if self.autoscale:
                     curr_y_max = np.max(all_cnts_norm)
@@ -627,7 +773,6 @@ class MainWindow:  #()QtWidgets.QMainWindow):
                         self.plot_window.setYRange(0, curr_y_max * 1.2)
 
             else:
-                self.plot_window.setTitle(f"", color="k", size="20pt")
                 self.plot_window.setYRange(0, 1)
 
 
@@ -635,6 +780,9 @@ if __name__ == "__main__":
     url = "130.237.35.20"
     base_url = f"ws://{url}"
 
+    col_choice = [(0,255,0), (255,0 ,0), (0,0,255), (0,255,255), (255,255,0),(255,0,255), (200, 200, 200)]+\
+                 [(0,255,0), (255,0 ,0), (0,0,255), (0,255,255), (255,255,0),(255,0,255), (200, 200, 200)]+\
+                 [(0,255,0), (255,0 ,0), (0,0,255), (0,255,255), (255,255,0),(255,0,255), (200, 200, 200)]
     # ----
     demo = True
     p1 = np.ones(24)
