@@ -136,7 +136,7 @@ def send_cmd(type, handle, value=None, speed=None):
 
     cmd = create_cmd(type, value)
 
-    if realtest:
+    if testcmd:
         if value:
             print(f"TEST Command = {cmd}")
             return value # REMOVE LATER
@@ -165,7 +165,7 @@ def send_cmd(type, handle, value=None, speed=None):
                 return res
 
             else:
-                time.sleep(off_time//2)
+                time.sleep(off_time//4)
                 res_r = handle.readall()
                 res += res_r.decode("ASCII")  # ASCII
                 if value:
@@ -262,7 +262,7 @@ def get_menu(step_size):
 
 def main():
 
-    step_size = 5  # +- step size for toggle nm
+    step_size = 0.5 # +- step size for t5352oggle nm
     handle = None  # NOTE: THIS IS INIT, i.e. OUTSIDE PROGRAM LOOP
     running = True
 
@@ -275,7 +275,10 @@ def main():
         current_nm = float(send_cmd('read nm value', handle))
         print(f"\nCURRENT DEVICE NM: {current_nm} nm")
 
-        saved_calibrations = {}
+        saved_calibrations = {
+            532.0 : 529,
+            650.0 : 656.0
+        }
         table_head = ["Laser", "Calibrated"]
 
         current_desired_nm = None
@@ -507,9 +510,10 @@ def main():
 
 
 
+
 # ------------------------------------
 demo = False  # NOTE THIS IS TO RUN WITHOUT SERIAL PORT DURING DEVELOPMENT
-realtest = False
+testcmd = False  # NOTE THIS IS TO RUN WITHOUT SERIAL PORT DURING DEVELOPMENT
 
 lookup_dict = {
     'read scan speed': {
