@@ -256,14 +256,16 @@ def get_menu(step_size):
                f"\n  ->     r / R / remove        (remove value from calibration table)" \
                f"\n  ->     l / L / line          (display equation for alignment regression line)" \
                f"\n  ->     p / P / plot          (plot the saved calibrations so far)    " \
+               f"\n  ->     save                  (save calibrations to text file)    " \
+               f"\n  ->     load                  (load calibrations from text file)    " \
                f"\n  ->     e / E / exit          (stop calibration program)              " \
                f"\n------------------------------------------------------------------"
     return menu_str
 
 def main():
 
-    step_size = 0.5 # +- step size for t5352oggle nm
-    handle = None  # NOTE: THIS IS INIT, i.e. OUTSIDE PROGRAM LOOP
+    step_size = 0.5    # +- step size for t5352oggle nm
+    handle = None      # NOTE: THIS IS INIT, i.e. OUTSIDE PROGRAM LOOP
     running = True
 
     print(f"\n------------------------------------------------------------------"
@@ -461,6 +463,40 @@ def main():
                 current_desired_nm = None   # NOTE: MAYBE REMOVE
                 continue
 
+            elif res in ['save']:  # save configs to file
+                try:
+                    filename = input(">>> Enter save filename: ")
+                    if not filename.endswith('.txt'):
+                        filename += '.txt'
+
+                    with open(filename, 'w') as f:
+                        f.writelines([f"{key} {saved_calibrations[key]}\n" for key in saved_calibrations.keys()])
+                        f.close()
+                    print("Saved calibrations to:", filename)
+                except:
+                    print("Failed to save to file:", filename)
+                    raise
+
+            elif res in ['load']:  # exit the program
+                try:
+                    filename = input("Enter load filename: ")
+                    if filename.endswith('.txt'):
+                        saved_calibrations = {}
+                        with open(filename, 'r') as f:
+                            data = f.readlines()
+                            f.close()
+                        for entry in data:
+                            key, val = entry.strip("\n").split(" ")
+                            saved_calibrations[eval(key)] = eval(val)
+                            print(key, "-->", val)
+                        print(f"Loaded configs from file: {filename}")
+                    else:
+                        print("Invalid filename. Try again")
+                        raise
+                except:
+                    print("Error trying to read from config file")
+                    raise
+
             elif res in ['e', 'E', 'exit']:  # exit the program
                 if handle:
                     handle.close()
@@ -509,10 +545,8 @@ def main():
         raise
 
 
-
-
 # ------------------------------------
-demo = False  # NOTE THIS IS TO RUN WITHOUT SERIAL PORT DURING DEVELOPMENT
+demo = False     # NOTE THIS IS TO RUN WITHOUT SERIAL PORT DURING DEVELOPMENT
 testcmd = False  # NOTE THIS IS TO RUN WITHOUT SERIAL PORT DURING DEVELOPMENT
 
 lookup_dict = {
@@ -551,6 +585,5 @@ lookup_dict = {
         'unit': 'nm',
     }
 }
-
 
 main()
