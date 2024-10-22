@@ -1,5 +1,4 @@
-#calibration 
-
+#calibration for wavelengths
 
 from tabulate import tabulate
 import numpy as np
@@ -10,21 +9,6 @@ import matplotlib.pyplot as plt
 import serial
 import time
 
-# TODO:
-# - make sure that the separator is a decimal and not a comma
-# (done with round(__, 1)) - make sure there is only one integer after the separator
-# - do a range check (0, 1000) nm or (400, 1000)
-# - create a program loop, to ask until exit is desired
-# - have a toggle that steps the NM by some amount
-# - ask for both wavelengths?
-# - add a TRY for connection
-
-
-# LATER TODO:
-# - plot values (saved from before?)
-# - print out all saved values in a nice table
-# - calculate MSE (or maybe RMS error) on the data points and linear regression
-# - extrapolate from this graph
 
 # ------------ ANALYSIS: ------------
 
@@ -81,12 +65,9 @@ def plot_calibration(x_list, y_list):
 # ------------ SERIAL: ------------
 
 def connect_serial(port='COM4'):
-    if demo:
-        return False
 
     # ----
-    handle = serial.Serial(port=port, baudrate=9600, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
-                           bytesize=serial.EIGHTBITS, timeout=1)
+    handle = serial.Serial(port=port, baudrate=9600, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, bytesize=serial.EIGHTBITS, timeout=1)
     if handle:
         print("Successfully connected to PORT:", 'COM4')
         #for thing in handle:
@@ -136,22 +117,16 @@ def send_cmd(type, handle, value=None, speed=None):
 
     cmd = create_cmd(type, value)
 
-    if testcmd:
-        if value:
-            print(f"TEST Command = {cmd}")
-            return value # REMOVE LATER
-
     if cmd is None:
         print("COMMAND IS NONE")
         return -1  # TODO: MAYBE ADD SOMETHING HERE
 
-    if not demo:
-        handle.write(cmd)
-        # 3) WAIT FOR OK SIGN
-        res = ''
-        off_time = 1  # seconds between each request
-        #print('write done, cmd=', cmd)
-        for i in range(int(off_time*time_iter)):
+    handle.write(cmd)
+    # 3) WAIT FOR OK SIGN
+    res = ''
+    off_time = 1  # seconds between each request
+    #print('write done, cmd=', cmd)
+    for i in range(int(off_time*time_iter)):
             if 'ok' in res:
                 res = res[strip_i[0]:strip_i[1]]
                 #print('OK FOUND --> done! \nFinal response:', res)
@@ -165,19 +140,14 @@ def send_cmd(type, handle, value=None, speed=None):
                 return res
 
             else:
-                time.sleep(off_time//4)
+                time.sleep(off_time//4)  # time.sleep(round(off_time/4, 2))
                 res_r = handle.readall()
                 res += res_r.decode("ASCII")  # ASCII
                 if value:
                     print(f'({i}/{time_iter})', "--> Response so far:", res)
-
                 else:
                     if i > 10:
                         print(f'({i}/{time_iter})', "--> Response so far:", res)
-
-    else:
-        #print("IN DEMO MODE, NO RESPONSE AVAILABLE")
-        return 500.0
 
     print("ERROR: NO Response Found, talk to Julia to check for bug")
     #if handle:
@@ -185,7 +155,7 @@ def send_cmd(type, handle, value=None, speed=None):
     #    #exit()
     #exit()
 
-    if speed:
+    if speed:   # change write scan speed back to 100
         cmd = create_cmd('write scan speed', 100)
         ans = input(f'cmd={cmd}. AT END Continue?')
         if ans == 'y':
@@ -202,42 +172,6 @@ def calcualte_time_iter(handle, new_val):
     current_nm = send_cmd('read nm value', handle)
 
     return np.max([int(60 * (np.abs(float(current_nm) - float(new_val)) / float(scan_speed))), max_wait]), round(float(eval(current_nm)), 1)  # in seconds
-
-
-"""def change_val(new_val):
-    pass
-    #print('\n----------\nchecking scan speed')
-    #cmd = '?NM/MIN\r'
-    #scan_speed = send_cmd(cmd, handle, 20, strip_i=[8,-6])
-    #print('SCAN SPEED=', scan_speed)
-
-    #print('\n----------\nchecking current value')
-    #cmd = '?NM\r'
-    #current_nm = send_cmd(cmd, handle, 20, strip_i=[4,-6])
-
-    #print('\n----------\nsending new value')
-    #cmd = f"{new_val} NM\r"
-    #wait_iter = np.max([int(60*(np.abs(float(current_nm) - new_val)/float(scan_speed))), 20])  # in seconds
-    #print('wait iter', wait_iter)
-    #res = send_cmd(cmd, handle, int(wait_iter), strip_i=[0,-6])  # note this returns a string
-"""
-"""def change_val(new_val):
-    pass
-    #print('\n----------\nchecking scan speed')
-    #cmd = '?NM/MIN\r'
-    #scan_speed = send_cmd(cmd, handle, 20, strip_i=[8,-6])
-    #print('SCAN SPEED=', scan_speed)
-
-    #print('\n----------\nchecking current value')
-    #cmd = '?NM\r'
-    #current_nm = send_cmd(cmd, handle, 20, strip_i=[4,-6])
-
-    #print('\n----------\nsending new value')
-    #cmd = f"{new_val} NM\r"
-    #wait_iter = np.max([int(60*(np.abs(float(current_nm) - new_val)/float(scan_speed))), 20])  # in seconds
-    #print('wait iter', wait_iter)
-    #res = send_cmd(cmd, handle, int(wait_iter), strip_i=[0,-6])  # note this returns a string
-"""
 
 
 # ------------ MAIN: ------------
@@ -264,7 +198,7 @@ def get_menu(step_size):
 
 def main():
 
-    step_size = 0.5    # +- step size for t5352oggle nm
+    step_size = 0.5    # +- step size for toggle nm
     handle = None      # NOTE: THIS IS INIT, i.e. OUTSIDE PROGRAM LOOP
     running = True
 
@@ -330,12 +264,8 @@ def main():
 
             elif res in ['t', 'T', 'table']:  # plot the current calibration values
 
-                if demo:
-                    x = [400, 450, 500, 600, 670]
-                    y = [412, 456, 523, 675, 682]
-                else:
-                    x = [xi for xi in saved_calibrations.keys()]
-                    y = [yi for yi in saved_calibrations.values()]
+                x = [xi for xi in saved_calibrations.keys()]
+                y = [yi for yi in saved_calibrations.values()]
 
                 print("Calibration table")
                 table_data = []
@@ -400,12 +330,9 @@ def main():
                     print("Incorrect input into table. Try again.")
 
             elif res in ['r', 'R', 'remove']:  # plot the current calibration values
-                if demo:
-                    x = [400, 450, 500, 600, 670]
-                    y = [412, 456, 523, 675, 682]
-                else:
-                    x = [xi for xi in saved_calibrations.keys()]
-                    y = [yi for yi in saved_calibrations.values()]
+
+                x = [xi for xi in saved_calibrations.keys()]
+                y = [yi for yi in saved_calibrations.values()]
 
                 print("Current calibration table")
                 table_data = []
@@ -427,12 +354,8 @@ def main():
 
             elif res in ['p', 'P', 'plot']:  # plot the current calibration values
 
-                if demo:
-                    x = [400, 450, 500, 600, 670]
-                    y = [412, 456, 523, 675, 682]
-                else:
-                    x = [xi for xi in saved_calibrations.keys()]
-                    y = [yi for yi in saved_calibrations.values()]
+                x = [xi for xi in saved_calibrations.keys()]
+                y = [yi for yi in saved_calibrations.values()]
 
                 print("Calibration table")
                 table_data = []
@@ -505,6 +428,7 @@ def main():
                 continue
 
             else:
+                # - note: make sure that the separator is a decimal and not a comma
                 try:
                     new_nm = round(float(eval(res)), 1)
                 except:
@@ -536,7 +460,6 @@ def main():
               f"\n                 CALIBRATION PROGRAM TERMINATED                   "
               f"\n------------------------------------------------------------------")
 
-
     except:
         if handle:
             handle.close()
@@ -546,8 +469,6 @@ def main():
 
 
 # ------------------------------------
-demo = False     # NOTE THIS IS TO RUN WITHOUT SERIAL PORT DURING DEVELOPMENT
-testcmd = False  # NOTE THIS IS TO RUN WITHOUT SERIAL PORT DURING DEVELOPMENT
 
 lookup_dict = {
     'read scan speed': {
