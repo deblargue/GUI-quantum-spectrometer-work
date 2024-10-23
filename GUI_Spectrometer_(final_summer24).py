@@ -50,7 +50,7 @@ import websockets
 
 # TODO:  (written: 16 june 2024)
 #  break up GUI into several files which are called or used
-#  look into SQL
+#  look into SQL and especially API
 #  consider making help functions more reusable and general
 #  use more kwargs**
 #  create configs file to save initialization procedure
@@ -278,7 +278,8 @@ class Plotting:
             plot1.set_title("Spectrum")
             plot1.set_xlabel(self.x_label.get())
             plot1.set_ylabel("counts")
-            plot1.set_xlim([x_bins[0] - 10, x_bins[-1] + 10])
+            #plot1.set_xlim([x_bins[0] - 2, x_bins[-1] + 2])
+            plot1.set_xlim([725.9, 733.6])
             #plot1.set_xticks(ticks=ticks_list)
             #fig.axes[0].set_xticklabels(x_centers)
             plot1.bar_label(bars, labels=labels)  # , fontsize=20, color='navy')
@@ -296,6 +297,17 @@ class Plotting:
 
             bins = np.linspace(start=left_pix_bound, stop=right_pix_bound, num=nr_pix+1, endpoint=True)  # , dtype=)
 
+            #ch5_nm = 728.5
+            #ch6_nm = 729.1
+            #ch7_nm = 730.0
+
+            #bins = [726.1, 726.7, 727.3, 727.9, 728.5, 729.1,
+            #        729.7, 730.3, 730.9, 731.5, 732.1, 732.7, 733.8]
+            # TODO ADD LIST OF ACTUAL WAVELENGTHS
+
+            bins = [726.1, 726.7, 727.3, 727.9, 728.5, 729.1,
+                    729.7, 730.3, 730.9, 731.5, 732.1, 732.7, 733.3]
+            #print("bins len:", len(bins), bins)
             return bins
 
         def get_counts():
@@ -305,6 +317,7 @@ class Plotting:
             # TODO FIX HARDCODE ABOVE TO BE NUMBER OF CHANNELS
             #print(self.parent.eta_class.folded_countrate_pulses.keys())
             for i, channel in enumerate(self.parent.eta_class.folded_countrate_pulses.keys()):
+                print("CHANNNEEEL", channel)
                 ch_labs.append(channel)  # TODO USE CHANNEL NUMBER TO GET WAVELENGTH
                 #print(self.parent.eta_class.folded_countrate_pulses[channel])
                 y_cnts.append(sum(self.parent.eta_class.folded_countrate_pulses[channel]))  # TODO CHECK THAAT THIS IS CORRECT
@@ -321,6 +334,10 @@ class Plotting:
         y_counts[4] = y_counts_temp[0]
         y_counts[5] = y_counts_temp[1]
         y_counts[6] = y_counts_temp[2]  # TODO FIXME THIS IS HARDCODED TEMP
+
+        print("5-->", ch_labels[0])
+        print("6-->", ch_labels[1])
+        print("7-->", ch_labels[2])
 
         # style.use('ggplot')
         fig = plt.Figure(figsize=(8, 5), dpi=100)
@@ -380,7 +397,8 @@ class Plotting:
             #        print(f"{thing} is hidden")
             #        continue  # doesn't plot when hidden
 
-            ax1.plot(delta_t, corr_dict[active_plot.get()], label=lookup[active_plot.get()])
+            avg_val = np.mean(corr_dict[active_plot.get()])
+            ax1.plot(delta_t, corr_dict[active_plot.get()]/avg_val, label=lookup[active_plot.get()])
 
             ax1.legend()
             ax1.set_xlabel('time [ns]', fontsize=10)
@@ -388,17 +406,35 @@ class Plotting:
             ax1.set_xlim([-30, 30])
             ax1.legend()
             fig.canvas.draw_idle()  # updates the canvas immediately?
+        # h2 --> ch6
+        # h3 --> ch7
+        # h4 --> ch5
+        lookup = {
+            'h24': 'ch.5 - ch.6',
+            'h23': 'ch.6 - ch.7',
+            'h34': 'ch.5 - ch.7',
+        }
 
-        lookup = {'h23': '5-6',
-                  'h24': '5-7',
-                  'h34': '6-7'}
+        lookup_chs = {
+            'h2': {
+                'ch': '6',
+                'nm': ch6_nm},
+            'h3': {
+                'ch': '7',
+                'nm': ch7_nm},
+            'h4': {
+                'ch': '5',
+                'nm': ch5_nm},
+        }
+
         active_plot = tk.StringVar(value='h24')
 
         self.ch_show_correlation = {
+            'h24': tk.BooleanVar(value=True),
             'h23': tk.BooleanVar(value=True),
             'h34': tk.BooleanVar(value=True),
-            'h24': tk.BooleanVar(value=True)
         }
+
 
         # the figure that will contain the plot
         fig = plt.figure(figsize=(8, 5), dpi=100)  # 10 3
@@ -427,11 +463,11 @@ class Plotting:
 
             for ph_i in range(1, 13):
                 if ph_i == 5:
-                    ttk.Checkbutton(butt_frame_t, text=lookup['h2'], command=update_plot, variable=self.ch_show_countrate['h2'], onvalue=True, offvalue=False).grid(row=ph_i, column=0, columnspan=1, sticky="ew")
-                elif ph_i == 6:
-                    ttk.Checkbutton(butt_frame_t, text=lookup['h3'], command=update_plot, variable=self.ch_show_countrate['h3'], onvalue=True, offvalue=False).grid(row=ph_i, column=0, columnspan=1, sticky="ew")
-                elif ph_i == 7:
                     ttk.Checkbutton(butt_frame_t, text=lookup['h4'], command=update_plot, variable=self.ch_show_countrate['h4'], onvalue=True, offvalue=False).grid(row=ph_i, column=0, columnspan=1, sticky="ew")
+                elif ph_i == 6:
+                    ttk.Checkbutton(butt_frame_t, text=lookup['h2'], command=update_plot, variable=self.ch_show_countrate['h2'], onvalue=True, offvalue=False).grid(row=ph_i, column=0, columnspan=1, sticky="ew")
+                elif ph_i == 7:
+                    ttk.Checkbutton(butt_frame_t, text=lookup['h3'], command=update_plot, variable=self.ch_show_countrate['h3'], onvalue=True, offvalue=False).grid(row=ph_i, column=0, columnspan=1, sticky="ew")
                 else:
                     ttk.Checkbutton(butt_frame_t, text=lookup[f'ph{ph_i}'], state='disabled').grid(row=ph_i, column=0, columnspan=1,sticky="ew")
                     #but.configure(state='disabled')
@@ -454,7 +490,10 @@ class Plotting:
                     print(f"{thing} is hidden")
                     continue  # doesn't plot when hidden
 
-                ax1.plot(time_axis, count_dict[thing], c=self.ch_colors[thing], label=lookup[thing])
+                ax1.plot(time_axis, count_dict[thing], c=self.ch_colors[thing], label=lookup[thing]+' (0.1s)')
+                #ax1.axhline(y=np.sum(count_dict[thing])/1.4, c=self.ch_colors[thing], linestyle='--', label=lookup[thing]+' (1s)')
+                #ax1.axhline(y=np.sum(count_dict[thing]), c=self.ch_colors[thing], linestyle='-', label='TEMP: total accum')
+                # TODO REMOVE^ only applicable for the 1s measurement
 
             ax1.legend()
             ax1.set_xlabel('time [s]', fontsize=10)
@@ -468,9 +507,9 @@ class Plotting:
                   'ph2': 'ch.2',
                   'ph3': 'ch.3',
                   'ph4': 'ch.4',
-                  'h2' : 'ch.5',
-                  'h3' : 'ch.6',
-                  'h4' : 'ch.7',
+                  'h4' : 'ch.5',
+                  'h2' : 'ch.6',
+                  'h3' : 'ch.7',
                   'ph8':'ch.8',
                   'ph9':'ch.9',
                   'ph10':'ch.10',
@@ -478,14 +517,14 @@ class Plotting:
                   'ph12':'ch.12',}
 
         self.ch_show_countrate = {
+            'h4': tk.BooleanVar(value=True),
             'h2': tk.BooleanVar(value=True),
             'h3': tk.BooleanVar(value=True),
-            'h4': tk.BooleanVar(value=True)
         }
         self.ch_colors = {
-            'h2': 'tab:blue',
-            'h3': 'tab:orange',
-            'h4': 'tab:green'
+            'h4': 'tab:blue',
+            'h2': 'tab:orange',
+            'h3': 'tab:green'
         }
 
         # the figure that will contain the plot
@@ -778,14 +817,16 @@ class Plotting:
 
                 if scale == 'linear':
                     line_b, = ax1.plot(x[idx_min:idx_max], y[idx_min:idx_max],
-                                       label=f'{self.parent.eta_class.pix_dict[thing]["wavelength"]} nm (c{thing})',
+                                       label=f'{lookup[thing]["nm"]} nm (ch.{lookup[thing]["ch"]})',
                                        #c=self.parent.eta_class.pix_dict[thing]["color"], alpha=0.8
                                         )
                 elif scale == 'log':
                     line_b, = ax1.semilogy(x[idx_min:idx_max], y[idx_min:idx_max],
-                                           label=f'{self.parent.eta_class.pix_dict[thing]["wavelength"]} (c{thing})',
+                                           label=f'{lookup[thing]["nm"]} nm (ch.{lookup[thing]["ch"]})',
+                                           #label=f'{self.parent.eta_class.pix_dict[thing]["wavelength"]} (c{thing})',
                                            #c=self.parent.eta_class.pix_dict[thing]["color"], alpha=0.8
                                            )
+
                 # elif scale == 'histo':
                 #    N, bins, bars = ax1.hist(x[idx_min:idx_max], bins=b[idx_min:idx_max], weights=y[idx_min:idx_max], rwidth=1, align='left')
 
@@ -797,7 +838,8 @@ class Plotting:
 
             ax1.set_xlim([time_min.get(), time_max.get()])
             ax1.set_ylim([cnt_min.get(), cnt_max.get()])
-            ax1.set_xlabel("lifetime [ns]")
+            ax1.set_xlabel("time [ps]")
+            ax1.set_ylabel("counts")
             ax1.set_title("Lifetime")
 
             ax1.legend()
@@ -816,13 +858,23 @@ class Plotting:
             """
 
         # self.ch_show_corr = {'h2': True, 'h3': True, 'h4': True}
-        self.ch_show_lifetime = {'h2': True, 'h3': True, 'h4': True}
+        self.ch_show_lifetime = {'h4': True, 'h2': True, 'h3': True}
         # self.ch_show = {'h2': True, 'h3': True, 'h4': True}
         time_min = tk.DoubleVar(value=4000.0)
         time_max = tk.DoubleVar(value=8500.0)
         cnt_min = tk.DoubleVar(value=0.0)
         cnt_max = tk.DoubleVar(value=20000.0)
-
+        lookup = {
+            'h2' : {
+                'ch': '6',
+                'nm' : ch6_nm},
+            'h3' : {
+                'ch': '7',
+                'nm' : ch7_nm},
+            'h4' : {
+                'ch': '5',
+                'nm' : ch5_nm},
+        }
         range_list = tk.StringVar(value="2-4")
         plot_mode = tk.StringVar(value="linear")
         self.show_buttons = []
@@ -1099,7 +1151,7 @@ class Plotting:
             shown_ticks = []
             for key in self.ch_show_lifetime.keys():
                 if self.ch_show_lifetime[key]:
-                    shown_ticks.append(f'{self.parent.eta_class.pix_dict[key]["wavelength"]} nm\nch.{key[1:]}   ')
+                    shown_ticks.append(f'{lookup[key]["nm"]} nm\nch.{lookup[key]["ch"]}   ')
 
             ticks = [i + 1 for i in range(len(shown_ticks))]
             ax1.set_yticks(ticks)
@@ -1108,17 +1160,29 @@ class Plotting:
 
             ax1.set_xlim([x_min.get(), x_max.get()])
             ax1.set_ylim([0.0, len(shown_ticks)+1.0])  # not applicable here anymore, used to change range on colorbar
-            ax1.set_xlabel("time [ns]")
+            ax1.set_xlabel("time [ps]")
             ax1.set_title("Lifetime Color")
             #ax1.legend()
             fig.canvas.draw_idle()   # updates the canvas immediately?
 
-        self.ch_show_lifetime = {'h2': True, 'h3': True, 'h4': True}
+        self.ch_show_lifetime = {'h4': True, 'h2': True, 'h3': True}
         x_min = tk.DoubleVar(value=0.0)
         x_max = tk.DoubleVar(value=12500.0)
         y_min = tk.DoubleVar(value=0.0)
         y_max = tk.DoubleVar(value=100000.0)
         line_thickness = tk.DoubleVar(value=270.0)
+
+        lookup = {
+            'h2' : {
+                'ch': '6',
+                'nm' : ch6_nm},
+            'h3' : {
+                'ch': '7',
+                'nm' : ch7_nm},
+            'h4' : {
+                'ch': '5',
+                'nm' : ch5_nm},
+        }
 
         range_list = tk.StringVar(value="2-4")
         plot_mode = tk.StringVar(value="linear")
@@ -1275,7 +1339,7 @@ class Plotting:
             fig.clear()
             ax1 = fig.add_subplot(111, projection='3d')
 
-            ax1.set_xlabel("time [ns]")
+            ax1.set_xlabel("time [ps]")
             ax1.set_zlabel("counts")
             ax1.set_title("Spectrum")
 
@@ -1318,7 +1382,7 @@ class Plotting:
 
             ax1.set_xlim([time_min.get(), time_max.get()])
             ax1.set_zlim([cnt_min.get(), cnt_max.get()])
-            ax1.set_xlabel("lifetime [ns]")
+            ax1.set_xlabel("lifetime [ps]")
             ax1.set_title("3D Lifetime")
             #ax1.legend()
             fig.canvas.draw_idle()   # updates the canvas immediately?
@@ -1850,8 +1914,8 @@ class NewScanGroup:
 
         self.params = {
             'grating':     {'var': tk.IntVar(value=1),   'type': 'radio',     'default': 1,   'value': [1, 2, 3]},
-            'nm':          {'var': tk.IntVar(value=532), 'type': 'int entry', 'default': 532, 'value': [350, 650, 750]},
-            'width_nm':    {'var': tk.IntVar(value=5),   'type': 'int entry', 'default': 5,  'value': [5, 15, 30]},
+            'nm':          {'var': tk.DoubleVar(value=ch6_nm), 'type': 'int entry', 'default': 532, 'value': [350, 650, 750]},
+            'width_nm':    {'var': tk.DoubleVar(value=0.6),   'type': 'int entry', 'default': 5,  'value': [5, 15, 30]},
             'slit':        {'var': tk.IntVar(value=10),  'type': 'int entry', 'default': 10,  'value': [10, 20, 30]},
             'scantime':    {'var': tk.IntVar(value=5),   'type': 'int entry', 'default': 5,  'value': [1, 5, 10]},
             'nr_pixels':   {'var': tk.IntVar(value=12),   'type': 'int entry', 'default': 12,   'value': [8, 12, 24]},
@@ -2173,8 +2237,7 @@ class NewScanGroup:
             'wid_txt': [ttk.Label(frm['grating'], text='Width')],
         }
         for c in range(3):
-            grating_widget_dict['radio_b'].append(ttk.Radiobutton(frm['grating'], text="", variable=self.params['grating']['var'], value=c + 1,
-                                                                  command=select_grating))
+            grating_widget_dict['radio_b'].append(ttk.Radiobutton(frm['grating'], text="", variable=self.params['grating']['var'], value=c + 1, command=select_grating))
             grating_widget_dict['grt_txt'].append(ttk.Label(frm['grating'], text=f"  {self.grating_lvl[c + 1]['grating']}"))
             grating_widget_dict['blz_txt'].append(ttk.Label(frm['grating'], text=f"  {self.grating_lvl[c + 1]['blz']}"))
             grating_widget_dict['wid_txt'].append(ttk.Label(frm['grating'], text=f"  {self.grating_lvl[c + 1]['width']}"))
@@ -2418,9 +2481,12 @@ class LoadScanGroup:
     def __init__(self):
         self.params = {
             'grating':     {'var': tk.IntVar(value=1),   'type': 'radio',     'default': 1,   'value': [1, 2, 3]},
-            'nm':          {'var': tk.IntVar(value=600), 'type': 'int entry', 'default': 350, 'value': [350, 650, 750]},
-            'width_nm':    {'var': tk.IntVar(value=10),   'type': 'int entry', 'default': 10,  'value': [5, 15, 30]},
+            #'nm':          {'var': tk.IntVar(value=600), 'type': 'int entry', 'default': 350, 'value': [350, 650, 750]},
+            #'width_nm':    {'var': tk.IntVar(value=10),   'type': 'int entry', 'default': 10,  'value': [5, 15, 30]},
+            'nm': {'var': tk.DoubleVar(value=ch6_nm), 'type': 'int entry', 'default': 532, 'value': [350, 650, 750]},
+            'width_nm': {'var': tk.DoubleVar(value=0.6), 'type': 'int entry', 'default': 5, 'value': [5, 15, 30]},
             'slit':        {'var': tk.IntVar(value=10),  'type': 'int entry', 'default': 10,  'value': [10, 20, 30]},
+            'scantime': {'var': tk.DoubleVar(value=1), 'type': 'int entry', 'default': 1, 'value': [1, 5, 10]},
             'nr_pixels':   {'var': tk.IntVar(value=8),   'type': 'int entry', 'default': 8,   'value': [3, 8, 12]},
             'file_name':   {'var': tk.StringVar(value="Data/240614/Spectrometer_test_4s_(3ch_5_6_7)_240614.timeres"), 'type': 'str entry', 'default': '...',  'value': ['butterfly.timeres', 'frog.timeres', 'sheep.timeres']},
             'eta_recipe':  {'var': tk.StringVar(value="3D_2_channels_tof_swabian_marker_ch4.eta"), 'type': 'str entry', 'default': '...',  'value': ['~/Desktop/GUI/Recipe/gui_recipe_1.eta', '~/Desktop/GUI/Recipe/gui_recipe_2.eta', '~/Desktop/GUI/Recipe/gui_recipe_3.eta']},
@@ -2453,6 +2519,8 @@ class LoadScanGroup:
                 self.loading = False
 
                 if not self.cancel:
+                    scantime = self.params['scantime']['var'].get()
+                    self.eta_class.load_all_engines(scantime=scantime)
                     self.eta_class.new_tof_analysis()
                     gui.add_plot_tabs(parent_class=self, parent_name='Load')
                     analyzed_file_label.config(text=f"Analyzed file: {self.params['file_name']['var'].get()}")
@@ -2566,6 +2634,9 @@ class LoadScanGroup:
         wid_parts = [ttk.Label(frm_configs, text="Pixel width (nm)"),
                      ttk.Entry(frm_configs, textvariable=self.params['width_nm']['var'], width=4)]
 
+        time_parts = [ttk.Label(frm_configs, text="Scan time (s)"),  # TODO USE!!! (only used in analysis now)
+                     ttk.Entry(frm_configs, textvariable=self.params['scantime']['var'], width=4)]
+
         center_parts[1].bind('<Return>', update_spectrum)
         wid_parts[1].bind('<Return>', update_spectrum)
 
@@ -2574,6 +2645,7 @@ class LoadScanGroup:
         # -- Detector
         gui.add_to_grid(widg=center_parts, rows=[1, 2], cols=[1, 1], sticky=["ew", "ew"])  # center wavelength
         gui.add_to_grid(widg=wid_parts, rows=[1, 2], cols=[2, 2], sticky=["ew", "ew"])
+        gui.add_to_grid(widg=time_parts, rows=[1, 2], cols=[3, 3], sticky=["ew", "ew"])
         #gui.add_to_grid(widg=det_no_parts, rows=[1, 2, 3, 4], cols=[0, 0, 0, 0], sticky=["ew", "ew", "ew", "ew"])  # nr of pixels
 
         return frm_configs
@@ -2710,7 +2782,7 @@ class ETA:
 
         return eta_engine
 
-    def load_all_engines(self):
+    def load_all_engines(self, scantime = 1):
         #bins = 10000
         #binsize = 20
 
@@ -2718,7 +2790,6 @@ class ETA:
         #self.eta_engine_lifetime = self.load_eta(self.const["eta_recipe_lifetime"], bins=self.const["bins"], binsize=self.const["binsize"])  # NOTE: removed for test
         #self.eta_engine_spectrum = self.load_eta(self.const["eta_recipe_spectrum"], bins=self.const["bins"], binsize=self.const["binsize"])  # NOTE: removed for test
 
-        scantime = 4
         self.binsize_dict['counts'] = 10 * (10 ** 10)
         self.bins_dict['counts'] = (scantime * 0.1) * (10 ** 2)
 
@@ -2852,7 +2923,7 @@ class ETA:
 
         self.lifetime_bins_ns = time_axis = np.arange(bins) * binsize
 
-        channels = ['h2', 'h3', 'h4']
+        channels = ['h4', 'h2', 'h3']
 
         #max_val = np.max([np.max(result[c]) for c in channels])
         #self.folded_countrate_pulses = dict([(c, result[c]/max_val) for c in channels])
@@ -3155,6 +3226,11 @@ class ColorMatchingCIE:
         return '#{:02x}{:02x}{:02x}'.format(R, G, B)
 
 # -------------
+
+# TODO:
+ch5_nm = 728.5
+ch6_nm = 729.1
+ch7_nm = 730.0
 
 try:
 
