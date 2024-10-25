@@ -7,6 +7,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 import serial
+from serial.tools import list_ports
+
 import time
 
 
@@ -64,7 +66,7 @@ def plot_calibration(x_list, y_list):
 
 # ------------ SERIAL: ------------
 
-def connect_serial(port='COM4'):
+def connect_serial(port='COM8'):
 
     # ----
     handle = serial.Serial(port=port, baudrate=9600, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, bytesize=serial.EIGHTBITS, timeout=1)
@@ -196,8 +198,63 @@ def get_menu(step_size):
                f"\n------------------------------------------------------------------"
     return menu_str
 
-def main():
 
+def get_ports(acton_serial):  # TODO: find our device port and connect automatically
+    """
+    device:          COM4
+    name:            COM4
+    description:     USB Serial Port (COM4)
+    hwid:            USB VID:PID=0403:6015 SER=FT5Z6FVRA
+    vid:             1027
+    pid:             24597
+    serial_number:   FT5Z6FVRA
+    location:        None
+    manufacturer:    FTDI
+    product:         None
+    interface:       None
+    """
+    #available_ports = {}
+    #port_list = []
+    for i, port in enumerate(serial.tools.list_ports.comports()):
+        """available_ports[i] = {
+            'device': port.device,  # !
+            'name': port.name,  # !
+            'description': port.description,  # !
+            'hwid': port.hwid,
+            'vid': port.vid,
+            'pid': port.pid,
+            'serial_number': port.serial_number,  # !
+            'location': port.location,
+            'manufacturer': port.manufacturer,  # !
+            'product': port.product,
+            'interface': port.interface,
+        }
+        port_list.append(f'{port.name}')  # (S/N:{port.serial_number})')"""
+        print(f'---------\n'
+              f'device:            {port.device}'
+              f'\nname:            {port.name}'
+              f'\ndescription:     {port.description}'
+              )
+        if (port.serial_number == acton_serial) and (port.manufacturer == 'FTDI'):
+            print(f"FOUND ACTON DEVICE ON PORT {port.device}")
+
+            print(f'---------\n'
+                  f'device:            {port.device       }'
+                  f'\nname:            {port.name         }'
+                  f'\ndescription:     {port.description  }'
+                  f'\nhwid:            {port.hwid         }'
+                  f'\nvid:             {port.vid          }'
+                  f'\npid:             {port.pid          }'
+                  f'\nserial_number:   {port.serial_number}'
+                  f'\nlocation:        {port.location     }'
+                  f'\nmanufacturer:    {port.manufacturer }'
+                  f'\nproduct:         {port.product      }'
+                  f'\ninterface:       {port.interface    }'
+                  f'\n---------')
+
+
+def main():
+    acton_serial = 'FT5Z6FVRA'  # Todo: check fi correct!!
     step_size = 0.5    # +- step size for toggle nm
     handle = None      # NOTE: THIS IS INIT, i.e. OUTSIDE PROGRAM LOOP
     running = True
@@ -207,7 +264,15 @@ def main():
           f"\n------------------------------------------------------------------")
 
     try:
-        handle = connect_serial()
+        get_ports(acton_serial)
+        for _ in range(10):  # gives user 10 chances to try to connect via serial port
+            given_port = input("---------\n>>> Which port is SP150 connected to? (eg. 'COM8'): ...")
+            try:
+                handle = connect_serial(port=given_port)
+                break
+            except:
+                print("Could not connect, try again!")
+
         current_nm = float(send_cmd('read nm value', handle))
         print(f"\nCURRENT DEVICE NM: {current_nm} nm")
 
