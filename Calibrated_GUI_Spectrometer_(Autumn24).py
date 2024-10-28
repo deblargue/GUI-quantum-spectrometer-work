@@ -1,84 +1,31 @@
-# - PLATFORM IMPORTS
-import os
-import glob
-import platform
+# - GUI IMPORTS
 import serial
 from serial.tools import list_ports
 from datetime import date
-import json  # for eta?
-import time  # for eta?
-from pathlib import Path # for eta?
+import time                 # for eta?
+import numpy as np
 
 # - GUI IMPORTS
 import tkinter as tk
 from tkinter import ttk
-from tkinter.filedialog import askopenfilename, askdirectory, asksaveasfilename
+from tkinter.filedialog import askopenfilename, asksaveasfilename   # , askdirectory
 from ttkthemes import ThemedTk
-
-# - SCIENTIFIC IMPORTS
-import numpy as np
-#import logging  ?
+from tkinter import scrolledtext
 
 # - PLOTTING IMPORTS
-import matplotlib   # JULIA NEW 2 sept
-matplotlib.use("TkAgg")   # JULIA NEW 2 sept  # NOTE: import order matters
+import matplotlib
+matplotlib.use("TkAgg")   # NOTE: import order matters
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib import pyplot as plt
-#import matplotlib.colors as mat_col
-#import matplotlib.ticker as ticker
-# from matplotlib import style
-# from matplotlib.backend_bases import key_press_handler
 from matplotlib.collections import LineCollection
-from matplotlib.colors import BoundaryNorm, ListedColormap
-import colour
-from colour import Color
-
-# - RETINA IMPORTS
-# TODO: FIX
-import websockets
+# - RETINA SNSPD IMPORTS
 #from Code.RetinaFiles.src.WebSQController import WebSQController
-from Code.RetinaFiles.src.WebSQSocketController import websocket_client
-from Code.SpectroSrcLib.CIEColorMatching import ColorMatchingCIE
-#from Code.SpectroSrcLib.ScrollFrame import ScrollFrame
+# - Spectro GUI Library IMPORTS
+from Code.SpectroGUILibrary.CIEColorMatching import ColorMatchingCIE
+from Code.SpectroGUILibrary.SpectroGUILibrary import DebuggingFunctions, ETA, LiveCounts
+#from Code.SpectroGUILibrary.ScrollFrame import ScrollFrame  # TODO: CHECK IF WE STILL WANT IT
 
-# - ETA backend IMPORTS
-import etabackend.eta  # Available at: https://github.com/timetag/ETA, https://eta.readthedocs.io/en/latest/
-
-import asyncio
-import signal
-import struct
-
-# TODO:
-#  With each measurement we should save a configuration file that can be used to load information about scan
-
-
-class DebuggingFunctions:
-
-    @staticmethod
-    def get_children(parent):
-        return parent.winfo_children()
-
-    @staticmethod
-    def remove_child(parent, idx):
-        try:
-            parent.winfo_children()[idx].destroy()
-            return True
-        except:
-            return False
-
-    @staticmethod
-    def print_children(parent, parentname="", info=""):
-        print(f"------------\n"
-              f"DEBUGGING: 'print_children()'\n"
-              f"# Info=\n"
-              f"  --> {info}\n"
-              f"# Parent=\n"
-              f"  --> {parentname}\n"
-              f"# Children=")
-        for widget in parent.winfo_children():
-            print(f"  --> {widget}")
-        print("------------")
-
+# Plotting --> Approx 1000 lines
 class Plotting:
     def __init__(self, parent):
 
@@ -91,72 +38,23 @@ class Plotting:
         self.plots = {}  # TODO: save plot, axes, and frame handles for different plots
         # self.eta_class??? todo
 
-    def create_color_gradient(self, start_hex='#000000', finish_hex='#ffffff', n=10):
-        # SOURCE: https://bsouthga.dev/posts/color-gradients-with-python
-
-        def hex_to_RGB(hex):
-            ''' "#FFFFFF" -> [255,255,255] '''
-            # Pass 16 to the integer function for change of base
-            return [int(hex[i:i + 2], 16) for i in range(1, 6, 2)]
-
-        def RGB_to_hex(RGB):
-            ''' [255,255,255] -> "#FFFFFF" '''
-            # Components need to be integers for hex to make sense
-            RGB = [int(x) for x in RGB]
-            return "#" + "".join(["0{0:x}".format(v) if v < 16 else
-                                  "{0:x}".format(v) for v in RGB])
-
-        def color_dict(gradient):
-            ''' Takes in a list of RGB sub-lists and returns dictionary of
-              colors in RGB and hex form for use in a graphing function
-              defined later on '''
-            return {"hex": [RGB_to_hex(RGB) for RGB in gradient],
-                    "r": [RGB[0] for RGB in gradient],
-                    "g": [RGB[1] for RGB in gradient],
-                    "b": [RGB[2] for RGB in gradient]}
-
-        ''' returns a gradient list of (n) colors between
-          two hex colors. start_hex and finish_hex
-          should be the full six-digit color string,
-          inlcuding the number sign ("#FFFFFF") '''
-        # Starting and ending colors in RGB form
-        s = hex_to_RGB(start_hex)
-        f = hex_to_RGB(finish_hex)
-        # Initilize a list of the output colors with the starting color
-        RGB_list = [s]
-        # Calcuate a color at each evenly spaced value of t from 1 to n
-        for t in range(1, n):
-            # Interpolate RGB vector for color at the current value of t
-            curr_vector = [ int(s[j] + (float(t) / (n - 1)) * (f[j] - s[j])) for j in range(3) ]
-            # Add it to our list of output colors
-            RGB_list.append(curr_vector)
-
-        return color_dict(RGB_list)
-
     def plot_spectrum_widget(self, tab):
-        # TODO: make it live? live graph???
 
         def convert_values():
+            # return a list of x values
             unit = self.x_label.get()
 
             if unit == "λ [nm]":
-                x = [value for value in x_bins]
-
+                return [value for value in x_bins]
             elif unit == "f [Hz]":
-                c = 2.99792458e9
-                x = [c/(value*1e-9) for value in x_bins]
-
+                return [2.99792458e9/(value*1e-9) for value in x_bins]  # c = 2.99792458e9
             elif unit == "E [eV]":
-                x = [1240/value for value in x_bins]
-
+                return [1240/value for value in x_bins]
             elif unit == "v [1/cm]":
-                x = [1/(value_nm*1e-7) for value_nm in x_bins]
-
+                return [1/(value_nm*1e-7) for value_nm in x_bins]
             else:
                 self.parent.write_log(f"ERROR NOT FOUND")
-                x = []
-
-            return x
+                return []
 
         def pressed_xlabel():  # TODO: add data conversion for respective unit
             fig.clear()
@@ -187,14 +85,14 @@ class Plotting:
             plot1.set_title("Spectrum")
             plot1.set_xlabel(self.x_label.get())
             plot1.set_ylabel("counts")
-            #plot1.set_xlim([x_bins[0] - 2, x_bins[-1] + 2])
-            plot1.set_xlim([725.9, 733.6])
+            plot1.set_xlim([x_bins[0] - 2, x_bins[-1] + 2])  # plot1.set_xlim([725.9, 733.6])
             #plot1.set_xticks(ticks=ticks_list)
             #fig.axes[0].set_xticklabels(x_centers)
             plot1.bar_label(bars, labels=labels)  # , fontsize=20, color='navy')
 
             canvas.draw()
 
+        # TODO: Switch to utilizing calibrated values
         def get_bins():
             #nr_pix = self.parent.params['nr_pixels']['var'].get()
             nr_pix = 12  # len(self.parent.eta_class.folded_countrate_pulses.keys())   # TODO FIXME: what happens if we define more channels than we have data on?
@@ -206,35 +104,20 @@ class Plotting:
 
             bins = np.linspace(start=left_pix_bound, stop=right_pix_bound, num=nr_pix+1, endpoint=True)  # , dtype=)
 
-            #ch5_nm = 728.5
-            #ch6_nm = 729.1
-            #ch7_nm = 730.0
-
-            #bins = [726.1, 726.7, 727.3, 727.9, 728.5, 729.1,
-            #        729.7, 730.3, 730.9, 731.5, 732.1, 732.7, 733.8]
             # TODO ADD LIST OF ACTUAL WAVELENGTHS
-
             bins = [726.1, 726.7, 727.3, 727.9, 728.5, 729.1,
                     729.7, 730.3, 730.9, 731.5, 732.1, 732.7, 733.3]
-            #print("bins len:", len(bins), bins)
             return bins
 
         def get_counts():
             ch_labs = []  # bin centers   #TODO: use as extra label for x axis
             y_cnts = []  # total counts per bin
-
             # TODO FIX HARDCODE ABOVE TO BE NUMBER OF CHANNELS
-            #print(self.parent.eta_class.folded_countrate_pulses.keys())
             for i, channel in enumerate(self.parent.eta_class.folded_countrate_pulses.keys()):
-                print("CHANNNEEEL", channel)
                 ch_labs.append(channel)  # TODO USE CHANNEL NUMBER TO GET WAVELENGTH
-                #print(self.parent.eta_class.folded_countrate_pulses[channel])
                 y_cnts.append(sum(self.parent.eta_class.folded_countrate_pulses[channel]))  # TODO CHECK THAAT THIS IS CORRECT
-
-            #y_cnts[0] += y_cnts[1] / 2  # note temp change to test  # REMOVE LATER!
-            #y_cnts[3] += y_cnts[1] / 2  # note temp change to test  # REMOVE LATER!
-
             return ch_labs, y_cnts
+
 
         self.x_label.set('λ [nm]')
 
@@ -344,7 +227,6 @@ class Plotting:
             'h34': tk.BooleanVar(value=True),
         }
 
-
         # the figure that will contain the plot
         fig = plt.figure(figsize=(8, 5), dpi=100)  # 10 3
         ax1 = fig.add_subplot(111)
@@ -370,6 +252,7 @@ class Plotting:
             ttk.Label(butt_frame_s, text="\nDisplay channels:").grid(row=2, column=1, columnspan=2, sticky="ew")
             # TODO ADD CHECK BOXES
 
+            # NOTE: FIX THIS BELOW
             for ph_i in range(1, 13):
                 if ph_i == 5:
                     ttk.Checkbutton(butt_frame_t, text=lookup['h4'], command=update_plot, variable=self.ch_show_countrate['h4'], onvalue=True, offvalue=False).grid(row=ph_i, column=0, columnspan=1, sticky="ew")
@@ -492,17 +375,6 @@ class Plotting:
 
     def plot_lifetime_widget(self, tab):
 
-        def reset_xlims():
-            time_min.set(0.0)
-            time_max.set(self.parent.eta_class.lifetime_bins_ns[-1])
-            update_plot()
-
-        def reset_ylims():
-            cnt_min.set(0.0)
-            max_count = [np.max(lst) for lst in self.parent.eta_class.folded_countrate_pulses.values()]
-            cnt_max.set(round(1.05 * np.max(max_count)))
-            update_plot()
-
         def reset_lims():
             time_min.set(0.0)
             time_max.set(self.parent.eta_class.lifetime_bins_ns[-1])
@@ -530,7 +402,6 @@ class Plotting:
             butt_frame_s = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=1)
             ttk.Label(butt_frame_s, text="\nDisplay channels:").grid(row=2, column=1, columnspan=2, sticky="ew")
             ttk.Entry(butt_frame_s, textvariable=range_list, width=5).grid(row=3, column=1, columnspan=2, sticky="new")
-
             # ttk.Label(butt_frame_s, text="\nLine thickness:").grid(row=2, column=3, columnspan=2, sticky="new")
             # ttk.Entry(butt_frame_s, textvariable=line_thickness, width=5).grid(row=3, column=3, columnspan=2, sticky="new")
 
@@ -539,14 +410,8 @@ class Plotting:
             ttk.Label(butt_frame_p, text=f'\nScale:').grid(row=1, column=1, columnspan=1, sticky="ew")
 
             self.scale_buttons = {
-                # 'linear':       tk.Button(butt_frame_p, text="  Linear  ", highlightbackground='green', command=lambda: press_scale_plot('linear')),
-                # 'linear':       ttk.Button(butt_frame_p, text="  Linear  ", command=lambda: press_scale_plot('linear')),
-                # 'log':          ttk.Button(butt_frame_p, text=" Semi-Log ", command=lambda: press_scale_plot('log')),
-                'linear': ttk.Radiobutton(butt_frame_p, text="Linear", value='linear', variable=plot_mode,
-                                          command=press_scale_plot),
-                'log': ttk.Radiobutton(butt_frame_p, text="Semi-Log", value='log', variable=plot_mode,
-                                       command=press_scale_plot),
-                # ttk.Radiobutton(frm['grating'], text="", variable=self.params['grating']['var'], value=c + 1, command=select_grating)
+                'linear': ttk.Radiobutton(butt_frame_p, text="Linear", value='linear', variable=plot_mode, command=press_scale_plot),
+                'log': ttk.Radiobutton(butt_frame_p, text="Semi-Log", value='log', variable=plot_mode,                                       command=press_scale_plot),
             }
 
             for i, thing in enumerate(self.scale_buttons.values()):
@@ -565,53 +430,6 @@ class Plotting:
             butt_frame_t.grid(row=3, column=0, sticky="news")
             butt_frame_s.grid(row=2, column=0, sticky="news")
             butt_frame_p.grid(row=1, column=0, sticky="news")
-
-            return butt_frame
-
-        def old_make_time_scale_button():
-            butt_frame = ttk.Frame(tab, relief=tk.FLAT, borderwidth=1)
-
-            butt_frame_t = ttk.Frame(butt_frame, borderwidth=1)
-
-            ttk.Label(butt_frame_t, text=f'min').grid(row=1, column=1, sticky="ew")
-            ttk.Label(butt_frame_t, text=f'max').grid(row=1, column=2, sticky="ew")
-
-            ttk.Label(butt_frame_t, text=f'X').grid(row=2, column=0, sticky="ew")
-            ttk.Entry(butt_frame_t, textvariable=time_min, width=6).grid(row=2, column=1, sticky="ew")
-            ttk.Entry(butt_frame_t, textvariable=time_max, width=6).grid(row=2, column=2, sticky="ew")
-            # ttk.Button(butt_frame_t, text="reset", width=2, command=reset_xlims).grid(row=2, column=3, columnspan=1, sticky="ew")
-
-            ttk.Label(butt_frame_t, text=f'Y').grid(row=3, column=0, sticky="ew")
-            ttk.Entry(butt_frame_t, textvariable=cnt_min, width=6).grid(row=3, column=1, sticky="ew")
-            ttk.Entry(butt_frame_t, textvariable=cnt_max, width=6).grid(row=3, column=2, sticky="ew")
-            # ttk.Button(butt_frame_t, text="reset", width=2, command=reset_ylims).grid(row=3, column=3, columnspan=1, sticky="ew")
-
-            ttk.Button(butt_frame_t, text="Apply", command=update_plot).grid(row=4, column=0, columnspan=2, sticky="ew")
-            ttk.Button(butt_frame_t, text="Reset", command=reset_lims).grid(row=4, column=2, columnspan=1, sticky="ew")
-
-            butt_frame_s = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=1)
-
-            ttk.Label(butt_frame_s, text="Show Channels:").grid(row=2, column=0, columnspan=2, sticky="ew")
-            ttk.Entry(butt_frame_s, textvariable=range_list, width=6).grid(row=3, column=0, columnspan=1, sticky="ew")
-            ttk.Button(butt_frame_s, text=f"Update range", command=range_show).grid(row=4, column=0, columnspan=1,
-                                                                                    sticky="ew")
-
-            butt_frame_p = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=1)
-            ttk.Label(butt_frame_p, text=f'Plot scale').grid(row=0, column=0, columnspan=2, sticky="ew")
-            self.scale_buttons = {
-                # 'linear':       tk.Button(butt_frame_p, text="  Linear  ", highlightbackground='green', command=lambda: press_scale_plot('linear')),
-                'linear': ttk.Button(butt_frame_p, text="  Linear  ", command=lambda: press_scale_plot('linear')),
-                # 'histo':      ttk.Button(butt_frame_p, text="Linear (histo)", command=lambda: press_scale_plot('histo')),
-                'log': ttk.Button(butt_frame_p, text=" Semi-Log ", command=lambda: press_scale_plot('log')),
-            }
-
-            for i, thing in enumerate(self.scale_buttons.values()):
-                # thing.grid(row=1+i, column=0, columnspan=2, sticky="ew")
-                thing.grid(row=1 + i, column=0, columnspan=1, sticky="ew")
-
-            butt_frame_t.grid(row=0, column=0, sticky="news")
-            butt_frame_s.grid(row=1, column=0, sticky="news")
-            butt_frame_p.grid(row=2, column=0, sticky="news")
 
             return butt_frame
 
@@ -847,12 +665,8 @@ class Plotting:
             ttk.Label(butt_frame_p, text=f'\nScale:').grid(row=1, column=1, columnspan=1, sticky="ew")
 
             self.scale_buttons = {
-                #'linear':       tk.Button(butt_frame_p, text="  Linear  ", highlightbackground='green', command=lambda: press_scale_plot('linear')),
-                #'linear':       ttk.Button(butt_frame_p, text="  Linear  ", command=lambda: press_scale_plot('linear')),
-                #'log':          ttk.Button(butt_frame_p, text=" Semi-Log ", command=lambda: press_scale_plot('log')),
                 'linear':       ttk.Radiobutton(butt_frame_p, text="Linear", value='linear', variable=plot_mode, command=press_scale_plot),
                 'log':          ttk.Radiobutton(butt_frame_p, text="Semi-Log", value='log', variable=plot_mode, command=press_scale_plot),
-                #ttk.Radiobutton(frm['grating'], text="", variable=self.params['grating']['var'], value=c + 1, command=select_grating)
             }
 
             for i, thing in enumerate(self.scale_buttons.values()):
@@ -990,9 +804,6 @@ class Plotting:
                     idx_min = int(1000*x_min.get() / self.parent.eta_class.const['binsize'])
             # COLORS
             n_c = 256  # number of colors in gradient
-            #color_list = list(Color("green").range_to(Color("yellow"), n_c))
-            color_list = self.create_color_gradient(start_hex='#000000', finish_hex='#ffffff', n=n_c)
-            #print(color_list)
 
             # --
             nr_shown_chs = 0
@@ -1008,12 +819,6 @@ class Plotting:
                 time_vals = x[idx_min:idx_max]
                 n = len(time_vals)  #idx_max - idx_min - 1  # nr of plotted points
                 y_vals = list(np.ones(n)*nr_shown_chs)
-
-                # COLORS
-                #counts = n_c*self.parent.eta_class.folded_countrate_pulses[thing]/(max(self.parent.eta_class.folded_countrate_pulses[thing])+1)
-                #print(counts)
-                #color_vals = [color_list['hex'][int(c)] for c in counts]
-                # --
 
                 if scale == 'log':
                     mx = y_max.get()    # np.log10(y_max.get())
@@ -1139,7 +944,6 @@ class Plotting:
             butt_frame_p = ttk.Frame(butt_frame, relief=tk.FLAT, borderwidth=1)
             ttk.Label(butt_frame_p, text=f'Plot scale').grid(row=0, column=0, columnspan=2, sticky="ew")
             self.scale_buttons_3D = {
-                #'linear':       tk.Button(butt_frame_p, text="  Linear  ", highlightbackground='green', command=lambda: press_scale_plot('linear')),
                 'linear':       ttk.Button(butt_frame_p, text="  Linear  ", command=lambda: press_scale_plot('linear')),
                 #'histo':        ttk.Button(butt_frame_p, text="Linear (histo)", command=lambda: press_scale_plot('histo')),
                 #'log':          ttk.Button(butt_frame_p, text=" Semi-Log ", command=lambda: press_scale_plot('log')),
@@ -1321,37 +1125,8 @@ class Plotting:
 
         return plt_frame
 
-    def plot_display_info_widget(self, tab, tab_str):
 
-        frm_info = ttk.Frame(tab, relief=tk.FLAT, borderwidth=1)
-
-        # TODO: add text or variables depending on which graph tab we have
-        if tab_str == "tab 1 plots":
-            pass
-
-        elif tab_str == "tab 2 plots":
-            pass
-        elif tab_str == "tab 3 plots":
-            pass
-
-        elif tab_str == "tab all plots":
-            pass
-
-        ttk.Label(frm_info, text=f'{tab_str}').grid(row=0, column=0, sticky="nsew")
-        ttk.Label(frm_info, text=f'info').grid(row=1, column=0, sticky="nsew")
-        ttk.Label(frm_info, text=f'info').grid(row=2, column=0, sticky="nsew")
-        ttk.Label(frm_info, text=f'info').grid(row=3, column=0, sticky="nsew")
-        ttk.Label(frm_info, text=f'info').grid(row=4, column=0, sticky="nsew")
-
-        ttk.Label(frm_info, text=f'  ').grid(row=0, column=1, sticky="nsew")
-        ttk.Label(frm_info, text=f'...').grid(row=1, column=1, sticky="nsew")
-        ttk.Label(frm_info, text=f'...').grid(row=2, column=1, sticky="nsew")
-        ttk.Label(frm_info, text=f'...').grid(row=3, column=1, sticky="nsew")
-        ttk.Label(frm_info, text=f'...').grid(row=4, column=1, sticky="nsew")
-
-        return frm_info
-
-
+# GUI --> Approx 300 lines
 class GUI:
 
     def __init__(self):
@@ -1551,14 +1326,12 @@ class GUI:
         ##conf_frm.grid(row=4, column=100) #expand=1, anchor='ne')
         #load_nb.add(conf_frm, text='ssTESTTT')
 
-
     # SETTINGS, e.g. theme
     def build_appearance_settings(self, tab):
         def change_theme(new_thm):
             print("changed to theme:", new_thm)
             self.root.set_theme(new_thm)
             thm_var.set(new_thm)
-            newScanClass.update_log_box_height()
 
         conf_frm = ttk.Frame(tab)
         conf_frm.pack(expand=1, anchor='nw')  # 'ne' if in root_nb
@@ -1677,8 +1450,6 @@ class GUI:
     # **
     def plot_spectrum_tab(self, plots_spectrum, parent):
         parent.plotting_class.plot_spectrum_widget(plots_spectrum)
-        #info_frm = parent.plotting_class.plot_display_info_widget(plots_spectrum, "Spectrum plot info")
-        #info_frm.grid(row=0, rowspan=1, column=1, sticky="nsew")
 
     def plot_countrate_tab(self, plots_spectrum, parent):
         parent.plotting_class.plot_countrate_widget(plots_spectrum)
@@ -1719,43 +1490,9 @@ class GUI:
 
     # -------
 
-
-class LiveCounts:
-    def __init__(self, base_url=None):
-        if base_url:
-            loop = asyncio.get_event_loop()
-            loop.run_until_complete(websocket_client(base_url, self.get_active_channels, n=1))  # finds which channels we collect from Retina setup
-            self.nr_chs = self.found_channels.shape[0]   # self.nr_chs = 24
-            self.ch_numbers = self.found_channels.copy()
-            self.active_chs = {}
-            for i in self.found_channels:
-                self.active_chs[i] = True
-            print(self.active_chs)
-
-    def get_active_channels(self, payload):
-        """
-            message['mcuId']        # this is the retina driver number (e.g. mcuId = 1 or 2, if we have 2 retinas)
-            message['cuId']         # for each driver, which channel number (cuId is between 1-12)
-            message['cuStatus']     # ????
-            message['rank']         # channel number in total (e.g. with 2 retinas and 12 channels each: rank is between 1-24)
-            message = {'mcuId': 1, 'cuId': 10, 'cuStatus': 0, 'monitorV': -0.0006128550739958882, 'biasI': 0.0, 'inttime': 100, 'counts': 0, 'rank': 10, 'time': 1729066371.8}
-        """
-        self.payload = payload
-
-        found_channels = []
-        self.nr_chs = 0
-        for message in payload:  # for every channel
-            #if len(found_channels) > 15:
-            #    continue
-            found_channels.append(message['rank'])
-            print(message)
-
-        found_channels.sort()
-        self.found_channels = np.array(found_channels)
-
 # -----
 
-
+# Calibration --> Approx 100 lines
 class Calibration:
     def __init__(self):
         self.livecounts_class = None
@@ -1850,10 +1587,11 @@ class Calibration:
             print("Error: Could not connect to WebSQ!")
             raise
 
+# NewScanGroup --> Approx 300 lines
 class NewScanGroup:
     def __init__(self):
         # class instances when connected
-        self.eta_class = ETA(self)
+        self.eta_class = ETA(self, gui_class=gui)
         self.plotting_class = Plotting(self)
         self.loading = False
         self.cancel = False
@@ -1926,12 +1664,6 @@ class NewScanGroup:
         log_box_frm = ttk.Frame(new_scan_tab, borderwidth=1, relief=tk.GROOVE)
         log_box_frm.grid(row=0, column=1, columnspan=10, rowspan=10, sticky="nws")  # in sub frame
         self.log_scan_widget(log_box_frm).grid(row=0, column=0, sticky="news")   # Inner thing
-
-        # -----
-        #self.show_geometry(params_frm, "Configs analysis top")
-        #self.show_geometry(scan_frm, "Scan analysis left")
-        #self.show_geometry(log_box_frm, "Log box right")
-        self.update_log_box_height()
 
     # TODO: FIXME BELOW (make sure it connects and does right)
     def start_scan_widget(self, tab):
@@ -2287,34 +2019,8 @@ class NewScanGroup:
         return frm_anal_buttons
 
     def log_scan_widget(self, tab):
-        from tkinter import scrolledtext
 
         frm_log = ttk.Frame(tab, relief=tk.FLAT)
-
-        """
-                __Configs analysis top__
-                geometry    : [1206x122+0+0]
-                width       : [1206]
-                height      : [122]
-                reqwidth    : [1206]
-                reqheight   : [122]
-
-                __Scan analysis left__
-                geometry    : [673x167+0+122]
-                width       : [673]
-                height      : [167]
-                reqwidth    : [673]
-                reqheight   : [167]
-
-                __Log box right__
-                geometry    : [352x167+854+122]
-                width       : [352]
-                height      : [167]
-                reqwidth    : [171]
-                reqheight   : [156]
-
-                """
-
         self.log_box = log_box = scrolledtext.ScrolledText(frm_log, wrap=tk.WORD, width=24, height=12, font=('Helvetica', 12, "italic"), state='disabled')
         log_box.grid(row=0, column=0, pady=0, padx=0)
 
@@ -2328,27 +2034,8 @@ class NewScanGroup:
         #label.pack(fill='both')
         #label.bind('<Configure>', lambda e: label.config(wraplength=label.winfo_width()-10))
 
-    def show_geometry(self, wid, name):
-        # 15 22
-        wid.update()
-        self.write_log(f"__{name}__")
-        self.write_log(f" geometry    : [{wid.winfo_geometry()}]\n"
-              f" width       : [{wid.winfo_width()}]\n"
-              f" height      : [{wid.winfo_height()}]\n"
-              f" reqwidth    : [{wid.winfo_reqwidth()}]\n"
-              f" reqheight   : [{wid.winfo_reqheight()}]\n"
-              )
-        # self.write_log(full_w, full_h)
 
-    def update_log_box_height(self):
-        #s#elf.log_box.config(height=2, width=2)
-        return
-        self._params_frm.update()
-        self._scan_frm.update()
-        box_w = self._params_frm.winfo_width() - self._scan_frm.winfo_width() - 42  # 9 is for scrollbar width
-        box_h = self._scan_frm.winfo_height() - 7
-        self.log_box.config(height=int(box_h/14), width=int(box_w/7))
-
+# LoadScanGroup --> Approx 100 lines
 class LoadScanGroup:
     def __init__(self):
         self.params = {
@@ -2366,7 +2053,7 @@ class LoadScanGroup:
             'eta_recipe_lifetime':  {'var': tk.StringVar(value="Code/ETARecipes/Countrate-swabian_spectrometer.eta"), 'type': 'str entry', 'default': '...',  'value': ['~/Desktop/GUI/Recipe/gui_recipe_1.eta', '~/Desktop/GUI/Recipe/gui_recipe_2.eta', '~/Desktop/GUI/Recipe/gui_recipe_3.eta']},
             'eta_recipe_spectrum':  {'var': tk.StringVar(value="Code/ETARecipes/Lifetime-swabian_spectrometer.eta"), 'type': 'str entry', 'default': '...',  'value': ['~/Desktop/GUI/Recipe/gui_recipe_1.eta', '~/Desktop/GUI/Recipe/gui_recipe_2.eta', '~/Desktop/GUI/Recipe/gui_recipe_3.eta']},
         }
-        self.eta_class = ETA(self)
+        self.eta_class = ETA(self, gui_class=gui)
         self.plotting_class = Plotting(self)
         self.loading = False  # this tracks if we are running a scan (collecting counts from detector)
         self.cancel = False  # this tracks if we are running a scan (collecting counts from detector)
@@ -2475,12 +2162,6 @@ class LoadScanGroup:
 
         self.choose_params_widget(tab).grid(row=0, column=0, sticky="nw", padx=5, pady=5)
 
-        # -----
-        #self.show_geometry(params_frm, "Configs analysis top")
-        #self.show_geometry(scan_frm, "Scan analysis left")
-        #self.show_geometry(log_box_frm, "Log box right")
-        #self.update_log_box_height()
-
     def choose_params_widget(self, tab):
 
         def update_spectrum(name=None, index=None, mode=None):
@@ -2516,377 +2197,9 @@ class LoadScanGroup:
 
         return frm_configs
 
-    def write_log(self, msg, **kwargs):
+    def write_log(self, msg, **kwargs):  # Note: we removed log from load scan tab, so we print instead
         print(msg)
 
-
-class ETA:
-
-    def __init__(self, parent):
-        # TODO:  maybe make bins and binsize variable in code? or have txt file that we read/write from in settings (along with other defaults)
-        self.parent = parent
-        self.const = {
-            'eta_format':    1,      # swabian = 1
-            'eta_recipe':   '',
-            'eta_recipe_corr':       'Code/ETARecipes/Correlation-swabian_spectrometer.eta',
-            'eta_recipe_lifetime':   'Code/ETARecipes/Lifetime-swabian_spectrometer.eta',
-            'eta_recipe_spectrum':   'Code/ETARecipes/Countrate-swabian_spectrometer.eta',
-            'timetag_file': '', #'Data/ToF_Duck_10MHz_det1_det2_5.0ms_[2.1, 3.9, -3.2, -4.8]_100x100_231220.timeres',
-            'bins':          5000,
-            'binsize':       20,     # bin width in ps
-            }
-        self.folded_countrate_pulses = {}
-        self.ch_colors = ['tab:purple', 'tab:pink', 'tab:orange']
-
-        self.pix_dict = {
-            # EXAMPLE:
-            # 'h1' : {
-            #    'name'          : 'ch1',
-            #    'wavelength'    : 600,
-            #    'color'         : 'tab:red',
-            #    'counts'        : 6958,
-            #    'lifetime'      : 57.4,
-            # }
-        }
-        self.binsize_dict = {}
-        self.bins_dict = {}
-        self.lifetime_bins_ns = []
-        self.correlation_bins_ns = []
-        self.countrate_bins_ns = []
-        self.eta_engine = None
-        self.eta_engine_corr = None
-        self.eta_engine_lifetime = None
-        self.eta_engine_spectrum = None
-        self.pb = None
-
-        self.load_all_engines()
-
-    def update_progressbar(self, n):
-        if self.pb:
-            if n == 0:
-                self.pb['value'] = 0
-                gui.root.update()  # testing
-
-            elif self.pb['value'] <= 100:
-                self.pb['value'] = n
-                gui.root.update()  # testing
-            else:
-                self.parent.write_log(f"overshot progressbar: {n}")
-
-    def load_eta(self, recipe, **kwargs):
-        self.update_progressbar(n=0)
-        gui.root.update()  # testing
-
-        with open(recipe, 'r') as filehandle:
-            recipe_obj = json.load(filehandle)
-
-        eta_engine = etabackend.eta.ETA()
-        eta_engine.load_recipe(recipe_obj)
-
-        # Set parameters in the recipe
-        for arg in kwargs:
-            eta_engine.recipe.set_parameter(arg, str(kwargs[arg]))
-        eta_engine.load_recipe()
-
-        #self.parent.write_log(f"Recipe loaded!")
-
-        return eta_engine
-
-    def load_all_engines(self, scantime = 1):
-        #bins = 10000
-        #binsize = 20
-
-        #self.eta_engine_corr = self.load_eta(self.const["eta_recipe_corr"], bins=self.const["bins"], binsize=self.const["binsize"])  # NOTE: removed for test
-        #self.eta_engine_lifetime = self.load_eta(self.const["eta_recipe_lifetime"], bins=self.const["bins"], binsize=self.const["binsize"])  # NOTE: removed for test
-        #self.eta_engine_spectrum = self.load_eta(self.const["eta_recipe_spectrum"], bins=self.const["bins"], binsize=self.const["binsize"])  # NOTE: removed for test
-
-        self.binsize_dict['counts'] = 10 * (10 ** 10)
-        self.bins_dict['counts'] = (scantime * 0.1) * (10 ** 2)
-
-        self.eta_engine_corr = self.load_eta(self.const["eta_recipe_corr"], bins=10000, binsize=20)
-        self.eta_engine_lifetime = self.load_eta(self.const["eta_recipe_lifetime"], bins=125*5, binsize=20, det_delay = 12500)
-        self.eta_engine_spectrum = self.load_eta(self.const["eta_recipe_spectrum"], bins=self.bins_dict['counts'], binsize=self.binsize_dict['counts'])
-
-    def eta_lifetime_analysis(self):  # , const):
-
-        self.folded_countrate_pulses = {}
-
-        """# NOTE: MAYBE FIXME, MIGHT HAVE TO RELOAD RECIPE EVERY TIME!
-        if self.const["eta_recipe"] != self.parent.params['eta_recipe']['var'].get():
-            self.const["eta_recipe"] = self.parent.params['eta_recipe']['var'].get()
-            self.eta_engine = self.load_eta(self.const["eta_recipe"], bins=self.const["bins"], binsize=self.const["binsize"])  # NOTE: removed for test
-        """
-        self.const["timetag_file"] = self.parent.params['file_name']['var'].get()
-
-        # note: bins will be the same for all data channels
-        bins_i = np.linspace(0, self.const['bins']+1, self.const['bins']+2)  # starting with 8 channels for now
-        times_i = bins_i * self.const['binsize']   # time list in ps  (for one histogram)
-
-        channels = ['h2', 'h3', 'h4']
-        # fixme: we need to make sure that the channels matches what we have in the result dict
-        self.folded_countrate_pulses = dict([(c, np.zeros(self.const['bins'])) for c in channels])
-
-        # ------ETA PROCESSING OF ONE TIMERES FILE-----
-
-        pulse_nr = 0
-        pos = 0  # 0  # internal ETA tracker (-> maybe tracks position in data list?)
-        context = None  # tracks info about ETA logic, so we can extract and process data with breaks (i.e. in parts)
-        eta_format = self.const["eta_format"]   # eta_engine.FORMAT_SI_16bytes   # swabian = 1
-        file = Path(self.const['timetag_file'])
-
-        while True:
-            # Extract histograms from eta
-            file_clips = self.eta_engine.clips(filename=file, seek_event=pos, format=eta_format)
-            result, context = self.eta_engine.run({"timetagger1": file_clips}, resume_task=context, return_task=True, group='quTAG', max_autofeed=1)
-
-            if pulse_nr % 100 == 0:
-                if self.parent.cancel:
-                    self.parent.write_log(f"Cancelled Analysis")
-                    return
-                self.update_progressbar(n=pulse_nr/100)
-
-            # Check if we've run out of data, otherwise update position
-            if result['timetagger1'].get_pos() == pos:  # or (pos is None):
-                self.parent.write_log(f"final pulse nr: {pulse_nr}")
-                break
-            else:
-                pulse_nr += 1
-                pos = result['timetagger1'].get_pos()
-
-            # Folding histogram counts for each channel:
-            for c in channels:
-                self.folded_countrate_pulses[c] += np.array(result[c])
-
-        self.parent.write_log(f"Eta processing complete")
-        self.lifetime_bins_ns = list(np.array(times_i) / 1000)  # changing values from picoseconds to nanoseconds
-
-        # -----
-
-        wavelens = self.get_wavelengths()
-
-        for c, channel in enumerate(self.folded_countrate_pulses.keys()):
-            peak_idx = self.find_peak_idx(self.folded_countrate_pulses[channel])
-
-            self.pix_dict[channel] = {
-                'name': 'c' + channel,
-                'wavelength': wavelens[c],  # computed
-                #'color': self.ch_colors[c % len(self.ch_colors)],
-                'color': gui.CIE_colors.get_rgb(wavelens[c]),
-                'counts': sum(self.folded_countrate_pulses[channel]),  # sum of channel
-                'peak idx': peak_idx,
-                'lifetime': self.lifetime_bins_ns[peak_idx],  # calculated max value
-            }
-
-        return
-
-    # ---------------------------------
-
-    def new_correlation_analysis(self, ax=None, file=None):  # correlation
-
-        # ETA Settings
-        binsize = 20
-        bins = 10000
-        #time_axis = np.arange(0, bins) * binsize
-        delta_t = np.arange(-bins, bins) * binsize * 1e-3
-        #channels = ['h1', 'h2', 'h3', 'h4']
-
-        if not file:
-            file = self.parent.params['file_name']['var'].get()
-
-        print(f'Starting ETA correlation analysis on file: {file}')
-        cut = self.eta_engine_corr.clips(Path(file), format=1)
-        result = self.eta_engine_corr.run({"timetagger1": cut}, group='swabian')
-        print('Finished ETA analysis')
-        # Result keys: dict_keys(['timetagger1', 'h23', 'h32', 'h24', 'h42', 'h43', 'h34'])
-
-        g2_23 = np.concatenate((result['h23'], result['h32']))
-        g2_24 = np.concatenate((result['h24'], result['h42']))
-        g2_34 = np.concatenate((result['h34'], result['h43']))
-
-        """
-        ax.set_title(f"G2 measurement")
-        ax.plot(delta_t, g2_23, label="chs: 5, 6")
-        ax.plot(delta_t, g2_24, label="chs: 5, 7")
-        ax.plot(delta_t, g2_34, label="chs: 6, 7")
-        # TODO: PLOT SEPARATELY
-        ax.legend()
-        ax.set_xlabel('time [ns]', fontsize=10)
-        ax.set_ylabel('coincidence', fontsize=10)
-        """
-
-        # TODO: RETURN FIGURES!!! OR SOMETHING TO PUT IN GUI
-        return delta_t, {'h23' : g2_23, 'h24' : g2_24, 'h34' : g2_34}
-
-    def new_tof_analysis(self, ax=None, file=None):
-        # note: hardcoded values set by theo # TODO FIXME
-        bins = 125*5
-        binsize = 20
-
-        #bins_i = np.linspace(0, bins + 1, bins + 2)  # starting with 8 channels for now
-        #self.lifetime_bins_ns = list(np.array(bins_i * binsize) / 1000)  # changing values from picoseconds to nanoseconds
-
-        if not file:
-            file = self.parent.params['file_name']['var'].get()
-
-        cutfile = self.eta_engine_lifetime.clips(filename=file, format=1)
-        result = self.eta_engine_lifetime.run({"timetagger1": cutfile}, group='swabian')  # Runs the time tagging analysis and generates histograms
-
-        self.lifetime_bins_ns = time_axis = np.arange(bins) * binsize
-
-        channels = ['h4', 'h2', 'h3']
-
-        #max_val = np.max([np.max(result[c]) for c in channels])
-        #self.folded_countrate_pulses = dict([(c, result[c]/max_val) for c in channels])
-        self.folded_countrate_pulses = dict([(c, result[c]) for c in channels])
-
-        # --TODO CHECK BELOW--
-        wavelens = self.get_wavelengths()
-
-        for c, channel in enumerate(self.folded_countrate_pulses.keys()):
-            peak_idx = self.find_peak_idx(self.folded_countrate_pulses[channel])
-
-            self.pix_dict[channel] = {
-                'name': 'c' + channel,
-                'wavelength': wavelens[c],  # computed
-                # 'color': self.ch_colors[c % len(self.ch_colors)],
-                'color': gui.CIE_colors.get_rgb(wavelens[c]),
-                'counts': sum(self.folded_countrate_pulses[channel]),  # sum of channel
-                'peak idx': peak_idx,
-                'lifetime': self.lifetime_bins_ns[peak_idx],  # calculated max value
-            }
-
-        #return ax
-
-    def new_countrate_analysis(self, file=None):
-        # ETA Settings
-        #binsize = 200   # 20
-        #bins = 1000
-
-        time_axis = np.arange(0, self.bins_dict['counts']) * self.binsize_dict['counts']
-
-        if not file:
-            file = self.parent.params['file_name']['var'].get()
-
-        print(f'Starting ETA correlation analysis on file: {file}')
-        cut = self.eta_engine_spectrum.clips(Path(file), format=1)
-        result = self.eta_engine_spectrum.run({"timetagger1": cut}, group='swabian')
-        print('Finished ETA analysis')
-
-        print(result.keys())
-
-        return time_axis / (10**12), result
-
-     #TODO FIX TODO
-    def new_spectrum_analysis(self, file=None):
-            # ETA Settings
-            binsize = 20
-            bins = 10000
-
-            time_axis = np.arange(0, bins) * binsize
-
-            delta_t = np.arange(-bins, bins) * binsize * 1e-3
-            if not file:
-                file = self.parent.params['file_name']['var'].get()
-
-            print(f'Starting ETA correlation analysis on file: {file}')
-            cut = self.eta_engine_corr.clips(Path(file), format=1)
-            result = self.eta_engine_corr.run({"timetagger1": cut}, group='swabian')
-            print('Finished ETA analysis')
-
-    def new_signal_counter_analysis(self):
-        pass
-
-    # ---------------------------------
-
-    # help function to check how many counts each channel has in the timeres file
-    def signal_count(self):
-        # ------IMPORTS-----
-        # Packages for ETA backend
-        import json
-        import etabackend.eta  # Available at: https://github.com/timetag/ETA, https://eta.readthedocs.io/en/latest/
-        from pathlib import Path
-
-        def eta_counter_swab(recipe_file, timetag_file, **kwargs):
-            # Load the recipe from seperate ETA file
-            with open(recipe_file, 'r') as filehandle:
-                recipe_obj = json.load(filehandle)
-
-            eta_engine = etabackend.eta.ETA()
-            eta_engine.load_recipe(recipe_obj)
-
-            # Set parameters in the recipe
-            for arg in kwargs:
-                self.parent.write_log(f"Setting {kwargs[arg]} = {arg}")
-                eta_engine.recipe.set_parameter(arg, str(kwargs[arg]))
-
-            eta_engine.load_recipe()
-
-            file = Path(timetag_file)
-            cutfile = eta_engine.clips(filename=file, format=1)
-            result = eta_engine.run({"timetagger1": cutfile}, group='qutag')  # Runs the time tagging analysis and generates histograms
-
-            # self.parent.write_log(f"{2} : {result['c2']}")
-            # self.parent.write_log(f"{3} : {result['c3']}")
-
-            if recipe != 'signal_counter.eta':
-
-                plt.figure('(marker) h3 swabian')
-                plt.plot(result['h3'])
-                plt.title("swab histo: markers")
-
-                plt.figure("both qutag")
-                plt.plot(result['h2'], 'b')
-                plt.plot(result['h3'], 'r*')
-                plt.title("qutag histo: both ")
-            else:
-                signals = {0: 'c0', 1: 'c1', 2: 'c2', 3: 'c3', 4: 'c4',
-                           # 5: 'c5', 6: 'c6', 7: 'c7', 8: 'c8',
-                           # 100: 'c100', 101: 'c101', 102: 'c102', 103: 'c103',
-                           # 1001: 'c1001', 1002: 'c1002',
-                           }
-
-                self.parent.write_log(f"\n# : counts\n-------")
-                for s in signals:
-                    self.parent.write_log(f"{s} : {result[signals[s]]}")
-
-        recipe = 'signal_counter.eta'
-        # recipe = 'temp2_signal_counter.eta'
-        file = 'Data/231102/nr_6_sineFreq(1)_numFrames(3)_sineAmp(0.3)_stepAmp(0.3)_stepDim(100)_date(231102)_time(10h36m17s).timeres'  # not changed
-        # file = 'Data/231102/nr_6_sineFreq(5)_numFrames(3)_sineAmp(0.3)_stepAmp(0.3)_stepDim(100)_date(231102)_time(10h42m27s).timeres'  # not changed
-        # file = 'Data/231102/nr_6_sineFreq(10)_numFrames(3)_sineAmp(0.3)_stepAmp(0.3)_stepDim(100)_date(231102)_time(10h44m15s).timeres'  # not changed
-        file = 'ToF_terra_10MHz_det2_10.0ms_[2.1, 2.5, -3.2, -4.8]_100x100_231030.timeres'
-
-        freq = 1
-        bins = 20000
-        binsize = int(round((1 / (freq * 1e-12)) / bins))
-        eta_counter_swab(recipe, file, binsize=binsize, bins=bins)
-
-        # recipe = 'temp2_signal_counter.eta'
-        # file = 'Data/230927/digit_6_liquid_lens_20mA_steps_5mm_df_sineFreq(10)_numFrames(10)_sineAmp(0.3)_stepAmp(0.3)_stepDim(100)_date(230927)_time(13h15m26s).timeres'  # not changed
-        # eta_counter_qutag(recipe, file)
-
-        plt.show()
-
-        self.parent.write_log(f"done!")
-
-    def get_wavelengths(self):
-
-        #nr_pix = self.parent.params['nr_pixels']['var'].get()
-        nr_pix = len(self.parent.eta_class.folded_countrate_pulses.keys())   # TODO FIXME: what happens if we define more channels than we have data on?
-        pixel_width = self.parent.params['width_nm']['var'].get()   # TODO: maybe make this different depending on which
-        center_pix = self.parent.params['nm']['var'].get()
-
-        left_pix_bound = center_pix - (nr_pix * pixel_width / 2)
-        right_pix_bound = center_pix + (nr_pix * pixel_width / 2)
-
-        bins = np.linspace(start=left_pix_bound, stop=right_pix_bound, num=nr_pix+1, endpoint=True)  # , dtype=)
-
-        x_centers = [(bins[i - 1] + bins[i]) / 2 for i in range(1, len(bins))]
-
-        return x_centers
-
-    def find_peak_idx(self, data):
-        return np.where(data == np.max(data))[0][0]
 
 # -------------
 
