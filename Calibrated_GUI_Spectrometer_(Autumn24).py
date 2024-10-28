@@ -1356,7 +1356,6 @@ class GUI:
 
     def __init__(self):
         # Create and configure the main GUI window
-
         #self.root = tk.Tk()
 
         self.sq = None
@@ -1366,12 +1365,8 @@ class GUI:
         self.default_theme = 'breeze'  # 'radiance'
         self.root = ThemedTk(theme=self.default_theme)  # yaru is good i think
 
-        #path = '@duck.cur'  # Path to the image followed by @
-        self.root['cursor'] = ''  # = path  # Set the cursor
-
         self.root.title("OSQ - One Shot Quantum")   # *Ghosttly matters*
-        self.root.geometry('1000x720')
-        #self.root.geometry('1250x800')
+        self.root.geometry('1000x720')  # '1250x800')
         self.root.resizable(True, True)
 
         self.tabs = {
@@ -1557,7 +1552,7 @@ class GUI:
         #load_nb.add(conf_frm, text='ssTESTTT')
 
 
-    # SETTINGS THEME AND CURSOR (todo: make a sub class just for settings?)
+    # SETTINGS, e.g. theme
     def build_appearance_settings(self, tab):
         def change_theme(new_thm):
             print("changed to theme:", new_thm)
@@ -1565,43 +1560,17 @@ class GUI:
             thm_var.set(new_thm)
             newScanClass.update_log_box_height()
 
-        def change_cursor(new_crs):
-            self.root['cursor'] = new_crs
-            print("changed cursor to:", new_crs)
-            if new_crs == '':
-                cursor_var.set("default")
-            else:
-                cursor_var.set(new_crs[len(curs_folder):-4])
-            self.root.update()
-
         conf_frm = ttk.Frame(tab)
         conf_frm.pack(expand=1, anchor='nw')  # 'ne' if in root_nb
 
-        ttk.Label(conf_frm, text="Theme:").grid(row=0, column=0, sticky='news')
-        ttk.Label(conf_frm, text="Cursor:").grid(row=0, column=1, sticky='news')
-
-        # -----
         # THEME
+        ttk.Label(conf_frm, text="Theme:").grid(row=0, column=0, sticky='news')
         thm_var = tk.StringVar(value=self.default_theme)
         option_thm = ttk.OptionMenu(conf_frm, variable=thm_var, default=self.default_theme)
         option_thm.grid(row=1, column=0)
         for theme in self.theme_list:
             option_thm['menu'].add_command(label=f"{theme}", command=lambda thm=theme: change_theme(thm))
 
-        # CURSOR
-        cursor_list = []  #  ['']
-        curs_folder = 'Configs/assets/cursors/'
-        for file in glob.glob(f"{curs_folder}*.cur"):
-            cursor_list.append(file)
-
-        cursor_var = tk.StringVar(value='default')
-        option_cursor = ttk.OptionMenu(conf_frm, variable=cursor_var, default='')
-        option_cursor.grid(row=1, column=1)
-
-        option_cursor['menu'].add_command(label=f"default", command=lambda cur='': change_cursor(cur))
-        for cursor in cursor_list:
-            #option_cursor['menu'].add_command(label=f"{cursor[8:-4]}", command=lambda cur=cursor: change_cursor(f'@{cur}'))
-            option_cursor['menu'].add_command(label=f"{cursor[len(curs_folder):-4]}", command=lambda cur=cursor: change_cursor(f'@{cur}'))
 
     def add_plot_tabs(self, parent_class, parent_name):
         # NOTE: CREATE NEW TAB THAT DOESN'T EXIST WITH:
