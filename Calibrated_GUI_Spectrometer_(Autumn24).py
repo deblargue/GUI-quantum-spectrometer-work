@@ -2,7 +2,6 @@
 import os
 import glob
 import platform
-from sys import platform as plat
 import serial
 from serial.tools import list_ports
 from datetime import date
@@ -38,30 +37,19 @@ from colour import Color
 # TODO: FIX
 import websockets
 #from Code.RetinaFiles.src.WebSQController import WebSQController
-#from Code.RetinaFiles.src.WebSQSocketController import websocket_client
+from Code.RetinaFiles.src.WebSQSocketController import websocket_client
+from Code.SpectroSrcLib.CIEColorMatching import ColorMatchingCIE
+#from Code.SpectroSrcLib.ScrollFrame import ScrollFrame
 
 # - ETA backend IMPORTS
 import etabackend.eta  # Available at: https://github.com/timetag/ETA, https://eta.readthedocs.io/en/latest/
 
-# - MISC IMPORTS???
 import asyncio
 import signal
 import struct
-import pyqtgraph as pg
-from PyQt5 import QtCore, QtWidgets
-
-# Grab and extend frames
-# make whole notebook a scrollable frame (both horizontally and vertically)
 
 # TODO:
 #  With each measurement we should save a configuration file that can be used to load information about scan
-
-# TODO:  (written: 16 june 2024)
-#  break up GUI into several files which are called or used
-#  look into SQL and especially API
-#  consider making help functions more reusable and general
-#  use more kwargs**
-#  create configs file to save initialization procedure
 
 
 class DebuggingFunctions:
@@ -90,79 +78,6 @@ class DebuggingFunctions:
         for widget in parent.winfo_children():
             print(f"  --> {widget}")
         print("------------")
-
-# ----------
-
-class ScrollFrame(ttk.Frame):
-    # SOURCE: https://gist.github.com/mp035/9f2027c3ef9172264532fcd6262f3b01
-    # ************************
-    # Scrollable Frame Class
-    # ************************
-    # This Source Code Form is subject to the terms of the Mozilla Public
-    # License, v. 2.0. If a copy of the MPL was not distributed with this
-    # file, You can obtain one at https://mozilla.org/MPL/2.0/.
-
-    def __init__(self, parent):
-        super().__init__(parent)  # create a frame (self)
-
-        #self.canvas = tk.Canvas(self, background="#ffffff", height=0, highlightthickness=0)  # place canvas on self
-        self.canvas = tk.Canvas(self, height=10, highlightthickness=0, confine=True)  # place canvas on self
-        self.viewPort = ttk.Frame(self.canvas, relief=tk.FLAT) #, borderwidth=1) #, background="#ffffff")  # place a frame on the canvas, this frame will hold the child widgets
-        self.vsb = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)  # place a scrollbar on self
-        self.canvas.configure(yscrollcommand=self.vsb.set)  # attach scrollbar action to scroll of canvas
-
-        self.vsb.pack(side="right", fill="y")  # pack scrollbar to right of self
-        self.canvas.pack(side="left", fill="both", expand=True)  # pack canvas to left of self and expand to fil
-        self.canvas_window = self.canvas.create_window((1, 1), window=self.viewPort, anchor="nw", tags="self.viewPort")  # add view port frame to canvas
-
-        self.viewPort.bind("<Configure>", self.onFrameConfigure)  # bind an event whenever the size of the viewPort frame changes.
-        self.canvas.bind("<Configure>", self.onCanvasConfigure)  # bind an event whenever the size of the canvas frame changes.
-        self.viewPort.bind('<Enter>', self.onEnter)  # bind wheel events when the cursor enters the control
-        self.viewPort.bind('<Leave>', self.onLeave)  # unbind wheel events when the cursorl leaves the control
-
-        self.onFrameConfigure(None)  # perform an initial stretch on render, otherwise the scroll region has a tiny border until the first resize
-
-    def onFrameConfigure(self, event):
-        '''Reset the scroll region to encompass the inner frame'''
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))  # whenever the size of the frame changes, alter the scroll region respectively.
-
-    def onCanvasConfigure(self, event):
-        '''Reset the canvas window to encompass inner frame when required'''
-        canvas_width = event.width
-        self.canvas.itemconfig(self.canvas_window, width=canvas_width)  # whenever the size of the canvas changes alter the window region respectively.
-
-    def onMouseWheel(self, event):  # cross platform scroll wheel event
-        if platform.system() == 'Windows':
-            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        elif platform.system() == 'Darwin':
-            self.canvas.yview_scroll(int(-1 * event.delta), "units")
-        else:
-            if event.num == 4:
-                self.canvas.yview_scroll(-1, "units")
-            elif event.num == 5:
-                self.canvas.yview_scroll(1, "units")
-
-    def onEnter(self, event):  # bind wheel events when the cursor enters the control
-        if platform.system() == 'Linux':  # TODO FIXME
-            self.canvas.bind_all("<Button-4>", self.onMouseWheel)
-            self.canvas.bind_all("<Button-5>", self.onMouseWheel)
-        else:
-            self.canvas.bind_all("<MouseWheel>", self.onMouseWheel)
-
-    def onLeave(self, event):  # unbind wheel events when the cursorl leaves the control
-        if platform.system() == 'Linux':  # TODO FIXME
-            self.canvas.unbind_all("<Button-4>")
-            self.canvas.unbind_all("<Button-5>")
-        else:
-            self.canvas.unbind_all("<MouseWheel>")
-
-class CreateScrollFrame(ttk.Frame):
-    def __init__(self, root):
-        ttk.Frame.__init__(self, root, borderwidth=1)
-        self.scrollFrame = ScrollFrame(self)  # add a new scrollable frame.
-        self.scrollFrame.grid(row=0, column=0, columnspan=1)
-
-# --------------
 
 class Plotting:
     def __init__(self, parent):
@@ -217,20 +132,6 @@ class Plotting:
             RGB_list.append(curr_vector)
 
         return color_dict(RGB_list)
-
-    def colored_lines(self):
-        pass
-        """points = np.array([x_vals, counts]).T.reshape(-1, 1, 2)
-        segments = np.concatenate([points[:-1], points[1:]], axis=1)
-        
-        # Create a continuous norm to map from data points to colors
-        norm = plt.Normalize(counts.min(), counts.max())
-        lc = LineCollection(segments, cmap='viridis', norm=norm)
-        # Set the values used for colormapping
-        lc.set_array(counts)
-        lc.set_linewidth(2)
-        line = axs[0].add_collection(lc)
-        fig.colorbar(line, ax=axs[0])"""
 
     def plot_spectrum_widget(self, tab):
         # TODO: make it live? live graph???
@@ -1451,102 +1352,6 @@ class Plotting:
         return frm_info
 
 
-class LivePlotting:   # A LOT TAKEN FROM SEPARATE SCRIPT
-    def __init__(self):
-
-        self.nr_chs = 24  # variable we should change later i think
-        self.active_channels = {i : True for i in range(1, self.nr_chs+1)}  # [True for _ in range(self.nr_chs)]
-        self.active_chs = [True for _ in range(self.nr_chs)]
-        self.reset_vars()
-
-    def reset_vars(self):
-        self.case = 'calibrate'
-        self.cnter = 0
-        self.max_val = 0
-        self.norm_counter = 0
-        self.n = 10
-        self.ch_list = range(1, self.nr_chs+1)
-        self.curr_t = {k: 0 for k in self.ch_list}
-        self.counts = {k: 0 for k in self.ch_list}                # {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: 0}
-        self.max_counts = {k: 1 for k in self.ch_list}            # {1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1, 11: 1, 12: 1}
-        self.max_counts_list = {k: [] for k in self.ch_list}      # {1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: [], 10: [], 11: [], 12: []}
-
-    def gen_fake_data(self):
-        fake_counts = {
-            1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0, 10:0, 11:0, 12:0,
-            13:0, 14:0, 15:0, 16:0, 17:0, 18:0, 19:0, 20:0, 21:0, 22:0, 23:0, 24:0}
-
-        fake_counts[5] += 100
-        fake_counts[10] += 150
-        fake_counts[15] += 70
-        fake_counts[20] += 105
-
-        fake_counts_series = []
-        for _ in range(20):  # 10 diff
-            for key in fake_counts.keys():
-                fake_counts[key] += np.random.randint(-25, 25, 1)
-                fake_counts[key] = np.max([0, fake_counts[key]])
-
-            fake_counts_series.append(list(fake_counts.values()))
-
-        return fake_counts_series
-
-    def plot_normalized_widget(self, tab):
-        # NOTE: THIS WILL BE REMOVED SINCE TKINTER IS TOO SLOW FOR LIVE PLOTS
-        #  --> maybe instead have a button that runs the other script
-        def update_plot(n):
-
-            fig.clear()
-            ax1 = fig.add_subplot(111)
-
-            # b = self.parent.eta_class.lifetime_bins_ns
-            ax1.set_title(f"Countrate")
-            ax1.plot(self.ch_list, np.array(self.fake_counts_series[n])*np.array(self.active_chs))
-
-            """for i, thing in enumerate(self.ch_show_countrate.keys()):
-                if self.ch_show_countrate[thing].get() is False:
-                    print(f"{thing} is hidden")
-                    continue  # doesn't plot when hidden
-
-                ax1.plot(time_axis, count_dict[thing], c=self.ch_colors[thing], label=lookup[thing] + ' (0.1s)')
-                # ax1.axhline(y=np.sum(count_dict[thing])/1.4, c=self.ch_colors[thing], linestyle='--', label=lookup[thing]+' (1s)')
-                # ax1.axhline(y=np.sum(count_dict[thing]), c=self.ch_colors[thing], linestyle='-', label='TEMP: total accum')
-                # TODO REMOVE^ only applicable for the 1s measurement"""
-
-            #ax1.legend()
-            ax1.set_xlabel('Channel', fontsize=10)
-            ax1.set_ylabel('Counts', fontsize=10)
-            # ax1.set_xlim([-30, 30])
-
-            ax1.grid()
-            fig.canvas.draw_idle()  # updates the canvas immediately?
-
-        if len(DebuggingFunctions.get_children(tab)) > 0:
-            # Figure already exists!
-            DebuggingFunctions.remove_child(tab, 0)
-            print("live plt child found and removed")
-        else:
-            print("No live plt child found")
-
-        # the figure that will contain the plot
-        fig = plt.figure(figsize=(8, 5), dpi=100)  # 10 3
-        ax1 = fig.add_subplot(111)
-
-        self.fake_counts_series = self.gen_fake_data()  # series of 20 fake countrate measurements
-
-        for nn in range(3):
-            update_plot(nn)
-
-            plt_frame, canvas = gui.pack_plot(tab, fig)
-            plt_frame.grid(row=0, rowspan=1, column=1, sticky="nsew")
-
-            gui.root.update()
-            time.sleep(2)
-
-        #butt_frm = make_time_scale_button()
-        #butt_frm.grid(row=0, column=2, columnspan=1, sticky="news")
-
-
 class GUI:
 
     def __init__(self):
@@ -1558,7 +1363,7 @@ class GUI:
 
         self.CIE_colors = ColorMatchingCIE()   # self.CIE_colors.wavelengths[600]
 
-        self.default_theme = 'breeze' # 'radiance'
+        self.default_theme = 'breeze'  # 'radiance'
         self.root = ThemedTk(theme=self.default_theme)  # yaru is good i think
 
         #path = '@duck.cur'  # Path to the image followed by @
@@ -1711,7 +1516,6 @@ class GUI:
         #self.tabs['Calibration']['children']['Normalized'] = self.add_tab(parent_nb=self.tabs['Calibration']['notebook'], tab_name='Normalized Counts')
         self.tabs['Calibration']['children']['Wavelengths'] = self.add_tab(parent_nb=self.tabs['Calibration']['notebook'], tab_name='Channel Wavelengths')
         self.tabs['Calibration']['children']['...'] = self.add_tab(parent_nb=self.tabs['Calibration']['notebook'], tab_name='...')  # FIXME
-        #calibrationClass.init_live_tab(self.tabs['Calibration']['children']['Normalized'])
         calibrationClass.init_wavelength_tab(self.tabs['Calibration']['children']['Wavelengths'])
 
         # ---
@@ -1947,357 +1751,6 @@ class GUI:
     # -------
 
 
-# TODO: FIX ME BELOW TO WORK WITH RETINA
-'''class WebSQGroup:
-    def __init__(self):
-        # -------------- ARGUMENTS: --------------
-        self.websq_handle = None
-        self.url = '130.237.35.20'   # 12 channels
-        self.base_url = f'ws://{self.url}'
-        self.number_of_detectors = 24
-        self.active_channels = {}
-        self.reset_vars()
-
-    def reset_vars(self):
-        self.case = 'calibrate'
-        self.cnter = 0
-        self.max_val = 0
-        self.norm_counter = 0
-        self.n = 10
-        self.counts = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: 0}
-        self.max_counts = {1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1, 11: 1, 12: 1}
-        self.max_counts_list = {1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: [], 10: [], 11: [], 12: []}
-
-        # print("done reset vars ")
-
-    def get_live_counts(self, payload):
-        self.payload = payload
-        # print("case", self.case)
-
-        if self.case == 'running':
-            self.cnter += 1
-            if self.cnter % 10 == 0:  # for when to update plot lims
-                self.max_val = 0
-
-            for message in payload:  # for every channel
-                self.counts[message['rank']] = message['counts'] / (
-                self.max_counts[message['rank']])  # divide by measured average
-
-                if self.max_val < self.counts[message['rank']]:
-                    self.max_val = self.counts[message['rank']]
-
-                # thisapp._update()
-                # self.print_counts(payload)
-
-        elif self.case == 'calibrate':
-
-            if self.norm_counter == self.n:
-                self.case = 'running'
-                # print("GO RUNNING")
-                for key in self.max_counts.keys():
-                    self.max_counts[key] = np.max([np.mean(self.max_counts_list[key]), 1.0])
-
-            self.norm_counter += 1
-            for message in payload:  # for every channel
-                self.max_counts_list[message['rank']].append(message['counts'])
-
-        else:
-            print("WRONGG CASE")
-            self.case = 'running'
-
-        # print("done get live counts")
-
-    def print_counts(self, payload):
-
-        # print("---", end='\r---')
-        # print(payload[0]['time'], end='')
-
-        msg = f"{payload[0]['time']}"
-        # init for loop every time step
-        for message in payload:  # for every channel
-            # time, mcuId, cuId, rank = message["time"], message['mcuId'], message['cuId'], message["rank"]
-            # counts, monitorV, biasI, inttime = message['counts'], message['monitorV'], message['biasI'], message['inttime']
-            msg += f"  ({message['rank']}):{message['counts']}  "
-            # print(f"ch{message['rank']}: {message['counts']} counts")
-    @staticmethod
-    async def websocket_client(base_url, callback, n=0, normalized=False):
-        """
-        Listens to the Retina websocket and processes every package.
-        For each package `callback` is called.
-        Give the URL (base_url) for the socket stream
-        and the callback that is called everytime a package is received.
-        A package contains the information for all the channels in an array.
-        If given n, the callback is called around n times.
-
-        Notes
-        -----
-        The values for BiasI only update when an IV sweep is being done on the channel.
-        """
-        uri = base_url + "/counts"
-
-        async with websockets.connect(uri) as websocket:
-            # Close the connection when receiving SIGTERM.
-            if plat == "linux" or plat == "linux2":
-                loop = asyncio.get_event_loop()
-                loop.add_signal_handler(signal.SIGTERM, lambda: asyncio.ensure_future(websocket.close()))
-            # Process messages received on the connection.
-            i = 0
-            async for message in websocket:
-                channel_size = 32  # One channel gives 32 bytes of information.
-                payload = []
-                for offset in range(0, len(message), channel_size):
-                    channel = message[offset:(offset + channel_size)]
-                    inttime = struct.unpack("<I", channel[16:20])[0] * 10  # ms
-                    payload.append(
-                        {
-                            "mcuId": struct.unpack("<B", channel[0:1])[0],
-                            "cuId": struct.unpack("<B", channel[1:2])[0],
-                            "cuStatus": struct.unpack("<B", channel[2:3])[0],
-                            "monitorV": struct.unpack("<f", channel[4:8])[0],
-                            "biasI": struct.unpack("<f", channel[8:12])[0],
-                            "inttime": inttime,
-                            "counts": (
-                                int(1000 / inttime) * struct.unpack("<I", channel[12:16])[0]
-                                if normalized
-                                else struct.unpack("<I", channel[12:16])[0]
-                            ),
-                            "rank": struct.unpack("<I", channel[20:24])[0],
-                            "time": struct.unpack("<d", channel[24:])[0],
-                        }
-                    )
-                callback(payload)
-                i += 1
-                if n and i >= n:
-                    return
-    
-    # --------
-    def old_get_counts(self, num=1):
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(websocket_client(self.base_url, self.old_fetch_counts, n=num))
-
-    # TODO FIXME
-    def old_fetch_counts(self, payload):
-        # init for loop every time step
-        for message in payload:  # for every channel
-            time, mcuId, cuId, rank = message["time"], message['mcuId'], message['cuId'], message["rank"]
-            counts, monitorV, biasI, inttime = message['counts'], message['monitorV'], message['biasI'], message['inttime']
-
-    # TODO FIX print counts below
-    def old_print_counts(self, payload):
-        msg = f"{payload[0]['time']}"
-        # init for loop every time step
-        for message in payload:  # for every channel
-            time, mcuId, cuId, rank = message["time"], message['mcuId'], message['cuId'], message["rank"]
-            counts, monitorV, biasI, inttime = message['counts'], message['monitorV'], message['biasI'], message['inttime']
-
-            print(f"""{time} | 
-                        {mcuId}.{str(cuId).zfill(2)} ({str(rank).zfill(2)}) | 
-                        Counts: {str(counts).rjust(10,' ')} Counts | 
-                        monitorV: {str(round(monitorV,6)).rjust(6,' ')} V | 
-                        BiasI: {str(biasI).rjust(6,' ')} μA | 
-                        intTime: {inttime} ms""")'''
-    
-# TODO:FIX?
-class CalibrateGroup:
-    def __init__(self):
-        self.WebSQ_link = None # WebSQGroup()
-        self.histo = False
-
-    def QT_graph(self):
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(websocket_client(self.WebSQ_link.base_url, self.WebSQ_link.get_live_counts, n=10))
-
-        app = QtWidgets.QApplication([])
-        main = MainWindow(self.histo, self.WebSQ_link)
-        main.show()
-        # websocket_client(base_url, livecounts.get_live_counts, n=1)
-        app.exec()
-
-# NOTE: TESTING MAIN WINDOW HERE, MIGHT REMOVE
-class MainWindow(QtWidgets.QMainWindow):
-
-    def __init__(self, histo, SQ_link):
-        super().__init__()
-        self.histo = histo
-        self.SQ_link = SQ_link
-        if histo:
-
-            window = pg.plot()
-            window.setGeometry(100, 100, 600, 500)
-
-            self.time = np.arange(0.5, 12.5, 1)
-            self.counts = [1 for _ in range(12)]
-
-            self.plot_graph = pg.BarGraphItem(x=self.time, height=self.counts, width=0.6, brush='g')
-
-            #self.setCentralWidget(self.plot_graph)
-            window.addItem(self.plot_graph)
-            #window.setWindowTitle("QT Graph")
-            #self.plot_graph.setBackground("w")
-
-            # self.plot_graph.sigMouseReleased.connect(self.mouse_release)  # try to get some mouse event
-
-            # -------------
-            self.loop = loop = asyncio.get_event_loop()
-            loop.run_until_complete(websocket_client(self.SQ_link.base_url, self.SQ_link.get_live_counts, n=10))
-
-            # Add a timer to simulate new temperature measurements
-            self.timer = QtCore.QTimer()
-            self.timer.setInterval(50)
-            self.timer.timeout.connect(self.update_plot)
-            self.timer.start()
-
-
-        else:
-            # Temperature vs time dynamic plot
-            self.plot_graph = pg.PlotWidget()
-            self.setCentralWidget(self.plot_graph)
-
-            self.plot_graph.setBackground("w")
-            pen = pg.mkPen(color=(0, 0, 0))
-
-            #self.plot_graph.setTitle("Placholder title", color="b", size="20pt")
-            styles = {"color": "red", "font-size": "18px"}
-
-            #self.plot_graph.setLabel("left", "Counts", **styles)
-            #self.plot_graph.setLabel("bottom", "Channel", **styles)
-
-            #self.plot_graph.addLegend()
-            self.plot_graph.showGrid(x=True, y=True)
-
-            self.plot_graph.setYRange(0, 2)
-
-            self.time = np.arange(0.5, 12.5, 1)
-            self.counts = [0 for _ in range(12)]
-
-            # Get a line reference
-            self.line = self.plot_graph.plot(
-                self.time,
-                self.counts,
-                name="Counts",
-                pen=pen,
-                symbol="o",
-                symbolSize=15,
-                symbolBrush="b",
-            )
-            #self.plot_graph.sigMouseReleased.connect(self.mouse_release)  # try to get some mouse event
-
-            # adding pushbutton
-            self.pushButton = QtWidgets.QPushButton(self.plot_graph)
-            self.pushButton.setGeometry(QtCore.QRect(20, 0, 50, 28))
-
-            # adding signal and slot
-            self.pushButton.clicked.connect(self.clicked)
-
-            self.label = QtWidgets.QLabel(self.plot_graph)
-            self.label.setGeometry(QtCore.QRect(80, 0, 50, 28))
-
-            # keeping the text of label empty before button get clicked
-            self.label.setText("<-- Reset")
-
-            # -------------
-            self.loop = loop = asyncio.get_event_loop()
-            loop.run_until_complete(websocket_client(self.SQ_link.base_url, self.SQ_link.get_live_counts, n=10))
-
-            # Add a timer to simulate new temperature measurements
-            self.timer = QtCore.QTimer()
-            self.timer.setInterval(50)
-            self.timer.timeout.connect(self.update_plot)
-            self.timer.start()
-
-    def mouse_release(self):
-        print('click')  # never execute
-
-    def clicked(self):
-        print('clicked reset')
-        self.SQ_link.reset_vars()
-
-    def update_plot(self):
-        #for j in range(0, 24, 2):
-        #    self.counts[j] = livecounts.counts[j//2 + 1]
-        #    self.counts[j+1] = livecounts.counts[j//2 + 1]
-        #print(self.counts)
-        #self.line.setData(self.time, list(self.counts))
-        if self.histo:
-            rnd = np.random.random(12)
-            time.sleep(0.5)
-            self.plot_graph.setOpts(height=[self.SQ_link.counts[j+1]+rnd[j] for j in range(12)])
-        else:
-            self.line.setData(self.time, [self.SQ_link.counts[j+1] for j in range(12)])
-        self.loop.run_until_complete(websocket_client(self.SQ_link.base_url, self.SQ_link.get_live_counts, n=1))
-
-        if self.SQ_link.case == 'running':
-            all_cnts = np.array([self.SQ_link.counts[i] for i in range(1, 13)])
-            ch_nrs = np.arange(1, 13, 1)
-            #print(all_cnts)
-            #print(ch_nrs)
-            if np.sum(all_cnts) != 0:
-                self.weighted_avg = round(np.sum(ch_nrs * all_cnts) / np.sum(all_cnts), 2)
-                #print(weighted_avg)
-                self.plot_graph.setTitle(f"Avg ch={self.weighted_avg}", color="b", size="20pt")
-
-
-        #livecounts.print_counts(livecounts.payload)
-
-
-# -----
-
-async def websocket_client(base_url, callback, n=0, normalized=False):
-    """
-    Listens to the Retina websocket and processes every package.
-    For each package `callback` is called.
-    Give the URL (base_url) for the socket stream
-    and the callback that is called everytime a package is received.
-    A package contains the information for all the channels in an array.
-    If given n, the callback is called around n times.
-
-    Notes
-    -----
-    The values for BiasI only update when an IV sweep is being done on the channel.
-    """
-    uri = base_url + "/counts"
-
-    async with websockets.connect(uri) as websocket:
-        # Close the connection when receiving SIGTERM.
-        if platform == "linux" or platform == "linux2":
-            loop = asyncio.get_event_loop()
-            loop.add_signal_handler(signal.SIGTERM, lambda: asyncio.ensure_future(websocket.close()))
-        # Process messages received on the connection.
-        i = 0
-        async for message in websocket:
-            channel_size = 32  # One channel gives 32 bytes of information.
-            payload = []
-            for offset in range(0, len(message), channel_size):
-                channel = message[offset:(offset + channel_size)]
-                # ----
-                # JULIA TESTING.. TODO: MUST REMOVE
-                #if struct.unpack("<I", channel[20:24])[0] in [1, 2, 3, 8, 9, 12, 13, 22]:  # TESTING FAULTY CHANNELS
-                #    continue
-                # ----
-
-                inttime = struct.unpack("<I", channel[16:20])[0] * 10  # ms
-                payload.append(
-                    {
-                        "mcuId": struct.unpack("<B", channel[0:1])[0],
-                        "cuId": struct.unpack("<B", channel[1:2])[0],
-                        "cuStatus": struct.unpack("<B", channel[2:3])[0],
-                        "monitorV": struct.unpack("<f", channel[4:8])[0],
-                        "biasI": struct.unpack("<f", channel[8:12])[0],
-                        "inttime": inttime,
-                        "counts": (
-                            int(1000 / inttime) * struct.unpack("<I", channel[12:16])[0]
-                            if normalized
-                            else struct.unpack("<I", channel[12:16])[0]
-                        ),
-                        "rank": struct.unpack("<I", channel[20:24])[0],
-                        "time": struct.unpack("<d", channel[24:])[0],
-                    }
-                )
-            callback(payload)
-            i += 1
-            if n and i >= n:
-                return
-
 class LiveCounts:
     def __init__(self, base_url=None):
         if base_url:
@@ -2312,8 +1765,6 @@ class LiveCounts:
 
     def get_active_channels(self, payload):
         """
-            # --> how to use this function: "loop.run_until_complete(websocket_client(base_url, live_counts.get_active_channels, n=1))"
-
             message['mcuId']        # this is the retina driver number (e.g. mcuId = 1 or 2, if we have 2 retinas)
             message['cuId']         # for each driver, which channel number (cuId is between 1-12)
             message['cuStatus']     # ????
@@ -2338,7 +1789,6 @@ class LiveCounts:
 
 class Calibration:
     def __init__(self):
-        self.plotting_class = LivePlotting()
         self.livecounts_class = None
 
         self.nr_chs = tk.IntVar(value=24)
@@ -2431,13 +1881,8 @@ class Calibration:
             print("Error: Could not connect to WebSQ!")
             raise
 
-
 class NewScanGroup:
     def __init__(self):
-        #self.demo_class = Demo()
-        #self.eta_class = ETA()
-        #self.plotting_class = Plotting(self)
-
         # class instances when connected
         self.eta_class = ETA(self)
         self.plotting_class = Plotting(self)
@@ -2510,7 +1955,7 @@ class NewScanGroup:
         # ---
         # Logger box:
         log_box_frm = ttk.Frame(new_scan_tab, borderwidth=1, relief=tk.GROOVE)
-        log_box_frm.grid(row=1, column=1, sticky="nws")  # in sub frame
+        log_box_frm.grid(row=0, column=1, columnspan=10, rowspan=10, sticky="nws")  # in sub frame
         self.log_scan_widget(log_box_frm).grid(row=0, column=0, sticky="news")   # Inner thing
 
         # -----
@@ -2902,7 +2347,7 @@ class NewScanGroup:
                 """
 
         self.log_box = log_box = scrolledtext.ScrolledText(frm_log, wrap=tk.WORD, width=24, height=12, font=('Helvetica', 12, "italic"), state='disabled')
-        log_box.grid(row=1, column=0, pady=0, padx=0)
+        log_box.grid(row=0, column=0, pady=0, padx=0)
 
         return frm_log
 
@@ -2928,7 +2373,7 @@ class NewScanGroup:
 
     def update_log_box_height(self):
         #s#elf.log_box.config(height=2, width=2)
-
+        return
         self._params_frm.update()
         self._scan_frm.update()
         box_w = self._params_frm.winfo_width() - self._scan_frm.winfo_width() - 42  # 9 is for scrollbar width
@@ -3114,7 +2559,7 @@ class ETA:
         self.const = {
             'eta_format':    1,      # swabian = 1
             'eta_recipe':   '',
-            'eta_recipe_corr':   'Code/ETARecipes/Correlation-swabian_spectrometer.eta',
+            'eta_recipe_corr':       'Code/ETARecipes/Correlation-swabian_spectrometer.eta',
             'eta_recipe_lifetime':   'Code/ETARecipes/Lifetime-swabian_spectrometer.eta',
             'eta_recipe_spectrum':   'Code/ETARecipes/Countrate-swabian_spectrometer.eta',
             'timetag_file': '', #'Data/ToF_Duck_10MHz_det1_det2_5.0ms_[2.1, 3.9, -3.2, -4.8]_100x100_231220.timeres',
@@ -3473,153 +2918,6 @@ class ETA:
 
     def find_peak_idx(self, data):
         return np.where(data == np.max(data))[0][0]
-
-class ColorMatchingCIE:
-    # source/inspo: https://www.baeldung.com/cs/rgb-color-light-frequency
-    def __init__(self):
-        self.wavelengths = {}
-        self.wavelengths_simple = {}
-
-        for wl in np.arange(350, 750):
-            self.wavelengths[wl] = self.get_rgb(wl)   # CIE
-            self.wavelengths_simple[wl] = self.get_simple_rgb(wl)   # simplified (not CIE)
-
-    def get_rgb(self, wavelength):
-        def get_X(wavelen):
-            # X is considered to represent the hue and saturation on the red-green axis.
-            if wavelen < 442.0:
-                factor1 = 0.0624
-            else:
-                factor1 = 0.0374
-
-            if wavelen < 599.8:
-                factor2 = 0.0264
-            else:
-                factor2 = 0.0323
-
-            if wavelen < 501.1:
-                factor3 = 0.0490
-            else:
-                factor3 = 0.0382
-
-            Xt1 = (wavelen - 442.0) * factor1
-            Xt2 = (wavelen - 599.8) * factor2
-            Xt3 = (wavelen - 501.1) * factor3
-
-            return (0.362 * np.exp(-0.5 * (Xt1 ** 2))) + (1.056 * np.exp(-0.5 * (Xt2 ** 2))) - (0.065 * np.exp(-0.5 * (Xt3 ** 2)))
-
-        def get_Y(wavelen):
-            # Y is considered to represent the luminosity.
-            if wavelen < 568.8:
-                factor1 = 0.0213
-            else:
-                factor1 = 0.0247
-            if wavelen < 530.9:
-                factor2 = 0.0613
-            else:
-                factor2 = 0.0322
-            Yt1 = (wavelen - 568.8) * factor1
-            Yt2 = (wavelen - 530.9) * factor2
-
-            return (0.821 * np.exp(-0.5 * (Yt1 ** 2))) + (0.286 * np.exp(-0.5 * (Yt2 ** 2)))
-
-        def get_Z(wavelen):
-            # Z is considered to represent the hue and saturation on the blue-yellow axis.
-            if wavelen < 437.0:
-                factor1 = 0.0845
-            else:
-                factor1 = 0.0278
-            if wavelen < 459.0:
-                factor2 = 0.0385
-            else:
-                factor2 = 0.0725
-
-            Zt1 = (wavelen - 437.0) * factor1
-            Zt2 = (wavelen - 459.0) * factor2
-
-            return (1.217 * np.exp(-0.5 * (Zt1 ** 2))) + (0.681 * np.exp(-0.5 * (Zt2 ** 2)))
-
-        def calc_rgb(X, Y, Z):
-            # calculate raw RBG values
-            r_factors = [3.2406255, -1.537208, -0.4986286]
-            g_factors = [-0.9689307, 1.8757561, 0.0415175]
-            b_factors = [0.0557101, -0.2040211, 1.0569959]
-
-            R_raw = r_factors[0]*X + r_factors[1]*Y + r_factors[2]*Z
-            G_raw = g_factors[0]*X + g_factors[1]*Y + g_factors[2]*Z
-            B_raw = b_factors[0]*X + b_factors[1]*Y + b_factors[2]*Z
-
-            return R_raw, G_raw, B_raw
-
-        def gamma_correction(value):
-            # apply gamma correction and convert them to 0-255 range
-            if value <= 0:
-                return 0
-            elif value <= 0.0031308:
-                return round(255*value*12.92)
-            elif value <= 1:
-                return round(255 * (1.055 * (value**(1/2.4)) - 0.055 ))
-            else:
-                return 255
-
-        X = get_X(wavelength)
-        Y = get_Y(wavelength)
-        Z = get_Z(wavelength)
-        #print(X, Y, Z)
-        R_raw, G_raw, B_raw = calc_rgb(X, Y, Z)
-        #print(R_raw, G_raw, B_raw)
-
-        R = gamma_correction(R_raw)
-        G = gamma_correction(G_raw)
-        B = gamma_correction(B_raw)
-        #print(R, G, B)
-        return '#{:02x}{:02x}{:02x}'.format(R, G, B)
-        #return [R, B, G]
-
-    def get_simple_rgb(self, wl):
-        if 645 < wl <= 780:
-            red = 1
-            green = 0
-            blue = 0
-        elif 580 < wl <= 645:
-            red = 1
-            green = -(wl-645)/(645-580)  # FIXME -(wl-645)/(645/580)
-            blue = 0
-        elif 510 < wl <= 580:
-            red = (wl-510)/(580-510)
-            green = 1
-            blue = 0
-        elif 490 < wl <= 510:
-            red = 0
-            green = 1
-            blue = -(wl-510)/(510-490)
-        elif 440 < wl <= 490:
-            red = 0
-            green = (wl-440)/(490-440)
-            blue = 1
-        elif 380 < wl <= 440:
-            red = -(wl-440)/(440-380)
-            green = 0
-            blue = 1
-        else:
-            red = 0
-            green = 0
-            blue = 0
-
-        if 700 < wl <= 780:
-            factor = 0.3 + (0.7*(780-wl)/(780-700))
-        elif 420 < wl <= 700:
-            factor = 1
-        elif 380 < wl <= 420:
-            factor = 0.3 + (0.7*(wl-380)/(420-380))
-        else:
-            factor = 0
-
-        R = round(255*(red*factor)**0.8)
-        G = round(255*(green*factor)**0.8)
-        B = round(255*(blue*factor)**0.8)
-
-        return '#{:02x}{:02x}{:02x}'.format(R, G, B)
 
 # -------------
 
