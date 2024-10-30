@@ -9,7 +9,10 @@ from sys import platform
 import websockets
 import numpy as np
 from sklearn import cluster
+import os
 
+
+from Code.RetinaFiles.src.WebSQController import WebSQController
 
 async def websocket_client(base_url, callback, n=0, normalized=False):
     """
@@ -38,12 +41,6 @@ async def websocket_client(base_url, callback, n=0, normalized=False):
             payload = []
             for offset in range(0, len(message), channel_size):
                 channel = message[offset:(offset + channel_size)]
-                # ----
-                # JULIA TESTING.. TODO: MUST REMOVE
-                #if struct.unpack("<I", channel[20:24])[0] in [1, 2, 3, 8, 9, 12, 13, 22]:  # TESTING FAULTY CHANNELS
-                #    continue
-                # ----
-
                 inttime = struct.unpack("<I", channel[16:20])[0] * 10  # ms
                 payload.append(
                     {
@@ -67,11 +64,19 @@ async def websocket_client(base_url, callback, n=0, normalized=False):
             if n and i >= n:
                 return
 
+def create_retina_webserver():
+    websq_domain = os.environ.get("WEBSQ_DOMAIN", 'http://localhost:8080/')
+    sq = WebSQController(websq_domain)
+    return sq
 
 class LiveCounts:
     def __init__(self, base_url=None):
         if base_url:
             #loop = asyncio.get_event_loop()
+
+            if base_url == 'http://localhost:8080/':   # TODO FIX
+                self.sq = create_retina_webserver()
+
             loop.run_until_complete(websocket_client(base_url, self.get_active_channels, n=1))  # finds which channels we collect from Retina setup
             self.nr_chs = self.found_channels.shape[0]   # self.nr_chs = 24
             self.ch_numbers = self.found_channels.copy()  # FIXME
@@ -80,7 +85,7 @@ class LiveCounts:
                 self.active_chs[i] = True
 
             self.X = np.array([i for i in self.ch_numbers]).reshape(-1, 1)  # for clustering
-            self.reset_vars(n=5)
+            self.reset_vars(n=10)   # TODO: check if we should use self.n below?
             loop.run_until_complete(websocket_client(base_url, self.get_live_counts, n=10))
         else:
             self.nr_chs = 24
@@ -114,7 +119,7 @@ class LiveCounts:
 
             for message in payload:  # for every channel
 
-                if self.active_chs[message['rank']] is False:  # NOTE: NEW!!
+                if self.active_chs[message['rank']] is False:
                     self.counts[message['rank']] = 0
                 else:
                     self.counts[message['rank']] = message['counts']
@@ -149,18 +154,6 @@ class LiveCounts:
             print("ERROR: WRONG CASE IN 'get_live_counts'")
             exit()
 
-    def print_counts(self, payload):
-
-        msg = f"{payload[0]['time']}"
-        # init for loop every time step
-        for message in payload:  # for every channel
-            # time, mcuId, cuId, rank = message["time"], message['mcuId'], message['cuId'], message["rank"]
-            # counts, monitorV, biasI, inttime = message['counts'], message['monitorV'], message['biasI'], message['inttime']
-            msg += f"  ({message['rank']}) : {message['counts']}  "
-
-        print("---", end='\r---')
-        print(msg, end='')
-
     def get_active_channels(self, payload):
         """
             # --> how to use this function: "loop.run_until_complete(websocket_client(base_url, live_counts.get_active_channels, n=1))"
@@ -174,20 +167,26 @@ class LiveCounts:
 
         found_channels = []
         self.nr_chs = 0
+        print("payload=", payload)
         for message in payload:  # for every channel
             #if len(found_channels) > 15:
             #    continue
             found_channels.append(message['rank'])
             print(message)
+        try:
+            self.int_time = message['inttime']
+            print("int time:", self.int_time)
+        except:
+            pass
 
         found_channels.sort()
         self.found_channels = np.array(found_channels)
 
-
-class MainWindow:  #()QtWidgets.QMainWindow):
+class MainWindow:
 
     def __init__(self):
         #super().__init__()  # THIS WAS TO INIT THE SUPERCLASS
+
         self.livecounts = LiveCounts(base_url=None)  # temporary class until we connect
 
         self.autoscale = False
@@ -209,21 +208,7 @@ class MainWindow:  #()QtWidgets.QMainWindow):
             (0, 0, 255),  # dark blue
             (0, 255, 128),  # green-blue
         ]
-        """ = [
-            (255, 153, 153),   # red
-            (255, 204, 153),   # orange
-            (255, 255, 153),   # yellow
-            (204, 255, 153),   # yellow-green
-            (153, 255, 153),   # green
-            (153, 255, 204),   # green-blue
-            (153, 255, 255),   # cyan
-            (153, 204, 255),   # medium blue
-            (153, 153, 255),   # blue
-            (204, 153, 255),   # purple
-            (255, 153, 255),   # magenta
-            (255, 153, 204),   # cerise
-            (224, 224, 224),   # grey
-                      ]"""
+
         self.nr_colors = len(self.col_choice)
 
         # note: moved from main:
@@ -264,9 +249,11 @@ class MainWindow:  #()QtWidgets.QMainWindow):
         # ----- PLOT/BAR GRAPH WIDGET-----
         self.adjust_window()  # configure plot window
         # create histo item
-        self.histo = pg.BarGraphItem(x=self.livecounts.ch_numbers, height=np.zeros(self.livecounts.nr_chs), width=0.6, brush='g')
+        self.histo = pg.BarGraphItem(x=self.livecounts.ch_numbers, height=np.zeros(self.livecounts.nr_chs), width=0.6, brush='grey')
         self.plot_window.addItem(self.histo)  # add histo item to window
-        self.histo_colors = {i : 'g' for i in self.livecounts.ch_numbers}
+        #self.histo_colors = {i : 'g' for i in self.livecounts.ch_numbers}
+        self.histo_colors = {i: 'grey' for i in self.livecounts.ch_numbers}   # set all to grey before changing
+
         #self.histo.setOpts(brushes=[self.histo_colors[ch] for ch in self.livecounts.ch_numbers])
         # note: it is added to grid at the end of this function
 
@@ -281,9 +268,10 @@ class MainWindow:  #()QtWidgets.QMainWindow):
         lay.addWidget(self.button_url, 1, 0, 1, 2)
 
         # ------- RESET RANGE BUTTONS -----
-        self.checkbox_auto = QtWidgets.QCheckBox("Auto")
+        self.checkbox_auto = QtWidgets.QCheckBox("Auto Scale")
         self.checkbox_auto.toggled.connect(self.clicked_autoscale)
         lay.addWidget(self.checkbox_auto, 2, 0)
+
 
         # ------ TEXT INPUT MIN/MAX Y RANGE ------
         self.entry_max = entry_max = QtWidgets.QLineEdit()
@@ -295,12 +283,19 @@ class MainWindow:  #()QtWidgets.QMainWindow):
         entry_max.setPlaceholderText("Y max")   # for max y-axis value
         lay.addWidget(entry_max, 2, 1)
 
+        # ------- NORMALIZED
+        self.checkbox_norm = QtWidgets.QCheckBox("Norm")
+        self.checkbox_norm.toggled.connect(self.clicked_normalized)
+        lay.addWidget(self.checkbox_norm, 3, 0)
+
         # ---- REDO CALIBRATION SAMPLING FOR AVERAGE -----
         self.entry_calibrate = QtWidgets.QLineEdit()
         self.entry_calibrate.editingFinished.connect(self.clicked_recalibrate)
-        self.entry_calibrate.setValidator(QtGui.QIntValidator(0, 99))
-        self.entry_calibrate.setPlaceholderText("Resample n times")
-        lay.addWidget(self.entry_calibrate, 3, 0, 1, 2)
+        validator_sample = QtGui.QDoubleValidator()
+        validator_sample.setLocale(QtCore.QLocale("en_US"))  # this is to use period as decimal instead of comma
+        self.entry_calibrate.setValidator(validator_sample)
+        self.entry_calibrate.setPlaceholderText("Sample time (s)")
+        lay.addWidget(self.entry_calibrate, 4, 0, 1, 2)
 
         # ---- BUNCHING AVERAGES ---
         self.entry_bunch = entry_bunch = QtWidgets.QLineEdit()
@@ -308,10 +303,10 @@ class MainWindow:  #()QtWidgets.QMainWindow):
         entry_bunch.textChanged.connect(self.changed_bunch)
         entry_bunch.setValidator(QtGui.QIntValidator(0, self.livecounts.nr_chs))  # can be a float
         entry_bunch.setPlaceholderText("Number of bunches")   # for max y-axis value
-        lay.addWidget(entry_bunch, 4, 0, 1, 2)
+        lay.addWidget(entry_bunch, 5, 0, 1, 2)
 
         # ----- CHANNEL BUTTONS -----
-        b_off = 5  # which row the first buttons should be
+        b_off = 6  # which row the first buttons should be
         self.ch_buttons = {}
         self.entry_lams = {}  # to save lamda entries
         self.text_counts = {}
@@ -374,6 +369,7 @@ class MainWindow:  #()QtWidgets.QMainWindow):
 
         # --- ADDING PLOT LAST TO ENSURE IT FILLS UP ALL ROWS
         self.checkbox_auto.setChecked(True)
+        self.checkbox_norm.setChecked(True)
         self.autoscale = True
         lay.addWidget(self.plot_window, 0, 2, lay.rowCount(), 1)  # note that columnstrech on this column is much larger (prev def)
 
@@ -382,10 +378,6 @@ class MainWindow:  #()QtWidgets.QMainWindow):
             if not self.livecounts.active_chs[i]:  # if not active toggle off
                 self.text_counts[i].setColor((200, 200, 200))
                 self.ch_buttons[i].setStyleSheet("background-color: grey")
-
-    def clicked_pause(self):
-        loop.run_until_complete(websocket_client(self.base_url, self.livecounts.get_active_channels, n=1))
-        time.sleep(2)
 
     def adjust_window(self):
         #self.plot_window.setGeometry(QtCore.QRect(0, 0, 600, 100))      # (0, 0, 600, 500))        #NOTE THIS DICTATES WHERE BUTTONS ARE PLACED I THINK
@@ -412,66 +404,17 @@ class MainWindow:  #()QtWidgets.QMainWindow):
         self.plot_window.setXRange(0, self.livecounts.nr_chs+1, padding=0.0)
         #self.plot_window.getAxis('bottom').setRange(0, self.livecounts.nr_chs+1)   # (0, 13) when we had 12 chs
 
-    # THIS ONE WORKS BUT USES CH NUMBERS IN K MEANS WHILE OTHER ONE SENDS IN WL
-    def clicked_bunch__ch_numbers(self):
+    def clicked_bunch_old(self):
         if self.entry_bunch.text() == "":
             pass
         else:
             try:
                 # ---- K MEANS CLUSTERING ----
-                n_bunch = int(eval(self.entry_bunch.text()))  # how many neighbors on each side
-                X_weight = np.array([self.livecounts.counts[i] for i in self.livecounts.ch_numbers])
-                X = np.array([i for i in self.livecounts.ch_numbers]).reshape(-1, 1)
-                result = cluster.k_means(X=X, n_clusters=n_bunch, sample_weight=X_weight, n_init=10)
+                n_bunch = int(eval(self.entry_bunch.text()))    # how many grouping we want
 
-                peak_chs = [[int(i[0]), i[0]] for i in result[0]]   # list of rounded
-                bunched_dict = {p[0] : {'members': [], 'avg': p[1]} for p in peak_chs}
-
-                for ch, mem in enumerate(result[1]):
-                    bunched_dict[peak_chs[mem][0]]['members'].append(ch+1)   #bunched_dict[int(round(result[0][mem][0]))]['members'].append(ch+1)
-                    self.text_peaks[ch+1].setText("")
-
-                # Display the final text and assign colors
-                for i, peak in enumerate(bunched_dict.keys()):
-                    if True:
-                        #if bunched_dict[peak]['avg'] > peak:   # eg. 2.33 > 2
-                        # find 33% between 2 and 3
-                        delta_wl = self.wavelengths[peak+1] - self.wavelengths[peak]
-                        perc_wl = bunched_dict[peak]['avg'] - peak
-                        avg_wl = round(self.wavelengths[peak] + (delta_wl*perc_wl), 5)
-
-                        print("----peak:", peak)
-                        print(delta_wl)
-                        print(perc_wl)
-                        print(avg_wl)
-
-                        self.text_peaks[peak].setText(
-                            f"(chs.{np.min(bunched_dict[peak]['members'])}-{np.max(bunched_dict[peak]['members'])}) = "
-                            f"{avg_wl}")
-                    else:
-                        self.text_peaks[peak].setText(f"(chs.{np.min(bunched_dict[peak]['members'])}-{np.max(bunched_dict[peak]['members'])}) = "
-                                                      f"{bunched_dict[peak]['avg']}")
-                    for ch in bunched_dict[peak]['members']:
-                        self.histo_colors[ch] = self.col_choice[i % self.nr_colors]
-            except:
-                print("ERROR BUNCHING!")
-                if int(eval(self.entry_bunch.text())) > self.livecounts.nr_chs:
-                    self.entry_bunch.setText(f"{self.livecounts.nr_chs}")
-                elif int(eval(self.entry_bunch.text())) <= 0:
-                    self.entry_bunch.setText("1")
-                else:
-                    raise
-
-    def clicked_bunch(self):
-        if self.entry_bunch.text() == "":
-            pass
-        else:
-            try:
-                # ---- K MEANS CLUSTERING ----
-                n_bunch = int(eval(self.entry_bunch.text()))  # how many neighbors on each side
                 X_weight = np.array([self.livecounts.counts[i] for i in self.livecounts.ch_numbers])
                 X = np.array([self.wavelengths[i] for i in self.livecounts.ch_numbers]).reshape(-1, 1)   # NOTE CHANGED TO WL
-                result = cluster.k_means(X=X, n_clusters=n_bunch, sample_weight=X_weight, n_init=10)
+                result = cluster.k_means(X=X, n_clusters=n_bunch, sample_weight=X_weight, n_init=15)
 
                 #cluster_centers = result[0]         # [[98.76185137], [ 9.68747405], [61.48770616]]
                 #cluster_membership = result[1]      # [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0]
@@ -483,13 +426,15 @@ class MainWindow:  #()QtWidgets.QMainWindow):
 
                 # FOR EACH CHANNEL
                 for ch, parent_idx in enumerate(result[1]):
-                    if self.livecounts.counts[ch+1] > 0:
+                    if self.livecounts.counts[ch+1] > 0:   # ...counts[...]
                         bunched_dict[parent_idx]['members'].append(ch+1)    # bunched_dict[int(round(result[0][mem][0]))]['members'].append(ch+1)
-                        self.text_peaks[ch+1].setText("")  # reset text
+
+                    self.text_peaks[ch+1].setText("")  # reset text
 
                 # Display the final text and assign colors
                 for i in bunched_dict.keys():
                     try:
+                        #print(bunched_dict)
                         peak_ch = int(np.mean(bunched_dict[i]['members']))
                         self.text_peaks[peak_ch].setText(
                             f"(chs.{np.min(bunched_dict[i]['members'])}-{np.max(bunched_dict[i]['members'])}) = "
@@ -504,9 +449,7 @@ class MainWindow:  #()QtWidgets.QMainWindow):
 
             except:
                 print("ERROR BUNCHING!")
-                print(result)
-                raise
-                input()
+
                 if int(eval(self.entry_bunch.text())) > self.livecounts.nr_chs:
                     self.entry_bunch.setText(f"{self.livecounts.nr_chs}")
                 elif int(eval(self.entry_bunch.text())) <= 0:
@@ -514,19 +457,80 @@ class MainWindow:  #()QtWidgets.QMainWindow):
                 else:
                     raise
 
+    def clicked_bunch(self):
+        if self.entry_bunch.text() == "":
+            pass
+        else:
+            try:
+                # ---- K MEANS CLUSTERING ----
+                n_bunch = int(eval(self.entry_bunch.text()))    # how many grouping we want
+
+                X_weight = np.array([self.livecounts.counts[i] for i in self.livecounts.ch_numbers])
+                #X_weight = np.array([1 for i in self.livecounts.ch_numbers])
+
+                X = np.array([
+                    [self.wavelengths[i] for i in self.livecounts.ch_numbers]
+                    #,[self.livecounts.copy_counts[i] for i in self.livecounts.ch_numbers]
+                    ]).T  #.reshape(-1, 1)   # NOTE CHANGED TO WL
+
+                result = cluster.k_means(X=X, n_clusters=n_bunch, sample_weight=X_weight, n_init=15)
+
+                #cluster_centers = result[0]         # [[98.76185137], [ 9.68747405], [61.48770616]]
+                #cluster_membership = result[1]      # [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0]
+
+                if True:
+                    bunched_dict = {}
+                    for thing in range(n_bunch):
+                        bunched_dict[thing] = {'members': [], 'avg': round(result[0][thing][0], 5)}
+
+                # FOR EACH CHANNEL
+                for ch, parent_idx in enumerate(result[1]):
+                    if self.livecounts.counts[ch+1] > 0:   # ...counts[...]
+                        bunched_dict[parent_idx]['members'].append(ch+1)    # bunched_dict[int(round(result[0][mem][0]))]['members'].append(ch+1)
+
+                    self.text_peaks[ch+1].setText("")  # reset text
+
+                # Display the final text and assign colors
+                for i in bunched_dict.keys():
+                    try:
+                        #print(bunched_dict)
+                        peak_ch = int(np.mean(bunched_dict[i]['members']))
+                        self.text_peaks[peak_ch].setText(
+                            f"(chs.{np.min(bunched_dict[i]['members'])}-{np.max(bunched_dict[i]['members'])}) = "
+                            f"{bunched_dict[i]['avg']}")
+                        for ch in bunched_dict[i]['members']:
+                            self.histo_colors[ch] = self.col_choice[i % self.nr_colors]
+                    except:
+                        print(bunched_dict[i]['members'])
+                        raise
+
+                # TODO FIX ME HERE: CRASHES AT LIKE 12 BUNCHES
+
+            except:
+                print("ERROR BUNCHING!")
+
+                if int(eval(self.entry_bunch.text())) > self.livecounts.nr_chs:
+                    self.entry_bunch.setText(f"{self.livecounts.nr_chs}")
+                elif int(eval(self.entry_bunch.text())) <= 0:
+                    self.entry_bunch.setText("1")
+                else:
+                    raise
 
     def changed_bunch(self):
         for i in self.livecounts.ch_numbers:
             self.text_peaks[i].setText("")
 
+        self.histo_colors = {i: 'grey' for i in self.livecounts.ch_numbers}   # set all to grey before changing
+        # self.histo_colors = ['g' for _ in self.livecounts.ch_numbers]
+
         if self.entry_bunch.text() != "":
             for i in self.livecounts.ch_numbers:
                 self.text_peaks[i].setPos(self.wavelengths[i], 0.8*self.plot_window.getViewBox().viewRange()[1][1])
 
-            self.histo_colors = {i: 'g' for i in self.livecounts.ch_numbers}
-            #self.histo_colors = ['g' for _ in self.livecounts.ch_numbers]
-            self.clicked_bunch()
-            self.histo.setOpts(brushes=[self.histo_colors[ch] for ch in self.livecounts.ch_numbers])
+            self.clicked_bunch()  # this will calculate the bunches and potentially change self.histo_colors
+
+        # Apply any color changes if needed
+        self.histo.setOpts(brushes=[self.histo_colors[ch] for ch in self.livecounts.ch_numbers])
 
     def clicked_save_wavelengths(self):
         try:
@@ -534,7 +538,9 @@ class MainWindow:  #()QtWidgets.QMainWindow):
             if file_name:
                 if file_name.endswith('.txt'):
                     with open(file_name, 'w') as f:
-                        f.writelines([f"{ch} {self.entry_lams[ch].text()}\n" for ch in self.livecounts.ch_numbers])
+                        f.writelines([f"channel laser_wavelength calibrated_wavelength\n"])
+                        f.writelines([f"{ch} {-1} {self.entry_lams[ch].text()}\n" for ch in self.livecounts.ch_numbers])
+                        # NOTE: ^ This program doesn't save laser wavelengths yet
                         f.close()
         except:
             print("Error trying to save config file")
@@ -551,9 +557,16 @@ class MainWindow:  #()QtWidgets.QMainWindow):
                         data = f.readlines()
                         f.close()
 
-                    for entry in data:
-                        ch, val = entry.strip("\n").split(" ")
-                        self.entry_lams[eval(ch)].setText(val)
+                    #for entry in data[1:]:  # note: first entry in data is just the labels for the columns
+                    for entry in data:  # note: first entry in data is just the labels for the columns
+                        #ch, las_val, cal_val = entry.strip("\n").split(" ")
+                        ch, cal_val = entry.strip("\n").split(" ")
+                        try:
+                            self.entry_lams[eval(ch)].setText(cal_val)
+                            #self.entry_laser_lams[eval(ch)].setText(cal_val)
+                        except:
+                            print(f"Failed to set ch {ch} with value {cal_val} from file")
+
                     print(f"Loaded configs from file: {file_name}")
                     self.clicked_update_wavelength()
 
@@ -578,65 +591,8 @@ class MainWindow:  #()QtWidgets.QMainWindow):
 
         self.clicked_update_wavelength(reset=True)
 
-    # WORKS WHEN ALL 24 CHANNELS ARE AVAILABLE
-    def clicked_fill_wavelengths_full(self):
-        try:
-            provided_chs = []
-            provided_wavelens = {}
-            for i in self.livecounts.ch_numbers:
-                if self.entry_lams[i].text() != "":
-                    provided_wavelens[i] = eval(self.entry_lams[i].text())
-                    provided_chs.append(i)
-
-            n = len(provided_chs)
-            self.acquired_wavelengths = True
-            if n > 1:
-                try:
-
-                    wl_range = []
-
-                    # FILLING CHANNELS BEFORE FIRST GIVEN CHANNEL
-                    if provided_chs[0] != 1:  # if we have to interpolate backwards
-                        delta_wl = (provided_wavelens[provided_chs[1]] - provided_wavelens[provided_chs[0]])/(provided_chs[1]-provided_chs[0])
-
-                        wl_range += list(np.linspace(
-                            start=provided_wavelens[provided_chs[0]] - delta_wl*(provided_chs[0]-1),
-                            stop=provided_wavelens[provided_chs[0]],
-                            num=provided_chs[0]-1, endpoint=False))
-
-                    # FILLING IN BETWEEN ALL GIVEN WAVELENGTHS
-                    for first in range(n - 1):
-                        wl_range += list(np.linspace(start=provided_wavelens[provided_chs[first]],
-                                                     stop=provided_wavelens[provided_chs[first+1]],
-                                                     num=provided_chs[first+1] - provided_chs[first], endpoint=False))
-
-                    # FILLING REMAINING CHANNELS AFTER
-                    delta_wl = wl_range[-1] - wl_range[-2]
-                    n_remain = self.livecounts.nr_chs - provided_chs[-1] + 1 # REMAINING FOR INCREASING CHANNELS #len(wl_range.values())
-                    wl_range += list(np.linspace(
-                        start=provided_wavelens[provided_chs[-1]],
-                        stop=provided_wavelens[provided_chs[-1]] + n_remain * delta_wl,
-                        num=n_remain, endpoint=False))  # +1 to include the last provided channel
-
-                    # SETTING PLACEHOLDER TEXT
-                    for i in self.livecounts.ch_numbers:
-                        self.wavelengths[i] = round(wl_range[i-1], 1)
-                        if i not in provided_chs:
-                            self.entry_lams[i].setPlaceholderText(f"{self.wavelengths[i]}")
-                        else:
-                            self.entry_lams[i].setPlaceholderText(f"*{self.wavelengths[i]}")  # TESTING
-
-                except:
-                    self.acquired_wavelengths = False
-                    print("INVALID RANGE OF WAVELENGTHS:")
-                    print(provided_wavelens)
-                    raise
-        except:
-            self.acquired_wavelengths = False
-            raise
-
-    # THIS VERSION ACCOUNTS FOR CHANNELS THAT ARE MISSING
     def clicked_fill_wavelengths(self):
+        # THIS VERSION (below) ACCOUNTS FOR CHANNELS THAT ARE MISSING
         try:
             provided_chs = []
             provided_wavelens = {}
@@ -788,10 +744,31 @@ class MainWindow:  #()QtWidgets.QMainWindow):
         else:
             self.autoscale = False
 
+    def clicked_normalized(self):
+        if self.checkbox_norm.isChecked() == False:
+            self.livecounts.averaged_calibration_counts = {k: 1 for k in self.livecounts.ch_numbers}
+        else:
+            self.entry_calibrate.setText(f"1")
+            self.clicked_recalibrate()
     def clicked_recalibrate(self):
         print('Clicked recalibrate')
+        self.checkbox_norm.setChecked(True)
         try:
-            self.livecounts.reset_vars(n=eval(self.entry_calibrate.text()))
+            loop.run_until_complete(websocket_client(self.base_url, self.livecounts.get_active_channels, n=1))  # finds which channels we collect from Retina setup
+
+            if self.livecounts.int_time:
+                sampletime = eval(self.entry_calibrate.text())
+                print("sample time (s) =", sampletime)
+                n = int(sampletime*(1000/self.livecounts.int_time))     # calculate how many iteration we need to do to sample given nr of seconds for calibration
+                print("Sampling", n, "times")
+                if n < 1:
+                    print("Warning: Sample time given is less than one integration time from retina!")
+                    n = 1
+            else:
+                n = 1
+                print("No integration time found")
+
+            self.livecounts.reset_vars(n=n)
             self.histo.setOpts(height=np.zeros(self.livecounts.nr_chs))  # don't display counts while recalibrating
             for i in self.livecounts.ch_numbers:
                 self.text_counts[i].setText("...")
@@ -799,7 +776,6 @@ class MainWindow:  #()QtWidgets.QMainWindow):
         except:
             print("ERROR: Failed to get nr of samples, using default of 5")
             self.entry_calibrate.setText("Try Again")
-
 
     def update_plot(self):
 
@@ -811,7 +787,7 @@ class MainWindow:  #()QtWidgets.QMainWindow):
             all_cnts_raw = np.array([self.livecounts.counts[i] for i in self.livecounts.ch_numbers])
             avg_cal_cnts = np.array([self.livecounts.averaged_calibration_counts[i] for i in self.livecounts.ch_numbers])
 
-            # note: below is just nor local normalization
+            # note: below is just local normalization
             #all_cnts_norm = all_cnts_raw / self.livecounts.averaged_calibration_counts
             all_cnts_norm = all_cnts_raw / avg_cal_cnts
 
@@ -847,4 +823,3 @@ if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     main = MainWindow()             # Initialize class for GUI/program
     sys.exit(app.exec_())
-
