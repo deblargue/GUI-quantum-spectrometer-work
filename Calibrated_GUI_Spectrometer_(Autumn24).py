@@ -22,7 +22,8 @@ from matplotlib.collections import LineCollection
 #from Code.RetinaFiles.src.WebSQController import WebSQController
 # - Spectro GUI Library IMPORTS
 from Code.SpectroGUILibrary.CIEColorMatching import ColorMatchingCIE
-from Code.SpectroGUILibrary.SpectroGUILibrary import DebuggingFunctions, ETA, LiveCounts
+from Code.SpectroGUILibrary.SpectroGUILibrary import ETA, LiveCounts, DebuggingFunctions
+#from Code.SpectroGUILibrary.SpectroGUILibrary import TT
 
 
 # Plotting --> Approx 800 lines
@@ -181,9 +182,9 @@ class Plotting:
         # h3 --> ch7
         # h4 --> ch5
         lookup = {
-            'h24': 'ch.5 - ch.6',
-            'h23': 'ch.6 - ch.7',
-            'h34': 'ch.5 - ch.7',
+            'h24': 'ch.2 - ch.4',
+            'h23': 'ch.2 - ch.3',
+            'h34': 'ch.3 - ch.4',
         }
 
         lookup_chs = {
@@ -277,9 +278,9 @@ class Plotting:
                   'ph2': 'ch.2',
                   'ph3': 'ch.3',
                   'ph4': 'ch.4',
-                  'h4' : 'ch.5',
-                  'h2' : 'ch.6',
-                  'h3' : 'ch.7',
+                  'h4' : 'ch.(4)',
+                  'h2' : 'ch.(2)',
+                  'h3' : 'ch.(3)',
                   'ph8':'ch.8',
                   'ph9':'ch.9',
                   'ph10':'ch.10',
@@ -507,13 +508,13 @@ class Plotting:
         y_max = tk.DoubleVar(value=20000.0)
         lookup = {
             'h2' : {
-                'ch': '6',
+                'ch': '(2)',
                 'nm' : ch6_nm},
             'h3' : {
-                'ch': '7',
+                'ch': '(3)',
                 'nm' : ch7_nm},
             'h4' : {
-                'ch': '5',
+                'ch': '(4)',
                 'nm' : ch5_nm},
         }
         range_list = tk.StringVar(value="2-4")
@@ -801,13 +802,13 @@ class Plotting:
 
         lookup = {
             'h2' : {
-                'ch': '6',
+                'ch': '(2)',
                 'nm' : ch6_nm},
             'h3' : {
-                'ch': '7',
+                'ch': '(3)',
                 'nm' : ch7_nm},
             'h4' : {
-                'ch': '5',
+                'ch': '(4)',
                 'nm' : ch5_nm},
         }
 
@@ -1193,7 +1194,7 @@ class NewScanGroup:
 
         # -----
 
-        self.sq = None
+        self.sq = None   # TODO
         self.sp = None
 
         self.params = {
@@ -1259,23 +1260,21 @@ class NewScanGroup:
         log_box_frm.grid(row=0, column=2, columnspan=10, rowspan=10, sticky="nws")  # in sub frame
         self.log_scan_widget(log_box_frm).grid(row=0, column=0, sticky="news")   # Inner thing
 
-    # TODO: FIXME BELOW (make sure it connects and does right)
     def start_scan_widget(self, tab):
 
         def press_start():
-            self.write_log(f"{self.sp.sp_handle}")
-            self.write_log(f"{self.sq.websq_handle}")
+
             if (not self.sp.sp_handle) or (not self.sq.websq_handle):
                 self.write_log(f"Can not start scan if we are not connected")
                 return
+            else:
+                self.write_log(f"{self.sp.sp_handle}")
+                self.write_log(f"{self.sq.websq_handle}")
 
-            #self.save_data(mode="w")   # TODO: maybe only have this once per new measurement (so that we can pause and start again)
-            # True:     if we have successfully configured the device
-            # False:    failed to do all configs to device, should not start scan
-            # None:     did not send new configs, will check but can start scan anyway (maybe??)
-            outcome = {True : 'green', False : 'red', None : 'grey'}
-            #self.mark_done(btn_start, highlight=outcome[self.config_success], type='button')
-            #self.mark_done(btn_stop, highlight=self.button_color, type='button')
+            scantime = self.params['scantime']['var'].get()
+            # TODO: Test both
+            #TT.start_tt_pos(scan_time=scantime, scan_name="temp_test", folder_path="Data/")
+            #TT.start_tt_neg(scan_time=scantime, scan_name="temp_test", folder_path="Data/")  # for negative channels
 
         frm_send = ttk.Frame(tab, relief=tk.FLAT, borderwidth=0)
         btn_start = ttk.Button(frm_send, text="Start Scan", command=press_start)
@@ -1649,9 +1648,9 @@ class LoadScanGroup:
         self.params['nr_pixels']['var'].set(4)
 
         # -- Detector
-        gui.add_to_grid(widg=center_parts, rows=[1, 2], cols=[1, 1], sticky=["ew", "ew"])  # center wavelength
-        gui.add_to_grid(widg=wid_parts, rows=[1, 2], cols=[2, 2], sticky=["ew", "ew"])
-        gui.add_to_grid(widg=time_parts, rows=[1, 2], cols=[3, 3], sticky=["ew", "ew"])
+        gui.add_to_grid(widg=time_parts, rows=[1, 2], cols=[1, 1], sticky=["ew", "ew"])
+        gui.add_to_grid(widg=center_parts, rows=[1, 2], cols=[2, 2], sticky=["ew", "ew"])  # center wavelength
+        gui.add_to_grid(widg=wid_parts, rows=[1, 2], cols=[3, 3], sticky=["ew", "ew"])
         #gui.add_to_grid(widg=det_no_parts, rows=[1, 2, 3, 4], cols=[0, 0, 0, 0], sticky=["ew", "ew", "ew", "ew"])  # nr of pixels
 
         return frm_configs
@@ -1673,6 +1672,7 @@ try:
     newScanClass = NewScanGroup()
     loadScanClass = LoadScanGroup()
     calibrationClass = Calibration()
+    gui.calibrationclass = calibrationClass
     gui.init_build_tabs()
     gui.root.mainloop()
 
