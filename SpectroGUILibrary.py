@@ -253,25 +253,11 @@ class ETA:
         self.eta_engine_corr = None
         self.eta_engine_lifetime = None
         self.eta_engine_spectrum = None
-        self.pb = None
 
-        self.load_all_engines()
-
-    def update_progressbar(self, n):
-        if self.pb:
-            if n == 0:
-                self.pb['value'] = 0
-                self.gui_class.root.update()  # testing
-
-            elif self.pb['value'] <= 100:
-                self.pb['value'] = n
-                self.gui_class.root.update()  # testing
-            else:
-                self.parent.write_log(f"overshot progressbar: {n}")
+        #self.load_all_engines()
 
     def load_eta(self, recipe, **kwargs):
-        self.update_progressbar(n=0)
-        self.gui_class.root.update()  # testing
+        print("LOADING ETA")
 
         with open(recipe, 'r') as filehandle:
             recipe_obj = json.load(filehandle)
@@ -295,89 +281,78 @@ class ETA:
         #self.eta_engine_corr = self.load_eta(self.const["eta_recipe_corr"], bins=self.const["bins"], binsize=self.const["binsize"])  # NOTE: removed for test
         #self.eta_engine_lifetime = self.load_eta(self.const["eta_recipe_lifetime"], bins=self.const["bins"], binsize=self.const["binsize"])  # NOTE: removed for test
         #self.eta_engine_spectrum = self.load_eta(self.const["eta_recipe_spectrum"], bins=self.const["bins"], binsize=self.const["binsize"])  # NOTE: removed for test
+        print("LOADING ALL ETA ENGINES")
 
         self.binsize_dict['counts'] = 10 * (10 ** 10)
         self.bins_dict['counts'] = (scantime * 0.1) * (10 ** 2)
 
         self.eta_engine_corr = self.load_eta(self.const["eta_recipe_corr"], bins=10000, binsize=20)
         self.eta_engine_lifetime = self.load_eta(self.const["eta_recipe_lifetime"], bins=125*5, binsize=20, det_delay = 12500)
+        self.eta_engine = self.load_eta(self.const["eta_recipe_lifetime"], bins=125*5, binsize=20, det_delay = 12500)
         self.eta_engine_spectrum = self.load_eta(self.const["eta_recipe_spectrum"], bins=self.bins_dict['counts'], binsize=self.binsize_dict['counts'])
 
-    def eta_lifetime_analysis(self):  # , const):
+    # ---------------------------------
 
-        self.folded_countrate_pulses = {}
+    def new_lifetime_analysis(self, ax=None, file=None):
+        print("STARTING NEW LIFETIME ANALYSIS")
 
-        """# NOTE: MAYBE FIXME, MIGHT HAVE TO RELOAD RECIPE EVERY TIME!
-        if self.const["eta_recipe"] != self.parent.params['eta_recipe']['var'].get():
-            self.const["eta_recipe"] = self.parent.params['eta_recipe']['var'].get()
-            self.eta_engine = self.load_eta(self.const["eta_recipe"], bins=self.const["bins"], binsize=self.const["binsize"])  # NOTE: removed for test
-        """
-        self.const["timetag_file"] = self.parent.params['file_name']['var'].get()
+        bins = 125*5
+        binsize = 20
 
-        # note: bins will be the same for all data channels
-        bins_i = np.linspace(0, self.const['bins']+1, self.const['bins']+2)  # starting with 8 channels for now
-        times_i = bins_i * self.const['binsize']   # time list in ps  (for one histogram)
+        #bins_i = np.linspace(0, bins + 1, bins + 2)  # starting with 8 channels for now
+        #self.lifetime_bins_ns = list(np.array(bins_i * binsize) / 1000)  # changing values from picoseconds to nanoseconds
 
-        channels = ['h2', 'h3', 'h4']
-        # fixme: we need to make sure that the channels matches what we have in the result dict
-        self.folded_countrate_pulses = dict([(c, np.zeros(self.const['bins'])) for c in channels])
+        if not file:
+            file = self.parent.params['file_name']['var'].get()
 
-        # ------ETA PROCESSING OF ONE TIMERES FILE-----
+        cutfile = self.eta_engine_lifetime.clips(filename=file, format=1)
+        result = self.eta_engine_lifetime.run({"timetagger1": cutfile}, group='swabian')  # Runs the time tagging analysis and generates histograms
 
-        pulse_nr = 0
-        pos = 0  # 0  # internal ETA tracker (-> maybe tracks position in data list?)
-        context = None  # tracks info about ETA logic, so we can extract and process data with breaks (i.e. in parts)
-        eta_format = self.const["eta_format"]   # eta_engine.FORMAT_SI_16bytes   # swabian = 1
-        file = Path(self.const['timetag_file'])
+        self.lifetime_bins_ns = np.arange(bins) * binsize
 
-        while True:
-            # Extract histograms from eta
-            file_clips = self.eta_engine.clips(filename=file, seek_event=pos, format=eta_format)
-            result, context = self.eta_engine.run({"timetagger1": file_clips}, resume_task=context, return_task=True, group='quTAG', max_autofeed=1)
+        channels = ['h4', 'h2', 'h3']
 
-            if pulse_nr % 100 == 0:
-                if self.parent.cancel:
-                    self.parent.write_log(f"Cancelled Analysis")
-                    return
-                self.update_progressbar(n=pulse_nr/100)
+        self.folded_countrate_pulses = dict([(c, result[c]) for c in channels])
 
-            # Check if we've run out of data, otherwise update position
-            if result['timetagger1'].get_pos() == pos:  # or (pos is None):
-                self.parent.write_log(f"final pulse nr: {pulse_nr}")
-                break
-            else:
-                pulse_nr += 1
-                pos = result['timetagger1'].get_pos()
-
-            # Folding histogram counts for each channel:
-            for c in channels:
-                self.folded_countrate_pulses[c] += np.array(result[c])
-
-        self.parent.write_log(f"Eta processing complete")
-        self.lifetime_bins_ns = list(np.array(times_i) / 1000)  # changing values from picoseconds to nanoseconds
-
-        # -----
-
+        # --TODO CHECK BELOW--
         wavelens = self.get_wavelengths()
 
         for c, channel in enumerate(self.folded_countrate_pulses.keys()):
             peak_idx = self.find_peak_idx(self.folded_countrate_pulses[channel])
-
             self.pix_dict[channel] = {
                 'name': 'c' + channel,
                 'wavelength': wavelens[c],  # computed
-                #'color': self.ch_colors[c % len(self.ch_colors)],
+                # 'color': self.ch_colors[c % len(self.ch_colors)],
                 'color': self.gui_class.CIE_colors.get_rgb(wavelens[c]),
                 'counts': sum(self.folded_countrate_pulses[channel]),  # sum of channel
                 'peak idx': peak_idx,
                 'lifetime': self.lifetime_bins_ns[peak_idx],  # calculated max value
             }
 
-        return
+        #return ax
 
-    # ---------------------------------
+    def new_countrate_analysis(self, file=None):
+        # ETA Settings
+        #binsize = 200   # 20
+        #bins = 1000
+        print("STARTING COUNTRATE ANALYSIS")
+
+        time_axis = np.arange(0, self.bins_dict['counts']) * self.binsize_dict['counts']
+
+        if not file:
+            file = self.parent.params['file_name']['var'].get()
+
+        print(f'Starting ETA countrate analysis on file: {file}')
+        cut = self.eta_engine_spectrum.clips(Path(file), format=1)
+        result = self.eta_engine_spectrum.run({"timetagger1": cut}, group='swabian')
+        print('Finished ETA analysis')
+
+        print(result.keys())
+
+        return time_axis / (10**12), result
 
     def new_correlation_analysis(self, ax=None, file=None):  # correlation
+        print("STARTING CORRELATION ANALYSIS")
 
         # ETA Settings
         binsize = 20
@@ -413,87 +388,9 @@ class ETA:
         # TODO: RETURN FIGURES!!! OR SOMETHING TO PUT IN GUI
         return delta_t, {'h23' : g2_23, 'h24' : g2_24, 'h34' : g2_34}
 
-    def new_tof_analysis(self, ax=None, file=None):
-        # note: hardcoded values set by theo # TODO FIXME
-        bins = 125*5
-        binsize = 20
-
-        #bins_i = np.linspace(0, bins + 1, bins + 2)  # starting with 8 channels for now
-        #self.lifetime_bins_ns = list(np.array(bins_i * binsize) / 1000)  # changing values from picoseconds to nanoseconds
-
-        if not file:
-            file = self.parent.params['file_name']['var'].get()
-
-        cutfile = self.eta_engine_lifetime.clips(filename=file, format=1)
-        result = self.eta_engine_lifetime.run({"timetagger1": cutfile}, group='swabian')  # Runs the time tagging analysis and generates histograms
-
-        self.lifetime_bins_ns = time_axis = np.arange(bins) * binsize
-
-        channels = ['h4', 'h2', 'h3']
-
-        #max_val = np.max([np.max(result[c]) for c in channels])
-        #self.folded_countrate_pulses = dict([(c, result[c]/max_val) for c in channels])
-        self.folded_countrate_pulses = dict([(c, result[c]) for c in channels])
-
-        # --TODO CHECK BELOW--
-        wavelens = self.get_wavelengths()
-
-        for c, channel in enumerate(self.folded_countrate_pulses.keys()):
-            peak_idx = self.find_peak_idx(self.folded_countrate_pulses[channel])
-
-            self.pix_dict[channel] = {
-                'name': 'c' + channel,
-                'wavelength': wavelens[c],  # computed
-                # 'color': self.ch_colors[c % len(self.ch_colors)],
-                'color': self.gui_class.CIE_colors.get_rgb(wavelens[c]),
-                'counts': sum(self.folded_countrate_pulses[channel]),  # sum of channel
-                'peak idx': peak_idx,
-                'lifetime': self.lifetime_bins_ns[peak_idx],  # calculated max value
-            }
-
-        #return ax
-
-    def new_countrate_analysis(self, file=None):
-        # ETA Settings
-        #binsize = 200   # 20
-        #bins = 1000
-
-        time_axis = np.arange(0, self.bins_dict['counts']) * self.binsize_dict['counts']
-
-        if not file:
-            file = self.parent.params['file_name']['var'].get()
-
-        print(f'Starting ETA correlation analysis on file: {file}')
-        cut = self.eta_engine_spectrum.clips(Path(file), format=1)
-        result = self.eta_engine_spectrum.run({"timetagger1": cut}, group='swabian')
-        print('Finished ETA analysis')
-
-        print(result.keys())
-
-        return time_axis / (10**12), result
-
-     #TODO FIX TODO
-    def new_spectrum_analysis(self, file=None):
-            # ETA Settings
-            binsize = 20
-            bins = 10000
-
-            time_axis = np.arange(0, bins) * binsize
-
-            delta_t = np.arange(-bins, bins) * binsize * 1e-3
-            if not file:
-                file = self.parent.params['file_name']['var'].get()
-
-            print(f'Starting ETA correlation analysis on file: {file}')
-            cut = self.eta_engine_corr.clips(Path(file), format=1)
-            result = self.eta_engine_corr.run({"timetagger1": cut}, group='swabian')
-            print('Finished ETA analysis')
-
-    def new_signal_counter_analysis(self):
-        pass
-
-    def signal_count(self):
+    def signal_count(self, file):
         # help function to check how many counts each channel has in the timeres file
+        print("STARTING SIGNAL COUNT ANALYSIS???")
 
         def eta_counter_swab(recipe_file, timetag_file, **kwargs):
             # Load the recipe from seperate ETA file
@@ -539,20 +436,11 @@ class ETA:
                     self.parent.write_log(f"{s} : {result[signals[s]]}")
 
         recipe = 'signal_counter.eta'
-        # recipe = 'temp2_signal_counter.eta'
-        file = 'Data/231102/nr_6_sineFreq(1)_numFrames(3)_sineAmp(0.3)_stepAmp(0.3)_stepDim(100)_date(231102)_time(10h36m17s).timeres'  # not changed
-        # file = 'Data/231102/nr_6_sineFreq(5)_numFrames(3)_sineAmp(0.3)_stepAmp(0.3)_stepDim(100)_date(231102)_time(10h42m27s).timeres'  # not changed
-        # file = 'Data/231102/nr_6_sineFreq(10)_numFrames(3)_sineAmp(0.3)_stepAmp(0.3)_stepDim(100)_date(231102)_time(10h44m15s).timeres'  # not changed
-        file = 'ToF_terra_10MHz_det2_10.0ms_[2.1, 2.5, -3.2, -4.8]_100x100_231030.timeres'
 
         freq = 1
         bins = 20000
         binsize = int(round((1 / (freq * 1e-12)) / bins))
         eta_counter_swab(recipe, file, binsize=binsize, bins=bins)
-
-        # recipe = 'temp2_signal_counter.eta'
-        # file = 'Data/230927/digit_6_liquid_lens_20mA_steps_5mm_df_sineFreq(10)_numFrames(10)_sineAmp(0.3)_stepAmp(0.3)_stepDim(100)_date(230927)_time(13h15m26s).timeres'  # not changed
-        # eta_counter_qutag(recipe, file)
 
         plt.show()
 
