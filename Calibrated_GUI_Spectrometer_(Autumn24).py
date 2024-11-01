@@ -1273,8 +1273,8 @@ class NewScanGroup:
 
             scantime = self.params['scantime']['var'].get()
             # TODO: Test both
+            #TT.start_tt_neg(scan_time=scantime, scan_name="temp_test", folder_path="Data/")  # this one should be the correct one! Try it first
             #TT.start_tt_pos(scan_time=scantime, scan_name="temp_test", folder_path="Data/")
-            #TT.start_tt_neg(scan_time=scantime, scan_name="temp_test", folder_path="Data/")  # for negative channels
 
         frm_send = ttk.Frame(tab, relief=tk.FLAT, borderwidth=0)
         btn_start = ttk.Button(frm_send, text="Start Scan", command=press_start)
@@ -1513,9 +1513,10 @@ class NewScanGroup:
             try:
                 analyze_btn.config(state='disabled')
                 self.write_log(f"Starting analysis")  # NOTE
-                #self.eta_class.eta_lifetime_analysis()
-                #self.eta_class.new_tof_analysis()
-                # TODO FIXME ABOVE
+
+                scantime = self.params['scantime']['var'].get()
+                self.eta_class.load_all_engines(scantime=scantime)
+                self.eta_class.new_lifetime_analysis()
 
                 analyze_btn.config(state='normal')
 
@@ -1582,17 +1583,12 @@ class LoadScanGroup:
                 start_btn.config(state='disabled')
                 self.write_log(f"Starting analysis")
 
-                #self.eta_class.eta_lifetime_analysis()
-                #self.eta_class.new_tof_analysis()
-                #self.eta_class.new_correlation_analysis()
-
                 start_btn.config(state='normal')
 
                 scantime = self.params['scantime']['var'].get()
                 self.eta_class.load_all_engines(scantime=scantime)
-                self.eta_class.new_tof_analysis()
+                self.eta_class.new_lifetime_analysis()
 
-                # gui.add_plot_tabs(parent_class=self, parent_name='Load')
                 for tab_nm in gui.tabs['Load']['children'].keys():
                     try:
                         gui.add_new_plot_tab(parent_class=self, parent_name='Load', tab_name=tab_nm, init=True)
@@ -1613,7 +1609,7 @@ class LoadScanGroup:
 
             frm_misc.children[list(frm_misc.children.keys())[-1]].destroy()
 
-        frm_misc = ttk.Frame(tab, borderwidth=3, relief=tk.FLAT) #
+        frm_misc = ttk.Frame(tab, borderwidth=3, relief=tk.FLAT)
         frm_misc.grid(row=1, column=0, rowspan=15)
 
         # shows which file we have analysed:
@@ -1658,6 +1654,7 @@ class LoadScanGroup:
     def write_log(self, msg, **kwargs):  # Note: we removed log from load scan tab, so we print instead
         print(msg)
 
+
 # -------------
 
 # TODO:
@@ -1666,7 +1663,6 @@ ch6_nm = 729.1
 ch7_nm = 730.0
 
 try:
-
     #sq = WebSQController(domain='http://130.237.35.62/')
     gui = GUI()
     newScanClass = NewScanGroup()
