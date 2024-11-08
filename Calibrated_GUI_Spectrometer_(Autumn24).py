@@ -1170,20 +1170,37 @@ class Calibration:
 
             offset = 0
 
+            row = offset
+            col = 0
+
+            butt = ttk.Button(ch_frame, text=f'{1}', command=lambda ch=1: self.select_channel(ch), width=2)
+            butt.config()
+
+            self.calibration_channel_buttons = {}
             for ch in self.livecounts_class.ch_numbers:
                 self.wavelengths[ch] = tk.DoubleVar(value=ch)
-                if ch < 13:
-                    row = offset
-                    col = ch%(self.nr_chs.get()//2  +1)
-                else:
-                    row = offset + 2
-                    col = ch%(self.nr_chs.get()//2 +1) +1
-                ttk.Label(ch_frame, text=f'{ch}', font="Helvetica 10 normal").grid(row=row, column=col, columnspan=1, sticky='sw', padx=5, pady=1)
-                ttk.Entry(ch_frame, textvariable=self.wavelengths[ch], width=5).grid(row=row+1, column=col, columnspan=1, sticky='nw', padx=5, pady=1)
+
+                self.calibration_channel_buttons[ch] = ttk.Button(ch_frame, text=f'{ch}', command=lambda ch=ch: self.select_channel(ch), width=2)
+                self.calibration_channel_buttons[ch].grid(row=row, column=col, columnspan=1, sticky='esw', padx=5, pady=1)
+                #ttk.Label(ch_frame, text=f'{ch}', font="Helvetica 10 normal").grid(row=row, column=col, columnspan=1, sticky='sw', padx=5, pady=1)
+                ttk.Entry(ch_frame, textvariable=self.wavelengths[ch], width=5).grid(row=row+1, column=col, columnspan=1, sticky='new', padx=5, pady=1)
+
+                col += 1
+                if ch % 12 == 0:    # each driver has 12 channels, if we hit mod(12) then we want a new row after for next loop iteration
+                    ttk.Label(ch_frame, text=f'').grid(row=row+2, column=0, sticky='sw', padx=5, pady=1)
+                    row += 3        # we hop multiple rows to leave space for labels/buttons
+                    col = 0
 
         except:
             print("Error: Could not connect to WebSQ!")
             raise
+
+    def select_channel(self, ch):
+        print("event on ch", ch)
+        self.calibration_channel_buttons[ch].config()
+
+
+        pass
 
 # NewScanGroup --> Approx 400 lines
 class NewScanGroup:
@@ -1428,17 +1445,6 @@ class NewScanGroup:
             grating_widget_dict['blz_txt'].append(ttk.Label(frm['grating'], text=f"  {self.grating_lvl[c + 1]['blz']}"))
             grating_widget_dict['wid_txt'].append(ttk.Label(frm['grating'], text=f"  {self.grating_lvl[c + 1]['width']}"))
 
-        #  -- Detector:
-        center_parts = [ttk.Label(frm['detect'], text="Center λ (nm)"), ttk.Entry(frm['detect'], textvariable=self.params['nm']['var'], width=4)]
-
-        wid_parts = [ttk.Label(frm['detect'], text="Pixel width (nm)"), ttk.Entry(frm['detect'], textvariable=self.params['width_nm']['var'], width=4)]
-
-        self.params['nr_pixels']['var'].set(24)
-        det_no_parts = [ttk.Label(frm['detect'], text="Nr. of pixels"),
-                        ttk.Radiobutton(frm['detect'], text="12", value=12, variable=self.params['nr_pixels']['var']),
-                        ttk.Radiobutton(frm['detect'], text="24", value=24, variable=self.params['nr_pixels']['var']),
-                        ]
-
         #  -- Port:
         get_ports()
         port_parts = { 'refresh'        : ttk.Button(frm['port'], text="Refresh", command=refresh_ports),
@@ -1456,9 +1462,7 @@ class NewScanGroup:
         port_parts['refresh'].grid(row=0, column=0, sticky='ew')
         port_parts['option'].grid(row=1, column=0, columnspan=2, sticky='ew')
         port_parts['connect'].grid(row=2, column=0, sticky='ew')
-        #port_parts['disconnect'].grid(row=2, column=1, sticky='ew')
         port_parts['label'].grid(row=3, column=0, columnspan=2,  sticky='ew')
-        #gui.add_to_grid(widg=list(port_parts.values()), rows=[0, 1, 2], cols=[0, 0, 0], sticky=["", "", ""])
 
         # -- Slit
         gui.add_to_grid(widg=slt_parts, rows=[0, 1], cols=[0, 0], sticky=["sew", "new"])
@@ -1472,11 +1476,6 @@ class NewScanGroup:
 
         # -- Detector
         gui.add_to_grid(widg=[ttk.Label(frm['detect'], text="Detector")], rows=[0], cols=[0], sticky=["ew"])  # , columnspan=[2])
-
-        gui.add_to_grid(widg=det_no_parts,  rows=[1, 2, 2, 2], cols=[0, 0, 1, 2], sticky=["ew", "ew", "ew", "ew"])  # nr of pixels
-        gui.add_to_grid(widg=center_parts,  rows=[3, 4], cols=[0, 0], sticky=["ew", "ew"])  # center wavelength
-        gui.add_to_grid(widg=wid_parts,     rows=[3, 4], cols=[1, 1], sticky=["ew", "ew"])
-
 
         # ------------- GRID FRAMES --------------
         # labels for each part:
@@ -1631,23 +1630,12 @@ class LoadScanGroup:
         # FRAMES
         frm_configs = ttk.Frame(tab, relief=tk.FLAT)#, borderwidth=1)
 
-        #  -- Detector:
-        center_parts = [ttk.Label(frm_configs, text="Center λ (nm)"),
-                        ttk.Entry(frm_configs, textvariable=self.params['nm']['var'], width=4)]
-
-        wid_parts = [ttk.Label(frm_configs, text="Pixel width (nm)"),
-                     ttk.Entry(frm_configs, textvariable=self.params['width_nm']['var'], width=4)]
-
-        time_parts = [ttk.Label(frm_configs, text="Scan time (s)"),  # TODO USE!!! (only used in analysis now)
-                     ttk.Entry(frm_configs, textvariable=self.params['scantime']['var'], width=4)]
-
-        self.params['nr_pixels']['var'].set(4)
+        time_parts = [
+            ttk.Label(frm_configs, text="Scan time (s)"),  # TODO USE!!! (only used in analysis now)
+            ttk.Entry(frm_configs, textvariable=self.params['scantime']['var'], width=4)]
 
         # -- Detector
         gui.add_to_grid(widg=time_parts, rows=[1, 2], cols=[1, 1], sticky=["ew", "ew"])
-        gui.add_to_grid(widg=center_parts, rows=[1, 2], cols=[2, 2], sticky=["ew", "ew"])  # center wavelength
-        gui.add_to_grid(widg=wid_parts, rows=[1, 2], cols=[3, 3], sticky=["ew", "ew"])
-        #gui.add_to_grid(widg=det_no_parts, rows=[1, 2, 3, 4], cols=[0, 0, 0, 0], sticky=["ew", "ew", "ew", "ew"])  # nr of pixels
 
         return frm_configs
 
