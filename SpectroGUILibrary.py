@@ -2,7 +2,7 @@
 # None
 # >> TT() Imports:
 import time
-#import TimeTagger
+import TimeTagger
 import os
 import Code.Analysis.signal_counter as signal_counter
 
